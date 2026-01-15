@@ -19,7 +19,7 @@ export default async function AdminPage() {
     .single()
 
   if (!profile || profile.role !== 'admin') {
-    redirect('/dashboard')
+    redirect('/')
   }
 
   const { data: games } = await supabase

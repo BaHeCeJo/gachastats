@@ -4,21 +4,48 @@ import { createClient } from '@/lib/supabase/server'
 import { CHARACTER_FIELDS } from '@/lib/constants/characterFields'
 import { redirect } from 'next/navigation'
 
+function sanitizeFileName(s: string) {
+  return s.replace(/[^\w\-\.]/g, '-').toLowerCase()
+}
+
 export async function updateGameAction(
   gameId: string,
+  slug: string,
   formData: FormData
 ) {
   const supabase = await createClient()
 
   const name = formData.get('name')?.toString()
   const description = formData.get('description')?.toString()
+  const file = formData.get('cover') as File | null
 
-  await supabase
+  let coverPath: string | undefined
+
+  if (file && file.size > 0) {
+    const ext = (file.name.split('.').pop() || 'png').toLowerCase()
+    const filename = sanitizeFileName(slug)
+    coverPath = `covers/${filename}.${ext}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('games')
+      .upload(coverPath, file, { upsert: true })
+
+    if (uploadError) {
+      throw uploadError
+    }
+  }
+
+  const updatePayload: Record<string, any> = { name, description }
+  if (coverPath) updatePayload.cover_url = coverPath
+
+  const { error } = await supabase
     .from('games')
-    .update({ name, description })
+    .update(updatePayload)
     .eq('id', gameId)
 
-  redirect(`/admin`)
+  if (error) throw error
+
+  redirect(`/admin/${slug}`)
 }
 
 export async function updateGameFieldsAction(
@@ -33,15 +60,17 @@ export async function updateGameFieldsAction(
     const required = formData.get(`required_${key}`) === 'on'
 
     if (!enabled) {
-      await supabase
+      const { error } = await supabase
         .from('game_character_fields')
         .delete()
         .eq('game_id', gameId)
         .eq('field_key', key)
+
+      if (error) throw error
       continue
     }
 
-    await supabase
+    const { error } = await supabase
       .from('game_character_fields')
       .upsert(
         {
@@ -51,8 +80,12 @@ export async function updateGameFieldsAction(
           required,
           enabled: true,
         },
-        { onConflict: 'game_id,field_key' }
+        {
+          onConflict: 'game_id,field_key',
+        }
       )
+
+    if (error) throw error
   }
 
   redirect(`/admin`)
