@@ -1,4 +1,3 @@
-import Image from "next/image"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 
@@ -16,8 +15,6 @@ export default async function Home() {
 
   return (
     <div className="flex flex-col min-h-screen bg-zinc-50 dark:bg-black font-sans">
-
-      {/* Main content */}
       <main className="flex-1 px-8 py-24">
         <h1 className="text-4xl font-bold text-center mb-12 text-black dark:text-zinc-50">
           Games
@@ -25,10 +22,10 @@ export default async function Home() {
 
         <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
           {games?.map((game) => {
-            const imageUrl = game.cover_image
+            const coverUrl = game.cover_url
               ? supabase.storage
                   .from("games")
-                  .getPublicUrl(game.cover_image).data.publicUrl
+                  .getPublicUrl(game.cover_url).data.publicUrl
               : null
 
             return (
@@ -37,9 +34,9 @@ export default async function Home() {
                 className="border rounded-lg bg-white dark:bg-zinc-900 overflow-hidden shadow-sm hover:shadow-md transition"
               >
                 <Link href={`/${game.slug}`} className="block">
-                  {imageUrl && (
+                  {coverUrl && (
                     <img
-                      src={imageUrl}
+                      src={coverUrl}
                       alt={game.name}
                       className="w-full h-40 object-cover"
                     />
@@ -63,7 +60,6 @@ export default async function Home() {
         )}
       </main>
 
-      {/* Footer */}
       <footer className="w-full text-center py-6 bg-white dark:bg-black border-t border-zinc-200 dark:border-zinc-800">
         <p className="text-zinc-600 dark:text-zinc-400">
           &copy; {new Date().getFullYear()} My Homepage. All rights reserved.

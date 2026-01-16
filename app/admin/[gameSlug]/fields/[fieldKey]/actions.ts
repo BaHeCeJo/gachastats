@@ -3,58 +3,97 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
-function sanitizeFileName(s: string) {
-  return s.replace(/[^\w\-\.]/g, '-').toLowerCase()
+function sanitize(s: string) {
+  return s.replace(/[^\w-]/g, '-').toLowerCase()
 }
+
+/* CREATE */
 
 export async function createFieldOptionAction(
   gameId: string,
+  gameSlug: string,
   fieldKey: string,
-  formData: FormData,
-  gameSlug: string
+  formData: FormData
 ) {
   const supabase = await createClient()
 
   const label = formData.get('label')?.toString()
-  const valueKey = formData.get('value_key')?.toString() ?? label
+  if (!label) throw new Error('Label is required')
+
+  const valueKey =
+    formData.get('value_key')?.toString() || sanitize(label)
+
   const color = formData.get('color')?.toString()
   const file = formData.get('icon') as File | null
 
-  if (!label) {
-    throw new Error('Label is required')
-  }
-
-  let iconPath: string | undefined
+  let iconPath: string | null = null
 
   if (file && file.size > 0) {
-    const ext = (file.name.split('.').pop() || 'png').toLowerCase()
-    const sanitized = sanitizeFileName(valueKey || label)
-    iconPath = `field-icons/${gameId}/${fieldKey}/${sanitized}.${ext}`
+    const ext = file.name.split('.').pop() || 'webp'
+    iconPath = `${gameSlug}/${fieldKey}/${valueKey}.${ext}`
 
-    const { error: uploadError } = await supabase.storage
+    await supabase.storage
       .from('field-icons')
       .upload(iconPath, file, { upsert: true })
-
-    if (uploadError) {
-      throw uploadError
-    }
   }
 
-  const { error } = await supabase
-    .from('game_field_options')
-    .insert({
-      game_id: gameId,
-      field_key: fieldKey,
-      value_key: valueKey,
-      display_name: label,
-      color,
-      icon_path: iconPath,
-    })
-
-  if (error) throw error
+  await supabase.from('game_field_options').insert({
+    game_id: gameId,
+    field_key: fieldKey,
+    value_key: valueKey,
+    display_name: label,
+    color,
+    icon_url: iconPath,
+  })
 
   redirect(`/admin/${gameSlug}/fields/${fieldKey}`)
 }
+
+/* UPDATE */
+
+export async function updateFieldOptionAction(
+  optionId: string,
+  gameSlug: string,
+  fieldKey: string,
+  formData: FormData
+) {
+  const supabase = await createClient()
+
+  const label = formData.get('label')?.toString()
+  if (!label) throw new Error('Label is required')
+
+  const valueKey =
+    formData.get('value_key')?.toString() || sanitize(label)
+
+  const color = formData.get('color')?.toString()
+  const file = formData.get('icon') as File | null
+
+  let update: Record<string, any> = {
+    value_key: valueKey,
+    display_name: label,
+    color,
+  }
+
+  if (file && file.size > 0) {
+    const ext = file.name.split('.').pop() || 'webp'
+    const iconPath = `${gameSlug}/${fieldKey}/${valueKey}.${ext}`
+
+    await supabase.storage
+      .from('field-icons')
+      .upload(iconPath, file, { upsert: true })
+
+    update.icon_url = iconPath
+  }
+
+  await supabase
+    .from('game_field_options')
+    .update(update)
+    .eq('id', optionId)
+
+  redirect(`/admin/${gameSlug}/fields/${fieldKey}`)
+}
+
+/* DELETE */
 
 export async function deleteFieldOptionAction(
   optionId: string,
@@ -63,23 +102,22 @@ export async function deleteFieldOptionAction(
 ) {
   const supabase = await createClient()
 
-  // Fetch the option so we can remove stored file
-  const { data: option } = await supabase
+  const { data } = await supabase
     .from('game_field_options')
-    .select('icon_path')
+    .select('icon_url')
     .eq('id', optionId)
     .single()
 
-  if (option?.icon_path) {
-    await supabase.storage.from('field-icons').remove([option.icon_path])
+  if (data?.icon_url) {
+    await supabase.storage
+      .from('field-icons')
+      .remove([data.icon_url])
   }
 
-  const { error } = await supabase
+  await supabase
     .from('game_field_options')
     .delete()
     .eq('id', optionId)
-
-  if (error) throw error
 
   redirect(`/admin/${gameSlug}/fields/${fieldKey}`)
 }
