@@ -19,7 +19,7 @@ export default async function AdminPage() {
     .single()
 
   if (!profile || profile.role !== 'admin') {
-    redirect('/dashboard')
+    redirect('/')
   }
 
   const { data: games } = await supabase
@@ -52,10 +52,10 @@ export default async function AdminPage() {
       {/* Game list */}
       <ul className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {games?.map((game) => {
-          const imageUrl = game.cover_image
+          const coverUrl = game.cover_url
             ? supabase.storage
-              .from('games')
-              .getPublicUrl(game.cover_image).data.publicUrl
+                .from('games')
+                .getPublicUrl(game.cover_url).data.publicUrl
             : null
 
           return (
@@ -63,9 +63,9 @@ export default async function AdminPage() {
               key={game.id}
               className="border rounded p-3 flex flex-col gap-2"
             >
-              {imageUrl && (
+              {coverUrl && (
                 <img
-                  src={imageUrl}
+                  src={coverUrl}
                   alt={game.name}
                   className="rounded object-cover h-40"
                 />
@@ -74,19 +74,18 @@ export default async function AdminPage() {
               <strong>{game.name}</strong>
 
               <div className="text-sm">
-                <a href={`/admin/${game.slug}`} className="text-blue-600">
+                <Link href={`/admin/${game.slug}`} className="text-blue-600">
                   Edit
-                </a>{' '}
+                </Link>{' '}
                 |{' '}
-                <a href={`/${game.slug}`} className="text-green-600">
+                <Link href={`/${game.slug}`} className="text-green-600">
                   View
-                </a>
+                </Link>
               </div>
             </li>
           )
         })}
       </ul>
-
     </main>
   )
 }
