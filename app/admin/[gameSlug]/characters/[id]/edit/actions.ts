@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { uploadCharacterImage } from '@/lib/characterImages'
 
 export async function updateCharacterAction(
   characterId: string,
@@ -10,56 +11,87 @@ export async function updateCharacterAction(
 ) {
   const supabase = await createClient()
 
+  // 1️⃣ Update name separately
   const name = formData.get('name')?.toString().trim()
-  if (!name) throw new Error('Name is required')
+  if (!name) throw new Error('Name required')
 
-  // Update base character
-  await supabase
-    .from('characters')
-    .update({ name })
-    .eq('id', characterId)
+  await supabase.from('characters').update({ name }).eq('id', characterId)
 
-  // Load enabled fields
+  // 2️⃣ Fetch editable fields only (exclude 'name' and fields not required)
   const { data: fields } = await supabase
     .from('game_character_fields')
     .select('field_key, required')
     .eq('enabled', true)
+    .neq('field_key', 'name') // name handled separately
+    .eq('required', true) // optional: only fields marked required in DB
 
-  // Load valid options
+  // 3️⃣ Fetch existing field values
+  const { data: existingValues } = await supabase
+    .from('character_field_values')
+    .select('field_key, option_id')
+    .eq('character_id', characterId)
+
+  const valueMap = new Map(existingValues?.map(v => [v.field_key, v.option_id]))
+
+  // 4️⃣ Fetch valid options
   const { data: options } = await supabase
     .from('game_field_options')
     .select('id, field_key')
+    .eq('game_id', (await supabase.from('characters').select('game_id').eq('id', characterId).single()).data?.game_id)
 
   const valid = new Map(options?.map(o => [o.id, o.field_key]))
 
-  // Clear previous values
-  await supabase
-    .from('character_field_values')
-    .delete()
-    .eq('character_id', characterId)
+  // 5️⃣ Insert or update only modified fields
+  for (const field of fields ?? []) {
+    const newValue = formData.get(`${field.field_key}_option`)?.toString() || null
+    const oldValue = valueMap.get(field.field_key) || null
 
-  // Reinsert
-  for (const f of fields ?? []) {
-    const value = formData.get(`${f.field_key}_option`)?.toString() || null
+    if (newValue && valid.get(newValue) !== field.field_key) throw new Error(`Invalid option for ${field.field_key}`)
 
-    if (f.required && !value) {
-      throw new Error(`Missing ${f.field_key}`)
-    }
-
-    if (value) {
-      if (valid.get(value) !== f.field_key) {
-        throw new Error(`Invalid value for ${f.field_key}`)
+    // Only update if value changed
+    if (newValue && newValue !== oldValue) {
+      // If old value exists, update instead of inserting duplicate
+      if (oldValue) {
+        await supabase
+          .from('character_field_values')
+          .update({ option_id: newValue })
+          .eq('character_id', characterId)
+          .eq('field_key', field.field_key)
+      } else {
+        await supabase
+          .from('character_field_values')
+          .insert({
+            character_id: characterId,
+            field_key: field.field_key,
+            option_id: newValue,
+          })
       }
-
-      await supabase.from('character_field_values').insert({
-        character_id: characterId,
-        field_key: f.field_key,
-        option_id: value,
-      })
     }
   }
 
-  redirect(`/admin/${gameSlug}/characters/${characterId}/edit`)
+  // 6️⃣ Handle images
+  const profile = formData.get('profile_image') as File | null
+  const splash = formData.get('splashart_image') as File | null
+
+  if (profile?.size) {
+    await uploadCharacterImage({
+      characterId,
+      file: profile,
+      type: 'profile',
+      key: 'default',
+    })
+  }
+
+  if (splash?.size) {
+    await uploadCharacterImage({
+      characterId,
+      file: splash,
+      type: 'splashart',
+      key: 'default',
+    })
+  }
+
+  redirect(`/admin/${gameSlug}/characters`)
 }
 
 export async function deleteCharacterAction(
@@ -68,23 +100,34 @@ export async function deleteCharacterAction(
 ) {
   const supabase = await createClient()
 
-  // Delete images first (storage safety)
+  /** FETCH IMAGE PATHS */
   const { data: images } = await supabase
-    .from('image_assets')
+    .from('character_images')
     .select('image_path')
-    .eq('owner_type', 'character')
-    .eq('owner_id', characterId)
+    .eq('character_id', characterId)
 
+  /** DELETE STORAGE FILES */
   if (images?.length) {
     await supabase.storage
-      .from('game-assets')
+      .from('character_images')
       .remove(images.map(i => i.image_path))
   }
 
-  // DB cleanup
-  await supabase.from('image_assets').delete().eq('owner_id', characterId)
-  await supabase.from('character_field_values').delete().eq('character_id', characterId)
-  await supabase.from('characters').delete().eq('id', characterId)
+  /** DELETE DB ROWS */
+  await supabase
+    .from('character_images')
+    .delete()
+    .eq('character_id', characterId)
+
+  await supabase
+    .from('character_field_values')
+    .delete()
+    .eq('character_id', characterId)
+
+  await supabase
+    .from('characters')
+    .delete()
+    .eq('id', characterId)
 
   redirect(`/admin/${gameSlug}/characters`)
 }
