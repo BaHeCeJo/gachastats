@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
+import Header from "./components/Header"
 
 export default async function Home() {
   const supabase = await createClient()
@@ -15,6 +16,7 @@ export default async function Home() {
 
   return (
     <div className="flex flex-col min-h-screen bg-zinc-50 dark:bg-black font-sans">
+      <Header />
       <main className="flex-1 px-8 py-24">
         <h1 className="text-4xl font-bold text-center mb-12 text-black dark:text-zinc-50">
           Games
