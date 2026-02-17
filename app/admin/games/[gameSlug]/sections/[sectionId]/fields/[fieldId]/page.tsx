@@ -27,6 +27,7 @@ export async function updateFieldAction(
   const key = (formData.get('key') as string)?.trim()
   const required = formData.get('required') === 'on'
   const manual_fill = formData.get('manual_fill') === 'on'
+  const is_multi = formData.get('is_multi') === 'on'
   const has_icon = formData.get('has_icon') === 'on'
   const has_color = formData.get('has_color') === 'on'
   const order_index = Number(formData.get('order_index') || 0)
@@ -44,6 +45,7 @@ export async function updateFieldAction(
       key,
       required,
       manual_fill,
+      is_multi,
       has_icon,
       has_color,
       order_index
@@ -141,6 +143,15 @@ export default async function EditFieldPage({ params }: PageProps) {
               defaultChecked={field.manual_fill}
             />{' '}
             Manual fill
+          </label>
+
+          <label>
+            <input
+              type="checkbox"
+              name="is_multi"
+              defaultChecked={field.is_multi}
+            />{' '}
+            Allow multiple values
           </label>
 
           <label>

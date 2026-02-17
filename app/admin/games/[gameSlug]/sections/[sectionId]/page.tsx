@@ -82,12 +82,35 @@ export default async function EditSectionPage({ params }: PageProps) {
     .eq('section_id', sectionId)
     .order('order_index', { ascending: true })
 
-  // Fetch entities
-  const { data: entities } = await supabase
+  // Fetch entities with their default skin and a single image for the icon
+  const { data: entities, error: entitiesError } = await supabase
     .from('section_entities')
-    .select('*')
+    .select(`
+      *,
+      entity_skins (
+        is_default,
+        entity_images (
+          image_path
+        )
+      )
+    `)
     .eq('section_id', sectionId)
-    .order('created_at', { ascending: true })
+    .eq('entity_skins.is_default', true)
+    .limit(1, { foreignTable: 'entity_skins.entity_images' })
+
+  // Process entities to create public URLs for icons
+  if (entities) {
+    for (const entity of entities) {
+      const iconPath = entity.entity_skins?.[0]?.entity_images?.[0]?.image_path
+      if (iconPath && !iconPath.startsWith('http')) {
+        const { data } = supabase.storage.from('games').getPublicUrl(iconPath)
+        // A bit of a hack to attach the public URL to the entity object
+        ;(entity as any).publicIconUrl = data.publicUrl
+      } else if (iconPath) {
+        ;(entity as any).publicIconUrl = iconPath
+      }
+    }
+  }
 
   return (
     <main className="max-w-4xl p-8 space-y-10">
@@ -190,9 +213,7 @@ export default async function EditSectionPage({ params }: PageProps) {
         {entities && entities.length > 0 ? (
           <div className="space-y-2">
             {entities.map(entity => {
-              const iconUrl = entity.icon_path
-                ? supabase.storage.from('games').getPublicUrl(entity.icon_path).data.publicUrl
-                : null
+              const iconUrl = (entity as any).publicIconUrl;
 
               return (
                 <Link
@@ -200,7 +221,11 @@ export default async function EditSectionPage({ params }: PageProps) {
                   href={`/admin/games/${gameSlug}/sections/${sectionId}/entities/${entity.id}`}
                   className="block border rounded p-4 hover:bg-gray-800 transition flex items-center gap-4"
                 >
-                  {iconUrl && <img src={iconUrl} className="w-12 h-12 object-cover rounded" />}
+                  {iconUrl ? (
+                    <img src={iconUrl} className="w-12 h-12 object-cover rounded" alt={`${entity.name} icon`} />
+                  ) : (
+                    <div className="w-12 h-12 bg-gray-700 rounded flex items-center justify-center text-gray-400">?</div>
+                  )}
                   <span className="font-medium">{entity.name}</span>
                 </Link>
               )
