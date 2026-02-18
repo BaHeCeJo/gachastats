@@ -13,6 +13,8 @@ async function createGame(formData: FormData) {
   const description = (formData.get('description') as string)?.trim() || ''
   const cover = formData.get('cover') as File | null
 
+  console.log('Create Game - cover file:', cover ? { name: cover.name, size: cover.size, type: cover.type } : 'null')
+
   if (!name) throw new Error('Game name is required')
 
   const slug = await generateUniqueSlug(supabase, name)
@@ -28,9 +30,14 @@ async function createGame(formData: FormData) {
     const ext = cover.name.split('.').pop()
     coverPath = `${slug}/cover.${ext}`
 
-    await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('games')
       .upload(coverPath, cover, { upsert: true, contentType: cover.type })
+
+    if (uploadError) {
+      console.error('Upload Error:', uploadError)
+      throw new Error(`Failed to upload cover: ${uploadError.message}`)
+    }
   }
 
   const { error } = await supabase.from('games').insert({

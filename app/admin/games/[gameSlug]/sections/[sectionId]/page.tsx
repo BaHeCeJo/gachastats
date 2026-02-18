@@ -2,11 +2,12 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import ImageInput from '@/app/components/ImageInput'
+import { deleteSectionAction } from '@/app/admin/games/actions'
+import ConfirmButton from '@/app/components/ConfirmButton'
 
 type PageProps = {
   params: Promise<{ gameSlug: string; sectionId: string }>
 }
-
 /* ===========================
    Server Action — Update Section
 =========================== */
@@ -114,9 +115,14 @@ export default async function EditSectionPage({ params }: PageProps) {
 
   return (
     <main className="max-w-4xl p-8 space-y-10">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">Edit Section</h1>
+        <form action={deleteSectionAction.bind(null, sectionId, gameSlug)}>
+          <ConfirmButton>Delete Section</ConfirmButton>
+        </form>
+      </div>
       {/* ================= Section Edit ================= */}
       <section className="space-y-6">
-        <h1 className="text-2xl font-bold">Edit Section</h1>
 
         <form
           action={updateSectionAction.bind(null, gameSlug, sectionId)}
@@ -155,7 +161,10 @@ export default async function EditSectionPage({ params }: PageProps) {
 
           <div>
             <label className="block mb-2 font-medium">Icon</label>
-            <ImageInput name="icon" />
+            <ImageInput 
+              name="icon" 
+              initialUrl={section.icon_path ? supabase.storage.from('games').getPublicUrl(section.icon_path).data.publicUrl : null} 
+            />
           </div>
 
           <button className="bg-blue-600 text-white px-4 py-2 rounded">

@@ -1,6 +1,8 @@
 import SkinManager from "@/app/components/skins/SkinManager";
 import { createClient } from "@/lib/supabase/server";
 import TagInput from "@/app/components/fields/TagInput";
+import { deleteEntityAction } from "@/app/admin/games/actions";
+import ConfirmButton from "@/app/components/ConfirmButton";
 
 type Props = {
   params: Promise<{
@@ -75,7 +77,12 @@ export default async function EntityPage({ params }: Props) {
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold">{entityData.name}</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">{entityData.name}</h1>
+        <form action={deleteEntityAction.bind(null, entityId, gameSlug, sectionId)}>
+          <ConfirmButton>Delete Entity</ConfirmButton>
+        </form>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
         <form
