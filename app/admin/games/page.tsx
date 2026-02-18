@@ -1,6 +1,8 @@
 // /admin/games/page.tsx
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { deleteGameAction } from '@/app/admin/games/actions'
+import ConfirmButton from '@/app/components/ConfirmButton'
 
 export default async function AdminGamesPage() {
   const supabase = await createClient()
@@ -33,21 +35,28 @@ export default async function AdminGamesPage() {
               : null
 
             return (
-              <Link
-                key={game.id}
-                href={`/admin/games/${game.slug}`}
-                prefetch={false}
-                className="border rounded p-4 hover:bg-gray-800 transition-colors flex items-center gap-4"
-              >
-                {coverUrl && (
-                  <img
-                    src={coverUrl}
-                    alt={game.name}
-                    className="w-16 h-16 object-cover rounded"
-                  />
-                )}
-                <span className="font-medium">{game.name}</span>
-              </Link>
+              <div key={game.id} className="border rounded p-4 hover:bg-gray-800 transition-colors flex flex-col gap-4">
+                <Link
+                  href={`/admin/games/${game.slug}`}
+                  prefetch={false}
+                  className="flex items-center gap-4 flex-grow"
+                >
+                  {coverUrl && (
+                    <img
+                      src={coverUrl}
+                      alt={game.name}
+                      className="w-16 h-16 object-cover rounded"
+                    />
+                  )}
+                  <span className="font-medium text-lg">{game.name}</span>
+                </Link>
+                
+                <div className="flex justify-end border-t pt-2">
+                  <form action={deleteGameAction.bind(null, game.id)}>
+                    <ConfirmButton>Delete</ConfirmButton>
+                  </form>
+                </div>
+              </div>
             )
           })
         ) : (

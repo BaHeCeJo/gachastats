@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import ImageInput from "../ImageInput";
+import SkinImageInput from "../SkinImageInput";
 import { deleteSkin } from "./actions";
 
 type Props = {
@@ -109,7 +109,7 @@ export default function SkinManager({
                       </form>
                     </div>
                   ) : (
-                    <ImageInput entityId={entityId} skinId={skin.id} gameSlug={gameSlug} sectionId={sectionId} imageType="icon" />
+                    <SkinImageInput entityId={entityId} skinId={skin.id} gameSlug={gameSlug} sectionId={sectionId} imageType="icon" />
                   )}
                 </div>
 

@@ -2,6 +2,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import ImageInput from '@/app/components/ImageInput'
+import { deleteGameAction } from '@/app/admin/games/actions'
+import ConfirmButton from '@/app/components/ConfirmButton'
 
 type PageProps = { params: Promise<{ gameSlug: string }> }
 
@@ -27,9 +29,14 @@ async function updateGame(gameId: string, slug: string, formData: FormData) {
     const ext = cover.name.split('.').pop()
     coverPath = `${slug}/cover.${ext}`
 
-    await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('games')
       .upload(coverPath, cover, { upsert: true, contentType: cover.type })
+
+    if (uploadError) {
+      console.error('Update Upload Error:', uploadError)
+      throw new Error(`Failed to upload cover: ${uploadError.message}`)
+    }
   }
 
   const { error } = await supabase
@@ -64,7 +71,12 @@ export default async function AdminGamePage({ params }: PageProps) {
 
   return (
     <main className="max-w-2xl p-8 space-y-10">
-      <h1 className="text-3xl font-bold">{game.name}</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">{game.name}</h1>
+        <form action={deleteGameAction.bind(null, game.id)}>
+          <ConfirmButton>Delete Game</ConfirmButton>
+        </form>
+      </div>
 
       {/* Game information */}
       <section className="space-y-4">
