@@ -45,7 +45,7 @@ export async function createEntityAction(
     images.push({
       entity_id: entity.id,
       type: 'icon',
-      path
+      image_path: path
     })
   }
 
@@ -62,8 +62,8 @@ export async function createEntityAction(
 
     images.push({
       entity_id: entity.id,
-      type: 'splash',
-      path,
+      type: 'cover',
+      image_path: path,
       order_index: i
     })
   }

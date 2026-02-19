@@ -72,7 +72,7 @@ export default function SkinManager({
       <div className="space-y-4">
         {skins.map((skin) => {
           const icon = skin.entity_images.find((img: any) => img.type === 'icon');
-          const fullArt = skin.entity_images.find((img: any) => img.type === 'full_art');
+          const cover = skin.entity_images.find((img: any) => img.type === 'cover');
 
           return (
             <div key={skin.id} className="p-4 border rounded">
@@ -115,15 +115,15 @@ export default function SkinManager({
 
                 <div className="space-y-2">
                   <h4 className="font-medium text-sm">Full Art</h4>
-                  {fullArt ? (
+                  {cover ? (
                     <div className="relative w-full">
-                      <img src={fullArt.image_path} alt="Full Art" className="w-full h-auto object-contain rounded" />
-                      <form action={deleteImage.bind(null, fullArt.id, fullArt.image_path)}>
+                      <img src={cover.image_path} alt="Full Art" className="w-full h-auto object-contain rounded" />
+                      <form action={deleteImage.bind(null, cover.id, cover.image_path)}>
                         <button className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">X</button>
                       </form>
                     </div>
                   ) : (
-                    <SkinImageInput entityId={entityId} skinId={skin.id} gameSlug={gameSlug} sectionId={sectionId} imageType="full_art" />
+                    <SkinImageInput entityId={entityId} skinId={skin.id} gameSlug={gameSlug} sectionId={sectionId} imageType="cover" />
                   )}
                 </div>
               </div>

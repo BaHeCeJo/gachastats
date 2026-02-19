@@ -8,7 +8,7 @@ type Props = {
   skinId: string;
   gameSlug: string;
   sectionId: string;
-  imageType: "icon" | "full_art";
+  imageType: "icon" | "cover";
   existingImageUrl?: string | null;
 };
 
