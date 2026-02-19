@@ -81,6 +81,24 @@ export default async function EditSectionPage({ params }: PageProps) {
     .eq('section_id', sectionId)
     .order('order_index', { ascending: true })
 
+  // Group fields by category and sort them
+  const groupedFields: Record<string, typeof fields> = {}
+  if (fields) {
+    fields.forEach(field => {
+      const cat = field.category || 'General'
+      if (!groupedFields[cat]) groupedFields[cat] = []
+      groupedFields[cat]!.push(field)
+    })
+  }
+
+  // Sort categories by the minimum order_index of their fields
+  const sortedCategories = Object.keys(groupedFields).sort((a, b) => {
+    const minA = Math.min(...groupedFields[a]!.map(f => f.order_index || 0))
+    const minB = Math.min(...groupedFields[b]!.map(f => f.order_index || 0))
+    if (minA !== minB) return minA - minB
+    return a.localeCompare(b)
+  })
+
   // Fetch entities with their default skin and a single image for the icon
   const { data: entities, error: entitiesError } = await supabase
     .from('section_entities')
@@ -171,26 +189,35 @@ export default async function EditSectionPage({ params }: PageProps) {
           <h2 className="text-xl font-semibold">Fields</h2>
 
           <Link
-            href={`/admin/games/${gameSlug}/sections/${sectionId}/fields`}
+            href={`/admin/games/${gameSlug}/sections/${sectionId}/fields/new`}
             className="bg-indigo-600 text-white px-4 py-2 rounded"
           >
-            Manage Fields
+            Add Field
           </Link>
         </div>
 
-        {fields && fields.length > 0 ? (
-          <div className="space-y-2">
-            {fields.map(field => (
-              <Link
-                key={field.id}
-                href={`/admin/games/${gameSlug}/sections/${sectionId}/fields/${field.id}`}
-                className="block border rounded p-4 hover:bg-gray-800 transition"
-              >
-                <div className="flex justify-between">
-                  <span className="font-medium">{field.key}</span>
-                  <span className="text-sm text-gray-400">{field.field_type}</span>
+        {sortedCategories.length > 0 ? (
+          <div className="space-y-6">
+            {sortedCategories.map(category => (
+              <div key={category} className="space-y-2">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500 border-b border-gray-800 pb-1">
+                  {category}
+                </h3>
+                <div className="space-y-2">
+                  {groupedFields[category]!.map(field => (
+                    <Link
+                      key={field.id}
+                      href={`/admin/games/${gameSlug}/sections/${sectionId}/fields/${field.id}`}
+                      className="block border rounded p-4 hover:bg-gray-800 transition"
+                    >
+                      <div className="flex justify-between">
+                        <span className="font-medium">{field.key}</span>
+                        <span className="text-sm text-gray-400">{field.field_type}</span>
+                      </div>
+                    </Link>
+                  ))}
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
         ) : (

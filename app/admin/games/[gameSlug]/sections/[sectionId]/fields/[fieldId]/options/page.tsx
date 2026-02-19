@@ -23,7 +23,7 @@ export default async function FieldOptionsPage({ params }: PageProps) {
     .single()
 
   if (!field || field.manual_fill) {
-    redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields`)
+    redirect(`/admin/games/${gameSlug}/sections/${sectionId}`)
   }
 
   const { data: options } = await supabase
