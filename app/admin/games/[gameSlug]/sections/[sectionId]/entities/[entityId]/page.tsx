@@ -63,7 +63,7 @@ export default async function EntityPage({ params }: Props) {
       field_options (
         id,
         field_id,
-        display_name,
+        value_key,
         order_index
       )
     `
@@ -145,7 +145,7 @@ export default async function EntityPage({ params }: Props) {
             return (
               <div key={field.id} className="space-y-2">
                 <label className="block font-medium">
-                  {field.display_name}
+                  {field.key}
                 </label>
 
                 {/* Manual single */}
@@ -178,7 +178,7 @@ export default async function EntityPage({ params }: Props) {
                       )
                       .map((opt: any) => (
                         <option key={opt.id} value={String(opt.id)}>
-                          {opt.display_name}
+                          {opt.value_key}
                         </option>
                       ))}
                   </select>
@@ -205,7 +205,7 @@ export default async function EntityPage({ params }: Props) {
                               currentValue.includes(String(opt.id))
                             }
                           />
-                          {opt.display_name}
+                          {opt.value_key}
                         </label>
                       ))}
                   </div>

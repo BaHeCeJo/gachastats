@@ -14,7 +14,7 @@ export default async function EntitiesPage({ params }: PageProps) {
 
   const { data: section } = await supabase
     .from('game_sections')
-    .select('id, display_name')
+    .select('id, key')
     .eq('id', sectionId)
     .single()
 
@@ -38,7 +38,7 @@ export default async function EntitiesPage({ params }: PageProps) {
     <main className="p-8 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">
-          {section.display_name} — Entities
+          {section.key} — Entities
         </h1>
 
         <Link

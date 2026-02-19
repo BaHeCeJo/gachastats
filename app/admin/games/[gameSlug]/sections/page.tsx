@@ -64,12 +64,12 @@ export default async function SectionsPage({ params }: PageProps) {
                 {iconUrl && (
                   <img
                     src={iconUrl}
-                    alt={section.display_name}
+                    alt={section.key}
                     className="w-12 h-12 object-cover rounded"
                   />
                 )}
                 <span className="font-medium">
-                  {section.display_name}
+                  {section.key}
                 </span>
               </Link>
             )

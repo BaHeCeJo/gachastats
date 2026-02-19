@@ -17,7 +17,6 @@ export async function createFieldAction(
 
   const supabase = await createClient()
 
-  const display_name = (formData.get('display_name') as string)?.trim()
   const key = (formData.get('key') as string)?.trim()
   const order_index = Number(formData.get('order_index') || 0)
 
@@ -27,14 +26,13 @@ export async function createFieldAction(
   const has_icon = formData.get('has_icon') === 'on'
   const has_color = formData.get('has_color') === 'on'
 
-  if (!display_name || !key) {
+  if (!key) {
     throw new Error('Missing required fields')
   }
 
   const { error } = await supabase.from('section_fields').insert({
     section_id: sectionId,
     key,
-    display_name,
     required,
     manual_fill,
     is_multi,
@@ -59,7 +57,7 @@ export default async function NewFieldPage({ params }: PageProps) {
 
   const { data: section } = await supabase
     .from('game_sections')
-    .select('id, display_name')
+    .select('id, key')
     .eq('id', sectionId)
     .single()
 
@@ -70,7 +68,7 @@ export default async function NewFieldPage({ params }: PageProps) {
   return (
     <main className="max-w-xl p-8 space-y-6">
       <h1 className="text-2xl font-bold">
-        {section.display_name} — Add Field
+        {section.key} — Add Field
       </h1>
 
       <form
@@ -78,15 +76,8 @@ export default async function NewFieldPage({ params }: PageProps) {
         className="space-y-4"
       >
         <input
-          name="display_name"
-          placeholder="Display name (Element, Tags, Class)"
-          className="border p-2 w-full"
-          required
-        />
-
-        <input
           name="key"
-          placeholder="Unique key (element, tags, class)"
+          placeholder="Display name (Element, Tags, Class)"
           className="border p-2 w-full"
           required
         />

@@ -8,14 +8,13 @@ The application is designed to be a flexible platform for an **Admin** to build 
 
 ### 1.1. Game & Section Management
 -   **Games:** The top-level container for all information (e.g., "Zenless Zone Zero").
--   **Sections:** For each game, an admin can create custom categories of items (e.g., `Characters`, `Weapons`, `Echoes`). Each section can have a unique display name, key, color, and icon.
+-   **Sections:** For each game, an admin can create custom categories of items (e.g., `Characters`, `Weapons`, `Echoes`). Each section can have a unique key, color, and icon.
 
 ### 1.2. Customizable Fields
 For each **Section**, an admin can define the specific data fields that describe the items within it. This is the core of the application's flexibility.
 
 **Field Properties:**
--   `display_name`: The label shown on the edit page (e.g., "Element Type").
--   `key`: A unique identifier for the field.
+-   `key`: A unique identifier for the field (also used as the label).
 -   `required`: Whether the field must have a value.
 -   `order_index`: A number to control the display order of fields.
 -   `manual_fill`: A boolean that determines the input method.

@@ -35,12 +35,12 @@ export async function generateBreadcrumbs(params: Params): Promise<Crumb[]> {
     // 2. Fetch Section
     const { data: section } = await supabase
       .from('game_sections')
-      .select('display_name')
+      .select('key')
       .eq('id', params.sectionId)
       .single();
 
     if (section) {
-      crumbs.push({ href: `/admin/games/${params.gameSlug}/sections/${params.sectionId}`, label: section.display_name });
+      crumbs.push({ href: `/admin/games/${params.gameSlug}/sections/${params.sectionId}`, label: section.key });
     }
 
     if (params.entityId) {
@@ -49,7 +49,7 @@ export async function generateBreadcrumbs(params: Params): Promise<Crumb[]> {
       // 3. Fetch Entity
       const { data: entity } = await supabase
         .from('section_entities')
-        .select('name')
+        .select('id, name')
         .eq('id', params.entityId)
         .single();
       
@@ -62,12 +62,12 @@ export async function generateBreadcrumbs(params: Params): Promise<Crumb[]> {
       // 4. Fetch Field
       const { data: field } = await supabase
         .from('section_fields')
-        .select('display_name')
+        .select('id, key')
         .eq('id', params.fieldId)
         .single();
 
       if (field) {
-        crumbs.push({ href: `/admin/games/${params.gameSlug}/sections/${params.sectionId}/fields/${field.id}`, label: field.display_name });
+        crumbs.push({ href: `/admin/games/${params.gameSlug}/sections/${params.sectionId}/fields/${field.id}`, label: field.key });
       }
     }
   }

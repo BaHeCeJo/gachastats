@@ -10,7 +10,7 @@ export function slugify(value: string) {
 }
 
 export async function generateUniqueSlug(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   base: string
 ) {
   let slug = slugify(base)
