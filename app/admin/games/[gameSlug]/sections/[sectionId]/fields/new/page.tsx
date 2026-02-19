@@ -18,6 +18,7 @@ export async function createFieldAction(
   const supabase = await createClient()
 
   const key = (formData.get('key') as string)?.trim()
+  const category = (formData.get('category') as string)?.trim() || 'General'
   const order_index = Number(formData.get('order_index') || 0)
 
   const required = formData.get('required') === 'on'
@@ -33,6 +34,7 @@ export async function createFieldAction(
   const { error } = await supabase.from('section_fields').insert({
     section_id: sectionId,
     key,
+    category,
     required,
     manual_fill,
     is_multi,
@@ -45,7 +47,7 @@ export async function createFieldAction(
     throw new Error(error.message)
   }
 
-  redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields`)
+  redirect(`/admin/games/${gameSlug}/sections/${sectionId}`)
 }
 
 /* ===========================
@@ -65,6 +67,14 @@ export default async function NewFieldPage({ params }: PageProps) {
     redirect(`/admin/games/${gameSlug}/sections`)
   }
 
+  // Fetch existing categories for the datalist
+  const { data: existingFields } = await supabase
+    .from('section_fields')
+    .select('category')
+    .eq('section_id', sectionId)
+  
+  const categories = Array.from(new Set(existingFields?.map(f => f.category).filter(Boolean) || []))
+
   return (
     <main className="max-w-xl p-8 space-y-6">
       <h1 className="text-2xl font-bold">
@@ -81,6 +91,21 @@ export default async function NewFieldPage({ params }: PageProps) {
           className="border p-2 w-full"
           required
         />
+
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-gray-400">Category</label>
+          <input
+            name="category"
+            placeholder="Category (e.g. Basic, Combat, Social)"
+            className="border p-2 w-full"
+            list="category-list"
+          />
+          <datalist id="category-list">
+            {categories.map(cat => (
+              <option key={cat} value={cat} />
+            ))}
+          </datalist>
+        </div>
 
         <div className="flex flex-col gap-2">
           <label className="flex items-center gap-2">

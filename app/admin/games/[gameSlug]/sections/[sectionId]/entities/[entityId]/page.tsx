@@ -75,6 +75,22 @@ export default async function EntityPage({ params }: Props) {
     return <div className="p-8">Error loading fields</div>;
   }
 
+  // Group fields by category and sort them
+  const groupedFields: Record<string, typeof fields> = {};
+  fields.forEach((field) => {
+    const cat = field.category || "General";
+    if (!groupedFields[cat]) groupedFields[cat] = [];
+    groupedFields[cat]!.push(field);
+  });
+
+  // Sort categories by the minimum order_index of their fields
+  const sortedCategories = Object.keys(groupedFields).sort((a, b) => {
+    const minA = Math.min(...groupedFields[a]!.map((f) => f.order_index || 0));
+    const minB = Math.min(...groupedFields[b]!.map((f) => f.order_index || 0));
+    if (minA !== minB) return minA - minB;
+    return a.localeCompare(b);
+  });
+
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-6">
       <div className="flex justify-between items-center">
@@ -123,96 +139,105 @@ export default async function EntityPage({ params }: Props) {
           }}
           className="space-y-6"
         >
-          {fields.map((field: any) => {
-            const existingValues = (field.entity_field_values || []).filter(
-              (v: any) => v.entity_id === entityId
-            );
+          {sortedCategories.map((category) => (
+            <div key={category} className="space-y-4">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500 border-b border-gray-800 pb-1">
+                {category}
+              </h3>
+              <div className="space-y-4 ml-2">
+                {groupedFields[category]!.map((field: any) => {
+                  const existingValues = (field.entity_field_values || []).filter(
+                    (v: any) => v.entity_id === entityId
+                  );
 
-            let currentValue: any;
+                  let currentValue: any;
 
-            if (field.manual_fill) {
-              currentValue = field.is_multi
-                ? existingValues.map((v: any) => v.value_text)
-                : existingValues[0]?.value_text ?? "";
-            } else {
-              currentValue = field.is_multi
-                ? existingValues.map((v: any) => String(v.option_id))
-                : existingValues[0]?.option_id
-                ? String(existingValues[0].option_id)
-                : "";
-            }
+                  if (field.manual_fill) {
+                    currentValue = field.is_multi
+                      ? existingValues.map((v: any) => v.value_text)
+                      : existingValues[0]?.value_text ?? "";
+                  } else {
+                    currentValue = field.is_multi
+                      ? existingValues.map((v: any) => String(v.option_id))
+                      : existingValues[0]?.option_id
+                      ? String(existingValues[0].option_id)
+                      : "";
+                  }
 
-            return (
-              <div key={field.id} className="space-y-2">
-                <label className="block font-medium">
-                  {field.key}
-                </label>
+                  return (
+                    <div key={field.id} className="space-y-2">
+                      <label className="block font-medium">
+                        {field.key}
+                      </label>
 
-                {/* Manual single */}
-                {field.manual_fill && !field.is_multi && (
-                  <input
-                    name={`field_${field.id}`}
-                    defaultValue={currentValue}
-                    className="border p-2 w-full rounded"
-                  />
-                )}
+                      {/* Manual single */}
+                      {field.manual_fill && !field.is_multi && (
+                        <input
+                          name={`field_${field.id}`}
+                          defaultValue={currentValue}
+                          className="border p-2 w-full rounded"
+                        />
+                      )}
 
-                              {/* Manual multi (Tag Input) */}
-                              {field.manual_fill && field.is_multi && (
-                                <TagInput
-                                  name={`field_${field.id}`}
-                                  initialValues={currentValue}
-                                />
-                              )}
-                {/* Select single */}
-                {!field.manual_fill && !field.is_multi && (
-                  <select
-                    name={`field_${field.id}`}
-                    defaultValue={currentValue}
-                    className="border p-2 w-full rounded"
-                  >
-                    <option value="">Select...</option>
-                    {field.field_options
-                      ?.sort(
-                        (a: any, b: any) => a.order_index - b.order_index
-                      )
-                      .map((opt: any) => (
-                        <option key={opt.id} value={String(opt.id)}>
-                          {opt.value_key}
-                        </option>
-                      ))}
-                  </select>
-                )}
-
-                {/* Select multi */}
-                {!field.manual_fill && field.is_multi && (
-                  <div className="space-y-2">
-                    {field.field_options
-                      ?.sort(
-                        (a: any, b: any) => a.order_index - b.order_index
-                      )
-                      .map((opt: any) => (
-                        <label
-                          key={opt.id}
-                          className="flex items-center gap-2"
+                                    {/* Manual multi (Tag Input) */}
+                                    {field.manual_fill && field.is_multi && (
+                                      <TagInput
+                                        name={`field_${field.id}`}
+                                        initialValues={currentValue}
+                                      />
+                                    )}
+                      {/* Select single */}
+                      {!field.manual_fill && !field.is_multi && (
+                        <select
+                          name={`field_${field.id}`}
+                          defaultValue={currentValue}
+                          className="border p-2 w-full rounded"
                         >
-                          <input
-                            type="checkbox"
-                            name={`field_${field.id}`}
-                            value={String(opt.id)}
-                            defaultChecked={
-                              Array.isArray(currentValue) &&
-                              currentValue.includes(String(opt.id))
-                            }
-                          />
-                          {opt.value_key}
-                        </label>
-                      ))}
-                  </div>
-                )}
+                          <option value="">Select...</option>
+                          {field.field_options
+                            ?.sort(
+                              (a: any, b: any) => a.order_index - b.order_index
+                            )
+                            .map((opt: any) => (
+                              <option key={opt.id} value={String(opt.id)}>
+                                {opt.value_key}
+                              </option>
+                            ))}
+                        </select>
+                      )}
+
+                      {/* Select multi */}
+                      {!field.manual_fill && field.is_multi && (
+                        <div className="space-y-2">
+                          {field.field_options
+                            ?.sort(
+                              (a: any, b: any) => a.order_index - b.order_index
+                            )
+                            .map((opt: any) => (
+                              <label
+                                key={opt.id}
+                                className="flex items-center gap-2"
+                              >
+                                <input
+                                  type="checkbox"
+                                  name={`field_${field.id}`}
+                                  value={String(opt.id)}
+                                  defaultChecked={
+                                    Array.isArray(currentValue) &&
+                                    currentValue.includes(String(opt.id))
+                                  }
+                                />
+                                {opt.value_key}
+                              </label>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
+            </div>
+          ))}
           <button
             type="submit"
             className="bg-indigo-600 text-white px-4 py-2 rounded"

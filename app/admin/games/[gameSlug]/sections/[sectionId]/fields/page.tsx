@@ -19,6 +19,7 @@ export async function createFieldAction(
   const supabase = await createClient()
 
   const key = (formData.get('key') as string)?.trim()
+  const category = (formData.get('category') as string)?.trim() || 'General'
   const field_type = formData.get('field_type') as string
   const required = formData.get('required') === 'on'
   const manual_fill = formData.get('manual_fill') === 'on'
@@ -33,6 +34,7 @@ export async function createFieldAction(
   const { error } = await supabase.from('section_fields').insert({
     section_id: sectionId,
     key,
+    category,
     field_type,
     required,
     manual_fill,
@@ -67,6 +69,24 @@ export default async function FieldsPage({ params }: PageProps) {
     .eq('section_id', sectionId)
     .order('order_index', { ascending: true })
 
+  // Group fields by category and sort them
+  const groupedFields: Record<string, typeof fields> = {}
+  if (fields) {
+    fields.forEach(field => {
+      const cat = field.category || 'General'
+      if (!groupedFields[cat]) groupedFields[cat] = []
+      groupedFields[cat]!.push(field)
+    })
+  }
+
+  // Sort categories by the minimum order_index of their fields
+  const sortedCategories = Object.keys(groupedFields).sort((a, b) => {
+    const minA = Math.min(...groupedFields[a]!.map(f => f.order_index || 0))
+    const minB = Math.min(...groupedFields[b]!.map(f => f.order_index || 0))
+    if (minA !== minB) return minA - minB
+    return a.localeCompare(b)
+  })
+
   return (
     <main className="max-w-3xl p-8 space-y-6">
       <div className="flex justify-between items-center">
@@ -82,29 +102,38 @@ export default async function FieldsPage({ params }: PageProps) {
         </Link>
       </div>
 
-      {fields?.length ? (
-        <ul className="space-y-2">
-          {fields.map(f => (
-            <li
-              key={f.id}
-              className="border p-3 rounded flex justify-between items-center"
-            >
-              <span>
-                {f.key}{' '}
-                <span className="text-sm text-gray-400">
-                  ({f.field_type})
-                </span>
-              </span>
+      {sortedCategories.length ? (
+        <div className="space-y-8">
+          {sortedCategories.map(category => (
+            <div key={category} className="space-y-3">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500 border-b border-gray-800 pb-1">
+                {category}
+              </h2>
+              <ul className="space-y-2">
+                {groupedFields[category]!.map(f => (
+                  <li
+                    key={f.id}
+                    className="border p-3 rounded flex justify-between items-center bg-gray-900/50"
+                  >
+                    <span>
+                      {f.key}{' '}
+                      <span className="text-sm text-gray-400">
+                        ({f.field_type})
+                      </span>
+                    </span>
 
-              <Link
-                href={`/admin/games/${gameSlug}/sections/${sectionId}/fields/${f.id}`}
-                className="text-indigo-600"
-              >
-                Edit
-              </Link>
-            </li>
+                    <Link
+                      href={`/admin/games/${gameSlug}/sections/${sectionId}/fields/${f.id}`}
+                      className="text-indigo-600 font-medium"
+                    >
+                      Edit
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
       ) : (
         <p className="text-gray-400">No fields yet.</p>
       )}

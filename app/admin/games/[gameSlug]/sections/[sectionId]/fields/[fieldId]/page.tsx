@@ -24,6 +24,7 @@ export async function updateFieldAction(
   const supabase = await createClient()
 
   const key = (formData.get('key') as string)?.trim()
+  const category = (formData.get('category') as string)?.trim() || 'General'
   const required = formData.get('required') === 'on'
   const manual_fill = formData.get('manual_fill') === 'on'
   const is_multi = formData.get('is_multi') === 'on'
@@ -41,6 +42,7 @@ export async function updateFieldAction(
     .from('section_fields')
     .update({
       key,
+      category,
       required,
       manual_fill,
       is_multi,
@@ -78,7 +80,7 @@ export async function updateFieldAction(
       )
   }
 
-  redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields`)
+  redirect(`/admin/games/${gameSlug}/sections/${sectionId}`)
 }
 
 /* ===========================
@@ -95,8 +97,16 @@ export default async function EditFieldPage({ params }: PageProps) {
     .single()
 
   if (!field) {
-    redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields`)
+    redirect(`/admin/games/${gameSlug}/sections/${sectionId}`)
   }
+
+  // Fetch existing categories for the datalist
+  const { data: existingFields } = await supabase
+    .from('section_fields')
+    .select('category')
+    .eq('section_id', sectionId)
+  
+  const categories = Array.from(new Set(existingFields?.map(f => f.category).filter(Boolean) || []))
 
   /* ---------- Options eligibility ---------- */
   const canHaveOptions = !field.manual_fill
@@ -117,6 +127,22 @@ export default async function EditFieldPage({ params }: PageProps) {
           className="border p-2 w-full"
           required
         />
+
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-gray-400">Category</label>
+          <input
+            name="category"
+            defaultValue={field.category}
+            placeholder="Category (e.g. Basic, Combat, Social)"
+            className="border p-2 w-full"
+            list="category-list"
+          />
+          <datalist id="category-list">
+            {categories.map(cat => (
+              <option key={cat} value={cat} />
+            ))}
+          </datalist>
+        </div>
 
         <div className="flex flex-wrap gap-6">
           <label>
