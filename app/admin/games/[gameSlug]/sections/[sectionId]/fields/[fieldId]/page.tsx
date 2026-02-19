@@ -23,7 +23,6 @@ export async function updateFieldAction(
 
   const supabase = await createClient()
 
-  const display_name = (formData.get('display_name') as string)?.trim()
   const key = (formData.get('key') as string)?.trim()
   const required = formData.get('required') === 'on'
   const manual_fill = formData.get('manual_fill') === 'on'
@@ -34,14 +33,13 @@ export async function updateFieldAction(
 
   const iconFile = formData.get('icon') as File | null
 
-  if (!display_name || !key) {
+  if (!key) {
     throw new Error('Missing required fields')
   }
 
   const { error } = await supabase
     .from('section_fields')
     .update({
-      display_name,
       key,
       required,
       manual_fill,
@@ -113,15 +111,9 @@ export default async function EditFieldPage({ params }: PageProps) {
         className="space-y-4"
       >
         <input
-          name="display_name"
-          defaultValue={field.display_name}
-          className="border p-2 w-full"
-          required
-        />
-
-        <input
           name="key"
           defaultValue={field.key}
+          placeholder="Display name (Element, Tags, Class)"
           className="border p-2 w-full"
           required
         />

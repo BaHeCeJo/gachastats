@@ -15,8 +15,8 @@ export async function signUp(formData: FormData) {
   })
 
   if (error) {
-    return { error: error.message }
+    throw new Error(error.message)
   }
 
-  redirect('/login')
+  redirect('/auth/signin')
 }

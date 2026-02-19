@@ -18,7 +18,7 @@ export default async function FieldOptionsPage({ params }: PageProps) {
 
   const { data: field } = await supabase
     .from('section_fields')
-    .select('id, display_name, manual_fill')
+    .select('id, key, manual_fill')
     .eq('id', fieldId)
     .single()
 
@@ -36,7 +36,7 @@ export default async function FieldOptionsPage({ params }: PageProps) {
     <main className="p-8 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">
-          Options — {field.display_name}
+          Options — {field.key}
         </h1>
 
         <Link
@@ -70,7 +70,7 @@ export default async function FieldOptionsPage({ params }: PageProps) {
                 />
               )}
 
-              <span className="font-medium">{opt.display_name}</span>
+              <span className="font-medium">{opt.value_key}</span>
 
               {opt.color && (
                 <span

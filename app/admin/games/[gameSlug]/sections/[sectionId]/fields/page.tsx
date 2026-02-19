@@ -18,7 +18,6 @@ export async function createFieldAction(
 
   const supabase = await createClient()
 
-  const display_name = (formData.get('display_name') as string)?.trim()
   const key = (formData.get('key') as string)?.trim()
   const field_type = formData.get('field_type') as string
   const required = formData.get('required') === 'on'
@@ -27,14 +26,13 @@ export async function createFieldAction(
   const has_color = formData.get('has_color') === 'on'
   const order_index = Number(formData.get('order_index') || 0)
 
-  if (!display_name || !key || !field_type) {
+  if (!key || !field_type) {
     throw new Error('Missing required fields')
   }
 
   const { error } = await supabase.from('section_fields').insert({
     section_id: sectionId,
     key,
-    display_name,
     field_type,
     required,
     manual_fill,
@@ -57,7 +55,7 @@ export default async function FieldsPage({ params }: PageProps) {
 
   const { data: section } = await supabase
     .from('game_sections')
-    .select('id, display_name')
+    .select('id, key')
     .eq('id', sectionId)
     .single()
 
@@ -73,7 +71,7 @@ export default async function FieldsPage({ params }: PageProps) {
     <main className="max-w-3xl p-8 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">
-          {section.display_name} — Fields
+          {section.key} — Fields
         </h1>
 
         <Link
@@ -92,7 +90,7 @@ export default async function FieldsPage({ params }: PageProps) {
               className="border p-3 rounded flex justify-between items-center"
             >
               <span>
-                {f.display_name}{' '}
+                {f.key}{' '}
                 <span className="text-sm text-gray-400">
                   ({f.field_type})
                 </span>

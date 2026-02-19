@@ -27,13 +27,12 @@ export async function createSectionAction(
     throw new Error('Game not found')
   }
 
-  const display_name = (formData.get('display_name') as string)?.trim()
   const key = (formData.get('key') as string)?.trim()
   const color = (formData.get('color') as string) || '#ffffff'
   const order_index = Number(formData.get('order_index') || 0)
   const icon = formData.get('icon') as File | null
 
-  if (!display_name || !key) {
+  if (!key) {
     throw new Error('Missing required fields')
   }
 
@@ -54,7 +53,6 @@ export async function createSectionAction(
   const { error } = await supabase.from('game_sections').insert({
     game_id: game.id,
     key,
-    display_name,
     color,
     order_index,
     icon_path: iconPath
@@ -101,15 +99,8 @@ export default async function NewSectionPage({ params }: PageProps) {
         encType="multipart/form-data"
       >
         <input
-          name="display_name"
-          placeholder="Display name"
-          className="border p-2 w-full"
-          required
-        />
-
-        <input
           name="key"
-          placeholder="Unique key (characters, weapons...)"
+          placeholder="Display name (characters, weapons...)"
           className="border p-2 w-full"
           required
         />

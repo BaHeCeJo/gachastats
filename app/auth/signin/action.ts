@@ -15,8 +15,8 @@ export async function signIn(formData: FormData) {
   })
 
   if (error) {
-    return { error: error.message }
+    throw new Error(error.message)
   }
 
-  redirect('@/app')
+  redirect('/admin/games')
 }

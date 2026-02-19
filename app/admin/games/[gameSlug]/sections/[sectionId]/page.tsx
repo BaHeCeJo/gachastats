@@ -20,14 +20,13 @@ export async function updateSectionAction(
 
   const supabase = await createClient()
 
-  const display_name = (formData.get('display_name') as string)?.trim()
   const key = (formData.get('key') as string)?.trim()
   const color = (formData.get('color') as string) || '#ffffff'
   const order_index = Number(formData.get('order_index') || 0)
   const icon = formData.get('icon') as File | null
 
-  if (!display_name || !key) {
-    throw new Error('Display name and key are required')
+  if (!key) {
+    throw new Error('Key is required')
   }
 
   let iconPath: string | undefined
@@ -47,7 +46,6 @@ export async function updateSectionAction(
   const { error } = await supabase
     .from('game_sections')
     .update({
-      display_name,
       key,
       color,
       order_index,
@@ -130,15 +128,9 @@ export default async function EditSectionPage({ params }: PageProps) {
           encType="multipart/form-data"
         >
           <input
-            name="display_name"
-            defaultValue={section.display_name}
-            className="border p-2 w-full"
-            required
-          />
-
-          <input
             name="key"
             defaultValue={section.key}
+            placeholder="Display name (characters, weapons...)"
             className="border p-2 w-full"
             required
           />
@@ -195,7 +187,7 @@ export default async function EditSectionPage({ params }: PageProps) {
                 className="block border rounded p-4 hover:bg-gray-800 transition"
               >
                 <div className="flex justify-between">
-                  <span className="font-medium">{field.display_name}</span>
+                  <span className="font-medium">{field.key}</span>
                   <span className="text-sm text-gray-400">{field.field_type}</span>
                 </div>
               </Link>

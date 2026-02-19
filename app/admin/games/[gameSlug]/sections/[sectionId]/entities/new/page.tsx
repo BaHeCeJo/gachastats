@@ -85,7 +85,7 @@ export default async function NewEntityPage({ params }: PageProps) {
 
   const { data: section } = await supabase
     .from('game_sections')
-    .select('display_name')
+    .select('key')
     .eq('id', sectionId)
     .single()
 
@@ -94,7 +94,7 @@ export default async function NewEntityPage({ params }: PageProps) {
   return (
     <main className="max-w-xl p-8 space-y-6">
       <h1 className="text-2xl font-bold">
-        {section.display_name} — Add Entity
+        {section.key} — Add Entity
       </h1>
 
       <form

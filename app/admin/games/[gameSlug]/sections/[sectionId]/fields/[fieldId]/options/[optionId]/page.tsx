@@ -26,11 +26,10 @@ export async function updateOptionAction(
   const supabase = await createClient()
 
   const value_key = (formData.get('value_key') as string)?.trim()
-  const display_name = (formData.get('display_name') as string)?.trim()
   const color = (formData.get('color') as string) || null
   const icon = formData.get('icon') as File | null
 
-  if (!value_key || !display_name) {
+  if (!value_key) {
     throw new Error('Missing required fields')
   }
 
@@ -52,7 +51,6 @@ export async function updateOptionAction(
     .from('field_options')
     .update({
       value_key,
-      display_name,
       color,
       ...(icon_path ? { icon_path } : {})
     })
@@ -119,13 +117,7 @@ export default async function EditOptionPage({ params }: PageProps) {
         <input
           name="value_key"
           defaultValue={option.value_key}
-          className="border p-2 w-full"
-          required
-        />
-
-        <input
-          name="display_name"
-          defaultValue={option.display_name}
+          placeholder="Display name (Fire, Ice...)"
           className="border p-2 w-full"
           required
         />

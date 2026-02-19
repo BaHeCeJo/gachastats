@@ -24,12 +24,11 @@ export async function createFieldOptionAction(
   const supabase = await createClient()
 
   const value_key = (formData.get('value_key') as string)?.trim()
-  const display_name = (formData.get('display_name') as string)?.trim()
   const color = (formData.get('color') as string) || null
   const icon = formData.get('icon') as File | null
 
-  if (!value_key || !display_name) {
-    throw new Error('Key and display name are required')
+  if (!value_key) {
+    throw new Error('Key is required')
   }
 
   let icon_path: string | null = null
@@ -49,7 +48,6 @@ export async function createFieldOptionAction(
   const { error } = await supabase.from('field_options').insert({
     field_id: fieldId,
     value_key,
-    display_name,
     color,
     icon_path
   })
@@ -78,14 +76,7 @@ export default async function NewFieldOptionPage({ params }: PageProps) {
       >
         <input
           name="value_key"
-          placeholder="Key (fire)"
-          required
-          className="border p-2 w-full"
-        />
-
-        <input
-          name="display_name"
-          placeholder="Display name (Fire)"
+          placeholder="Display name (Fire, Ice...)"
           required
           className="border p-2 w-full"
         />

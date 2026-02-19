@@ -123,7 +123,7 @@ export default function SkinManager({
                       </form>
                     </div>
                   ) : (
-                    <ImageInput entityId={entityId} skinId={skin.id} gameSlug={gameSlug} sectionId={sectionId} imageType="full_art" />
+                    <SkinImageInput entityId={entityId} skinId={skin.id} gameSlug={gameSlug} sectionId={sectionId} imageType="full_art" />
                   )}
                 </div>
               </div>
