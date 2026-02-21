@@ -28,7 +28,7 @@ export default async function EntitiesPage({ params }: PageProps) {
       entity_images (
         id,
         type,
-        path
+        image_path
       )
     `)
     .eq('section_id', sectionId)
@@ -58,7 +58,7 @@ export default async function EntitiesPage({ params }: PageProps) {
             const iconUrl = icon
               ? supabase.storage
                   .from('games')
-                  .getPublicUrl(icon.path).data.publicUrl
+                  .getPublicUrl(icon.image_path).data.publicUrl
               : null
 
             return (

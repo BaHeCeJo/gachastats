@@ -29,6 +29,19 @@ export async function createEntityAction(
 
   if (error) throw error
 
+  // Create a default skin
+  const { data: skin, error: skinError } = await supabase
+    .from('entity_skins')
+    .insert({
+      entity_id: entity.id,
+      name: 'Default',
+      is_default: true
+    })
+    .select()
+    .single()
+
+  if (skinError) throw skinError
+
   const images: any[] = []
 
   for (let i = 0; i < iconFiles.length; i++) {
@@ -44,8 +57,9 @@ export async function createEntityAction(
 
     images.push({
       entity_id: entity.id,
+      skin_id: skin.id,
       type: 'icon',
-      path
+      image_path: path
     })
   }
 
@@ -62,8 +76,9 @@ export async function createEntityAction(
 
     images.push({
       entity_id: entity.id,
-      type: 'splash',
-      path,
+      skin_id: skin.id,
+      type: 'splashart',
+      image_path: path,
       order_index: i
     })
   }
