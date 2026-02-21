@@ -39,11 +39,15 @@ export default async function EntityPage({ params }: Props) {
   // Generate public URLs for all images
   for (const skin of entityData.entity_skins) {
     for (const image of skin.entity_images) {
-      if (image.image_path && !image.image_path.startsWith("http")) {
-        const { data } = supabase.storage
-          .from("games")
-          .getPublicUrl(image.image_path);
-        image.image_path = data.publicUrl;
+      if (image.image_path) {
+        if (image.image_path.startsWith("http")) {
+            (image as any).publicUrl = image.image_path;
+        } else {
+            const { data } = supabase.storage
+            .from("games")
+            .getPublicUrl(image.image_path);
+            (image as any).publicUrl = data.publicUrl;
+        }
       }
     }
   }
@@ -175,7 +179,7 @@ export default async function EntityPage({ params }: Props) {
                         <input
                           name={`field_${field.id}`}
                           defaultValue={currentValue}
-                          className="border p-2 w-full rounded"
+                          className="border border-gray-700 bg-gray-800 text-white p-2 w-full rounded focus:ring-2 focus:ring-indigo-500"
                         />
                       )}
 
@@ -191,15 +195,15 @@ export default async function EntityPage({ params }: Props) {
                         <select
                           name={`field_${field.id}`}
                           defaultValue={currentValue}
-                          className="border p-2 w-full rounded"
+                          className="border border-gray-700 bg-gray-800 text-white p-2 w-full rounded focus:ring-2 focus:ring-indigo-500"
                         >
-                          <option value="">Select...</option>
+                          <option value="" className="bg-gray-800 text-white">Select...</option>
                           {field.field_options
                             ?.sort(
                               (a: any, b: any) => a.order_index - b.order_index
                             )
                             .map((opt: any) => (
-                              <option key={opt.id} value={String(opt.id)}>
+                              <option key={opt.id} value={String(opt.id)} className="bg-gray-800 text-white">
                                 {opt.value_key}
                               </option>
                             ))}
