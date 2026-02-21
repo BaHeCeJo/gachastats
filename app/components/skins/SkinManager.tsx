@@ -43,8 +43,14 @@ export default function SkinManager({
   async function deleteImage(imageId: string, imagePath: string) {
     "use server";
     const supabase = await createClient();
-    const path = imagePath.substring(imagePath.lastIndexOf(`/${entityId}/`));
-    await supabase.storage.from("games").remove([path]);
+    let storagePath = imagePath;
+    if (storagePath.startsWith('http')) {
+      const parts = storagePath.split('/games/');
+      if (parts.length > 1) {
+        storagePath = parts[1];
+      }
+    }
+    await supabase.storage.from("games").remove([storagePath]);
     await supabase.from("entity_images").delete().eq("id", imageId);
     revalidatePath(
       `/admin/games/${gameSlug}/sections/${sectionId}/entities/${entityId}`
@@ -104,7 +110,7 @@ export default function SkinManager({
                   {icon ? (
                     <div className="relative w-24 h-24">
                       <img 
-                        src={icon.image_path} 
+                        src={(icon as any).publicUrl} 
                         width={96}
                         height={96}
                         alt="Icon" 
@@ -115,7 +121,14 @@ export default function SkinManager({
                       </form>
                     </div>
                   ) : (
-                    <SkinImageInput entityId={entityId} skinId={skin.id} gameSlug={gameSlug} sectionId={sectionId} imageType="icon" />
+                    <SkinImageInput 
+                        entityId={entityId} 
+                        skinId={skin.id} 
+                        gameSlug={gameSlug} 
+                        sectionId={sectionId} 
+                        imageType="icon" 
+                        existingImageUrl={null}
+                    />
                   )}
                 </div>
 
@@ -124,7 +137,7 @@ export default function SkinManager({
                   {splash ? (
                     <div className="relative w-full">
                       <img 
-                        src={splash.image_path} 
+                        src={(splash as any).publicUrl} 
                         width={800}
                         alt="Full Art" 
                         className="w-full h-auto max-h-[500px] object-contain rounded" 
@@ -134,7 +147,14 @@ export default function SkinManager({
                       </form>
                     </div>
                   ) : (
-                    <SkinImageInput entityId={entityId} skinId={skin.id} gameSlug={gameSlug} sectionId={sectionId} imageType="splashart" />
+                    <SkinImageInput 
+                        entityId={entityId} 
+                        skinId={skin.id} 
+                        gameSlug={gameSlug} 
+                        sectionId={sectionId} 
+                        imageType="splashart" 
+                        existingImageUrl={null}
+                    />
                   )}
                 </div>
               </div>

@@ -21,23 +21,32 @@ export async function uploadImage(
     return { error: "Image type is missing" };
   }
 
-  // Delete existing image of the same type for this skin
+  // 1. Delete existing image record of the same type for this skin
   const { data: existingImage } = await supabase
     .from("entity_images")
-    .select("image_path")
+    .select("id, image_path")
     .eq("skin_id", skinId)
     .eq("type", imageType)
     .single();
 
   if (existingImage) {
-    const path = existingImage.image_path.substring(
-      existingImage.image_path.lastIndexOf(`/${entityId}/`)
-    );
-    await supabase.storage.from("games").remove([path]);
-    await supabase.from("entity_images").delete().eq("image_path", existingImage.image_path);
+    // Determine the actual storage path
+    let storagePath = existingImage.image_path;
+    if (storagePath.startsWith('http')) {
+      // Legacy full URL cleanup attempt (fragile, but better than nothing)
+      const parts = storagePath.split('/games/');
+      if (parts.length > 1) {
+        storagePath = parts[1];
+      }
+    }
+    
+    // Remove from storage and database
+    await supabase.storage.from("games").remove([storagePath]);
+    await supabase.from("entity_images").delete().eq("id", existingImage.id);
   }
 
-  const filePath = `${entityId}/${skinId}/${imageType}/${Date.now()}-${file.name}`;
+  // 2. Upload new image with unique timestamped path
+  const filePath = `entities/${entityId}/skins/${skinId}/${imageType}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
 
   const { error: uploadError } = await supabase.storage
     .from("games")
@@ -48,14 +57,11 @@ export async function uploadImage(
     return { error: uploadError.message };
   }
 
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from("games").getPublicUrl(filePath);
-
+  // 3. Save relative path in DB
   const { error: dbError } = await supabase.from("entity_images").insert({
     entity_id: entityId,
     skin_id: skinId,
-    image_path: publicUrl,
+    image_path: filePath, // Storing relative path
     type: imageType,
   });
 
@@ -86,9 +92,13 @@ export async function deleteSkin(
     .eq("skin_id", skinId);
 
   if (images && images.length > 0) {
-    const paths = images.map((img) =>
-      img.image_path.substring(img.image_path.lastIndexOf(`/${entityId}/`))
-    );
+    const paths = images.map((img) => {
+        if (img.image_path.startsWith('http')) {
+            const parts = img.image_path.split('/games/');
+            return parts.length > 1 ? parts[1] : img.image_path;
+        }
+        return img.image_path;
+    });
     await supabase.storage.from("games").remove(paths);
   }
 
