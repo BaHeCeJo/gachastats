@@ -103,7 +103,13 @@ export default function SkinManager({
                   <h4 className="font-medium text-sm">Icon</h4>
                   {icon ? (
                     <div className="relative w-24 h-24">
-                      <img src={icon.image_path} alt="Icon" className="w-full h-full object-cover rounded" />
+                      <img 
+                        src={icon.image_path} 
+                        width={96}
+                        height={96}
+                        alt="Icon" 
+                        className="w-full h-full object-cover rounded" 
+                      />
                       <form action={deleteImage.bind(null, icon.id, icon.image_path)}>
                         <button className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">X</button>
                       </form>
@@ -117,7 +123,12 @@ export default function SkinManager({
                   <h4 className="font-medium text-sm">Full Art</h4>
                   {splash ? (
                     <div className="relative w-full">
-                      <img src={splash.image_path} alt="Full Art" className="w-full h-auto object-contain rounded" />
+                      <img 
+                        src={splash.image_path} 
+                        width={800}
+                        alt="Full Art" 
+                        className="w-full h-auto max-h-[500px] object-contain rounded" 
+                      />
                       <form action={deleteImage.bind(null, splash.id, splash.image_path)}>
                         <button className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">X</button>
                       </form>

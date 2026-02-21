@@ -250,7 +250,13 @@ export default async function EditSectionPage({ params }: PageProps) {
                   className="block border rounded p-4 hover:bg-gray-800 transition flex items-center gap-4"
                 >
                   {iconUrl ? (
-                    <img src={iconUrl} className="w-12 h-12 object-cover rounded" alt={`${entity.name} icon`} />
+                    <img 
+                      src={iconUrl} 
+                      width={48} 
+                      height={48} 
+                      className="w-12 h-12 object-cover rounded" 
+                      alt={`${entity.name} icon`} 
+                    />
                   ) : (
                     <div className="w-12 h-12 bg-gray-700 rounded flex items-center justify-center text-gray-400">?</div>
                   )}
