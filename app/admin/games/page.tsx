@@ -45,6 +45,8 @@ export default async function AdminGamesPage() {
                     <img
                       src={coverUrl}
                       alt={game.name}
+                      width={64}
+                      height={64}
                       className="w-16 h-16 object-cover rounded"
                     />
                   )}

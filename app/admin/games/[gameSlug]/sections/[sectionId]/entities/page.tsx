@@ -71,6 +71,8 @@ export default async function EntitiesPage({ params }: PageProps) {
                   <img
                     src={iconUrl}
                     alt=""
+                    width={48}
+                    height={48}
                     className="w-12 h-12 object-cover rounded"
                   />
                 )}
