@@ -31,6 +31,7 @@ type Props = {
   gameSlug: string;
   sectionId: string;
   sectionName: string;
+  isAdmin?: boolean;
 };
 
 export default function EntityGridManager({
@@ -40,6 +41,7 @@ export default function EntityGridManager({
   gameSlug,
   sectionId,
   sectionName,
+  isAdmin = false,
 }: Props) {
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
 
@@ -143,12 +145,14 @@ export default function EntityGridManager({
           <h2 className="text-xl font-semibold capitalize">
             {sectionName} ({filteredEntities.length})
           </h2>
-          <Link
-            href={`/admin/games/${gameSlug}/sections/${sectionId}/entities/new`}
-            className="bg-[#22c55e] text-black px-4 py-2 rounded text-sm font-bold hover:bg-[#1da34a] transition"
-          >
-            Add Entity
-          </Link>
+          {isAdmin && (
+            <Link
+              href={`/admin/games/${gameSlug}/sections/${sectionId}/entities/new`}
+              className="bg-[#22c55e] text-black px-4 py-2 rounded text-sm font-bold hover:bg-[#1da34a] transition"
+            >
+              Add Entity
+            </Link>
+          )}
         </div>
 
         {filteredEntities.length > 0 ? (
@@ -173,12 +177,12 @@ export default function EntityGridManager({
                 ? entity.fieldValuesMap[displaySettings.overlay_icon_field_id]
                 : null;
 
-              return (
-                <Link
-                  key={entity.id}
-                  href={`/admin/games/${gameSlug}/sections/${sectionId}/entities/${entity.id}`}
-                  className="group flex flex-col transition-all duration-300 rounded-xl overflow-hidden border border-gray-800 hover:ring-2 hover:ring-[#22c55e] hover:scale-[1.02]"
-                >
+              const entityLink = isAdmin 
+                ? `/admin/games/${gameSlug}/sections/${sectionId}/entities/${entity.id}`
+                : `/${gameSlug}/sections/${sectionId}/entities/${entity.id}`;
+
+              const cardContent = (
+                <>
                   {/* Square Cell Container */}
                   <div 
                     className="relative aspect-square overflow-hidden"
@@ -237,6 +241,18 @@ export default function EntityGridManager({
                       {entity.name}
                     </span>
                   </div>
+                </>
+              );
+
+              const commonClasses = "group flex flex-col transition-all duration-300 rounded-xl overflow-hidden border border-gray-800 hover:ring-2 hover:ring-[#22c55e] hover:scale-[1.02]";
+
+              return (
+                <Link
+                  key={entity.id}
+                  href={entityLink}
+                  className={commonClasses}
+                >
+                  {cardContent}
                 </Link>
               );
             })}

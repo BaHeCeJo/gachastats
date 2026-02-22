@@ -399,6 +399,7 @@ export default async function EditSectionPage({ params }: PageProps) {
         gameSlug={gameSlug}
         sectionId={sectionId}
         sectionName={section.key}
+        isAdmin={true}
       />
     </main>
   )
