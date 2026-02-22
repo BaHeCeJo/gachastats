@@ -26,13 +26,16 @@ export async function proxy(req: NextRequest) {
 
   const pathname = req.nextUrl.pathname
   const isAuthRoute = pathname.startsWith('/auth')
+  const isAdminRoute = pathname.startsWith('/admin')
 
-  if (!user && !isAuthRoute) {
+  // Redirect to sign-in if accessing admin and not logged in
+  if (!user && isAdminRoute) {
     return NextResponse.redirect(new URL('/auth/signin', req.url))
   }
 
+  // Redirect to dashboard (or home) if already logged in and trying to access auth pages
   if (user && isAuthRoute) {
-    return NextResponse.redirect(new URL('/dashboard', req.url))
+    return NextResponse.redirect(new URL('/', req.url))
   }
 
   return res

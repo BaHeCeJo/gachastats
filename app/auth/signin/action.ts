@@ -18,5 +18,5 @@ export async function signIn(formData: FormData) {
     throw new Error(error.message)
   }
 
-  redirect('/admin/games')
+  redirect('/')
 }

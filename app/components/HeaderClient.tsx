@@ -3,24 +3,25 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import React from "react"
+import { signOut } from "@/app/auth/signout/action"
 
-export default function HeaderClient({ isAdmin }: { isAdmin: boolean }) {
+export default function HeaderClient({ 
+  isAdmin, 
+  isLoggedIn 
+}: { 
+  isAdmin: boolean
+  isLoggedIn: boolean
+}) {
   const pathname = usePathname() ?? "/"
 
-  // Build admin link:
-  // - If at root "/" => "/admin"
-  // - If already under "/admin" => create public counterpart (Exit Admin)
-  // - Else => "/admin" + current pathname (e.g. "/mygame" -> "/admin/mygame")
   const isAdminRoute = pathname.startsWith("/admin")
 
   const adminHref = (() => {
     if (pathname === "/") return "/admin"
-    if (isAdminRoute) return pathname // already admin
-    // ensure single leading slash
+    if (isAdminRoute) return pathname 
     return `/admin${pathname}`
   })()
 
-  // When inside /admin/* we want a link back to the public route:
   const publicHref = (() => {
     if (!isAdminRoute) return pathname
     const publicPath = pathname.replace(/^\/admin/, "") || "/"
@@ -29,29 +30,49 @@ export default function HeaderClient({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <nav className="flex gap-6 items-center">
-      <Link href="/" className="font-medium hover:underline">
+      <Link href="/" className="font-medium hover:underline text-black dark:text-zinc-50">
         Home
       </Link>
 
-      {/* Admin button appears only if server told us the user is admin */}
-      {isAdmin && (
-        <>
-          {isAdminRoute ? (
-            <Link
-              href={publicHref}
-              className="ml-2 px-3 py-1 rounded-md border font-medium hover:bg-zinc-100"
-            >
-              Exit Admin
-            </Link>
-          ) : (
-            <Link
-              href={adminHref}
-              className="ml-2 px-3 py-1 rounded-md bg-blue-600 text-white font-medium hover:opacity-90"
-            >
-              Admin
-            </Link>
+      {!isLoggedIn ? (
+        <Link
+          href="/auth/signin"
+          className="px-4 py-2 rounded-md bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition"
+        >
+          Sign In
+        </Link>
+      ) : (
+        <div className="flex items-center gap-4">
+          {/* Admin button appears only if server told us the user is admin */}
+          {isAdmin && (
+            <>
+              {isAdminRoute ? (
+                <Link
+                  href={publicHref}
+                  className="px-3 py-1 rounded-md border border-zinc-200 dark:border-zinc-800 font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 text-black dark:text-zinc-50 transition"
+                >
+                  Exit Admin
+                </Link>
+              ) : (
+                <Link
+                  href={adminHref}
+                  className="px-3 py-1 rounded-md bg-blue-600 text-white font-medium hover:bg-blue-700 transition"
+                >
+                  Admin
+                </Link>
+              )}
+            </>
           )}
-        </>
+          
+          <form action={signOut}>
+            <button
+              type="submit"
+              className="text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 transition"
+            >
+              Sign Out
+            </button>
+          </form>
+        </div>
       )}
     </nav>
   )
