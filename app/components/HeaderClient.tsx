@@ -29,15 +29,11 @@ export default function HeaderClient({
   })()
 
   return (
-    <nav className="flex gap-6 items-center">
-      <Link href="/" className="font-medium hover:underline text-black dark:text-zinc-50">
-        Home
-      </Link>
-
+    <nav className="flex gap-6 items-center ml-auto">
       {!isLoggedIn ? (
         <Link
           href="/auth/signin"
-          className="px-4 py-2 rounded-md bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition"
+          className="px-4 py-2 rounded-md bg-[#22c55e] text-black font-bold hover:bg-[#1da34a] transition"
         >
           Sign In
         </Link>

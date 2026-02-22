@@ -33,7 +33,7 @@ export default async function Header({ breadcrumbs }: { breadcrumbs?: Crumb[] })
 
   return (
     <header className="w-full px-8 py-4 bg-white dark:bg-black shadow-sm z-50 relative border-b border-zinc-100 dark:border-zinc-900">
-      <div className="flex items-center justify-between max-w-7xl mx-auto">
+      <div className="flex items-center justify-between w-full">
         <Link href="/" className="flex items-center gap-2 group">
           <svg
             viewBox="0 0 800 400"

@@ -274,7 +274,7 @@ export default async function EditSectionPage({ params }: PageProps) {
                 />
               </div>
 
-              <button className="bg-blue-600 text-white px-4 py-2 rounded">
+              <button className="bg-[#22c55e] text-black font-bold px-4 py-2 rounded hover:bg-[#1da34a] transition">
                 Save Section
               </button>
             </form>
@@ -347,7 +347,7 @@ export default async function EditSectionPage({ params }: PageProps) {
               </div>
 
               <div className="md:col-span-2">
-                <button className="bg-indigo-600 text-white px-4 py-2 rounded">
+                <button className="bg-[#22c55e] text-black font-bold px-4 py-2 rounded hover:bg-[#1da34a] transition">
                   Save Display Settings
                 </button>
               </div>
@@ -361,7 +361,7 @@ export default async function EditSectionPage({ params }: PageProps) {
             <h2 className="text-xl font-semibold">Fields</h2>
             <Link
               href={`/admin/games/${gameSlug}/sections/${sectionId}/fields/new`}
-              className="bg-indigo-600 text-white px-2 py-1 text-sm rounded"
+              className="bg-[#22c55e] text-black font-bold px-2 py-1 text-sm rounded hover:bg-[#1da34a] transition"
             >
               Add Field
             </Link>

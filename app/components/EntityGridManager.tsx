@@ -85,7 +85,7 @@ export default function EntityGridManager({
                       delete next[field.id];
                       setActiveFilters(next);
                     }}
-                    className="text-xs text-blue-400 hover:text-blue-300"
+                    className="text-xs text-[#22c55e] hover:text-[#1da34a]"
                   >
                     Clear
                   </button>
@@ -108,7 +108,7 @@ export default function EntityGridManager({
                         }
                         ${
                           isActive
-                            ? "bg-blue-600 ring-2 ring-blue-400 ring-offset-2 ring-offset-gray-900"
+                            ? "bg-[#22c55e] ring-2 ring-[#22c55e] ring-offset-2 ring-offset-gray-900 text-black"
                             : "bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700"
                         }
                       `}
@@ -118,7 +118,7 @@ export default function EntityGridManager({
                           <img
                             src={opt.iconUrl}
                             alt={opt.value_key}
-                            className="w-full h-full object-contain"
+                            className={`w-full h-full object-contain ${isActive ? "brightness-0" : ""}`}
                           />
                           {/* Tooltip */}
                           <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50 shadow-xl border border-gray-700">
@@ -126,7 +126,7 @@ export default function EntityGridManager({
                           </div>
                         </>
                       ) : (
-                        <span>{opt.value_key}</span>
+                        <span className={isActive ? "font-bold" : ""}>{opt.value_key}</span>
                       )}
                     </button>
                   );
@@ -145,7 +145,7 @@ export default function EntityGridManager({
           </h2>
           <Link
             href={`/admin/games/${gameSlug}/sections/${sectionId}/entities/new`}
-            className="bg-green-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-green-700 transition"
+            className="bg-[#22c55e] text-black px-4 py-2 rounded text-sm font-bold hover:bg-[#1da34a] transition"
           >
             Add Entity
           </Link>
@@ -177,7 +177,7 @@ export default function EntityGridManager({
                 <Link
                   key={entity.id}
                   href={`/admin/games/${gameSlug}/sections/${sectionId}/entities/${entity.id}`}
-                  className="group flex flex-col transition-all duration-300 rounded-xl overflow-hidden border border-gray-800 hover:ring-2 hover:ring-blue-500 hover:scale-[1.02]"
+                  className="group flex flex-col transition-all duration-300 rounded-xl overflow-hidden border border-gray-800 hover:ring-2 hover:ring-[#22c55e] hover:scale-[1.02]"
                 >
                   {/* Square Cell Container */}
                   <div 
@@ -232,8 +232,8 @@ export default function EntityGridManager({
                   </div>
 
                   {/* Name Label (Attached to the bottom) */}
-                  <div className="bg-black/90 p-2 text-center border-t border-gray-800 group-hover:bg-blue-900 transition-colors">
-                    <span className="text-[11px] font-bold truncate block px-1 text-gray-200 uppercase tracking-tight">
+                  <div className="bg-black/90 p-2 text-center border-t border-gray-800 group-hover:bg-[#22c55e] transition-colors">
+                    <span className="text-[11px] font-bold truncate block px-1 text-gray-200 group-hover:text-black uppercase tracking-tight">
                       {entity.name}
                     </span>
                   </div>
@@ -246,7 +246,7 @@ export default function EntityGridManager({
             <p className="text-gray-500">No entities match the selected filters.</p>
             <button 
               onClick={() => setActiveFilters({})}
-              className="mt-4 text-blue-400 hover:underline text-sm"
+              className="mt-4 text-[#22c55e] hover:underline text-sm"
             >
               Clear all filters
             </button>
