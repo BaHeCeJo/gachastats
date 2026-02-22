@@ -1,8 +1,10 @@
 import SkinManager from "@/app/components/skins/SkinManager";
 import { createClient } from "@/lib/supabase/server";
 import TagInput from "@/app/components/fields/TagInput";
+import CreatableTagInput from "@/app/components/fields/CreatableTagInput";
 import { deleteEntityAction } from "@/app/admin/games/actions";
 import ConfirmButton from "@/app/components/ConfirmButton";
+import { revalidatePath } from "next/cache";
 
 type Props = {
   params: Promise<{
@@ -52,12 +54,12 @@ export default async function EntityPage({ params }: Props) {
     }
   }
 
-  const { data: fields, error: fieldsError } = await supabase
+  const { data: allFields, error: fieldsError } = await supabase
     .from("section_fields")
     .select(
       `
       *,
-      entity_field_values!left (
+      entity_field_values (
         id,
         entity_id,
         field_id,
@@ -75,9 +77,21 @@ export default async function EntityPage({ params }: Props) {
     .eq("section_id", entityData.section_id)
     .order("order_index", { ascending: true });
 
-  if (fieldsError || !fields) {
+  if (fieldsError || !allFields) {
     return <div className="p-8">Error loading fields</div>;
   }
+
+  // Deduplicate fields by ID to ensure we don't render or process the same field multiple times
+  const uniqueFieldsMap = new Map();
+  allFields.forEach(field => {
+    if (!uniqueFieldsMap.has(field.id)) {
+      uniqueFieldsMap.set(field.id, {
+        ...field,
+        entity_field_values: (field.entity_field_values || []).filter((v: any) => v.entity_id === entityId)
+      });
+    }
+  });
+  const fields = Array.from(uniqueFieldsMap.values());
 
   // Group fields by category and sort them
   const groupedFields: Record<string, typeof fields> = {};
@@ -110,6 +124,7 @@ export default async function EntityPage({ params }: Props) {
             "use server";
 
             const supabase = await createClient();
+            const allRows: any[] = [];
 
             for (const field of fields) {
               const fieldId = String(field.id);
@@ -123,23 +138,99 @@ export default async function EntityPage({ params }: Props) {
                 .filter((v) => v !== null && v !== "")
                 .map((v) => v!.toString());
 
-              await supabase
-                .from("entity_field_values")
-                .delete()
-                .eq("entity_id", entityId)
-                .eq("field_id", fieldId);
-
               if (submittedValues.length > 0) {
-                const rows = submittedValues.map((val) => ({
-                  entity_id: entityId,
-                  field_id: fieldId,
-                  value_text: field.manual_fill ? val : null,
-                  option_id: field.manual_fill ? null : val,
-                }));
+                if (field.manual_fill) {
+                  // NEW LOGIC: Hybrid "Manual Fill" (Creatable Options)
+                  const resolvedOptionIds: string[] = [];
 
-                await supabase.from("entity_field_values").insert(rows);
+                  for (const valueLabel of submittedValues) {
+                    // 1. Check if the value matches an existing option (by label)
+                    const existingOpt = (field.field_options || []).find(
+                      (opt: any) => opt.value_key.toLowerCase() === valueLabel.toLowerCase()
+                    );
+
+                    if (existingOpt) {
+                      resolvedOptionIds.push(String(existingOpt.id));
+                    } else {
+                      // 2. If it's a new label, create the option in field_options
+                      const { data: newOpt, error: optError } = await supabase
+                        .from("field_options")
+                        .insert({
+                          field_id: fieldId,
+                          value_key: valueLabel,
+                        })
+                        .select()
+                        .single();
+
+                      if (optError) {
+                        console.error("Error creating option:", optError.message);
+                      } else if (newOpt) {
+                        resolvedOptionIds.push(String(newOpt.id));
+                      }
+                    }
+                  }
+
+                  if (field.is_multi) {
+                    // Store multiple option IDs as comma-separated string in value_text
+                    allRows.push({
+                      entity_id: entityId,
+                      field_id: fieldId,
+                      value_text: resolvedOptionIds.join(','),
+                      option_id: null,
+                    });
+                  } else {
+                    // Store single option ID
+                    allRows.push({
+                      entity_id: entityId,
+                      field_id: fieldId,
+                      value_text: null,
+                      option_id: resolvedOptionIds[0],
+                    });
+                  }
+                } else {
+                  // Normal Predetermined Fields (Dropdown/Checkbox)
+                  if (field.is_multi) {
+                    allRows.push({
+                      entity_id: entityId,
+                      field_id: fieldId,
+                      value_text: submittedValues.join(','),
+                      option_id: null,
+                    });
+                  } else {
+                    const val = submittedValues[0];
+                    allRows.push({
+                      entity_id: entityId,
+                      field_id: fieldId,
+                      value_text: null,
+                      option_id: val,
+                    });
+                  }
+                }
               }
             }
+
+            // Perform an atomic-like operation: Delete all existing values for this entity and insert new ones
+            const { error: deleteError } = await supabase
+              .from("entity_field_values")
+              .delete()
+              .eq("entity_id", entityId);
+
+            if (deleteError) {
+              console.error("Delete error:", deleteError.message);
+              return;
+            }
+
+            if (allRows.length > 0) {
+              const { error: insertError } = await supabase
+                .from("entity_field_values")
+                .insert(allRows);
+              
+              if (insertError) {
+                console.error("Insert error:", insertError.message);
+              }
+            }
+
+            revalidatePath(`/admin/games/${gameSlug}/sections/${sectionId}/entities/${entityId}`);
           }}
           className="space-y-6"
         >
@@ -156,16 +247,34 @@ export default async function EntityPage({ params }: Props) {
 
                   let currentValue: any;
 
-                  if (field.manual_fill) {
-                    currentValue = field.is_multi
-                      ? existingValues.map((v: any) => v.value_text)
-                      : existingValues[0]?.value_text ?? "";
+                  if (field.is_multi) {
+                    // For multi-select, we store IDs as comma-separated string in value_text
+                    const rawValue = existingValues[0]?.value_text || "";
+                    const ids = rawValue ? rawValue.split(',') : [];
+                    
+                    if (field.manual_fill) {
+                      // Resolve IDs to labels for the TagInput
+                      currentValue = ids.map((id: string) => {
+                        const opt = (field.field_options || []).find((o: any) => String(o.id) === id);
+                        return opt ? opt.value_key : id;
+                      });
+                    } else {
+                      currentValue = ids;
+                    }
                   } else {
-                    currentValue = field.is_multi
-                      ? existingValues.map((v: any) => String(v.option_id))
-                      : existingValues[0]?.option_id
-                      ? String(existingValues[0].option_id)
-                      : "";
+                    if (field.manual_fill) {
+                      // Resolve single ID/Value to label if it's an option_id
+                      if (existingValues[0]?.option_id) {
+                        const opt = (field.field_options || []).find((o: any) => String(o.id) === String(existingValues[0].option_id));
+                        currentValue = opt ? opt.value_key : existingValues[0].value_text;
+                      } else {
+                        currentValue = existingValues[0]?.value_text ?? "";
+                      }
+                    } else {
+                      currentValue = existingValues[0]?.option_id
+                        ? String(existingValues[0].option_id)
+                        : "";
+                    }
                   }
 
                   return (
@@ -174,22 +283,33 @@ export default async function EntityPage({ params }: Props) {
                         {field.key}
                       </label>
 
-                      {/* Manual single */}
+                      {/* Manual single (Hybrid: types new or uses existing) */}
                       {field.manual_fill && !field.is_multi && (
-                        <input
-                          name={`field_${field.id}`}
-                          defaultValue={currentValue}
-                          className="border border-gray-700 bg-gray-800 text-white p-2 w-full rounded focus:ring-2 focus:ring-indigo-500"
-                        />
+                        <div className="space-y-1">
+                          <input
+                            name={`field_${field.id}`}
+                            defaultValue={currentValue}
+                            list={`list_${field.id}`}
+                            className="border border-gray-700 bg-gray-800 text-white p-2 w-full rounded focus:ring-2 focus:ring-indigo-500"
+                            placeholder="Type new or select existing..."
+                          />
+                          <datalist id={`list_${field.id}`}>
+                            {field.field_options?.map((opt: any) => (
+                              <option key={opt.id} value={opt.value_key} />
+                            ))}
+                          </datalist>
+                        </div>
                       )}
 
-                                    {/* Manual multi (Tag Input) */}
-                                    {field.manual_fill && field.is_multi && (
-                                      <TagInput
-                                        name={`field_${field.id}`}
-                                        initialValues={currentValue}
-                                      />
-                                    )}
+                      {/* Manual multi (Creatable Tag Input) */}
+                      {field.manual_fill && field.is_multi && (
+                        <CreatableTagInput
+                          key={`field_${field.id}_${currentValue.join(',')}`}
+                          name={`field_${field.id}`}
+                          initialValues={currentValue}
+                          options={field.field_options}
+                        />
+                      )}
                       {/* Select single */}
                       {!field.manual_fill && !field.is_multi && (
                         <select

@@ -20,7 +20,7 @@ export default async function AdminGamesPage() {
         <Link
           href="/admin/games/new"
           prefetch={false}
-          className="bg-indigo-600 text-white px-4 py-2 rounded"
+          className="bg-[#22c55e] text-black font-bold px-4 py-2 rounded hover:bg-[#1da34a] transition"
         >
           Create game
         </Link>

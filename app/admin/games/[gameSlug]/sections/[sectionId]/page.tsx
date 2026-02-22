@@ -170,6 +170,9 @@ export default async function EditSectionPage({ params }: PageProps) {
     .order('name', { ascending: true })
     .limit(1, { foreignTable: 'entity_skins.entity_images' })
 
+  // Create a map of fields for easy lookup
+  const fieldsMap = new Map(fields?.map(f => [f.id, f]));
+
   // Process entities
   const processedEntities = (entities || []).map(entity => {
     const skin = entity.entity_skins?.[0]
@@ -188,15 +191,25 @@ export default async function EditSectionPage({ params }: PageProps) {
     const allValues: Record<string, string[]> = {}
 
     entity.entity_field_values?.forEach((val: any) => {
+      const field = fieldsMap.get(val.field_id);
       if (!allValues[val.field_id]) allValues[val.field_id] = []
-      const value = val.option_id || val.value_text
-      if (value) allValues[val.field_id].push(String(value))
+      
+      if (field?.is_multi) {
+        // Multi-value: parse from value_text
+        const raw = val.value_text || "";
+        const parts = raw.split(',').filter(Boolean);
+        allValues[val.field_id].push(...parts);
+      } else {
+        // Single value
+        const value = val.option_id || val.value_text
+        if (value) allValues[val.field_id].push(String(value))
 
-      const opt = val.field_options
-      if (opt) {
-        fieldValuesMap[val.field_id] = {
-          color: opt.color,
-          iconUrl: opt.icon_path ? supabase.storage.from('games').getPublicUrl(opt.icon_path).data.publicUrl : undefined
+        const opt = val.field_options
+        if (opt) {
+          fieldValuesMap[val.field_id] = {
+            color: opt.color,
+            iconUrl: opt.icon_path ? supabase.storage.from('games').getPublicUrl(opt.icon_path).data.publicUrl : undefined
+          }
         }
       }
     })
@@ -274,7 +287,7 @@ export default async function EditSectionPage({ params }: PageProps) {
                 />
               </div>
 
-              <button className="bg-blue-600 text-white px-4 py-2 rounded">
+              <button className="bg-[#22c55e] text-black font-bold px-4 py-2 rounded hover:bg-[#1da34a] transition">
                 Save Section
               </button>
             </form>
@@ -347,7 +360,7 @@ export default async function EditSectionPage({ params }: PageProps) {
               </div>
 
               <div className="md:col-span-2">
-                <button className="bg-indigo-600 text-white px-4 py-2 rounded">
+                <button className="bg-[#22c55e] text-black font-bold px-4 py-2 rounded hover:bg-[#1da34a] transition">
                   Save Display Settings
                 </button>
               </div>
@@ -361,7 +374,7 @@ export default async function EditSectionPage({ params }: PageProps) {
             <h2 className="text-xl font-semibold">Fields</h2>
             <Link
               href={`/admin/games/${gameSlug}/sections/${sectionId}/fields/new`}
-              className="bg-indigo-600 text-white px-2 py-1 text-sm rounded"
+              className="bg-[#22c55e] text-black font-bold px-2 py-1 text-sm rounded hover:bg-[#1da34a] transition"
             >
               Add Field
             </Link>
@@ -399,6 +412,7 @@ export default async function EditSectionPage({ params }: PageProps) {
         gameSlug={gameSlug}
         sectionId={sectionId}
         sectionName={section.key}
+        isAdmin={true}
       />
     </main>
   )
