@@ -103,18 +103,30 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
     let iconUrl = "";
     let color = "";
 
-    if (field.manual_fill) {
-      displayValue = values.map(v => v.value_text).filter(Boolean).join(", ");
+    // Helper to get labels from IDs
+    const getLabelsFromIds = (ids: string[]) => {
+      return field.field_options
+        .filter(opt => ids.includes(String(opt.id)))
+        .map(opt => opt.value_key);
+    };
+
+    if (field.is_multi) {
+      // Multi-value: IDs are stored as comma-separated string in value_text
+      const rawIds = (values[0]?.value_text || "").split(',').filter(Boolean);
+      const labels = getLabelsFromIds(rawIds);
+      displayValue = labels.join(", ");
     } else {
-      const selectedOptions = field.field_options.filter(opt => 
-        values.some(v => v.option_id === opt.id)
-      );
-      displayValue = selectedOptions.map(opt => opt.value_key).join(", ");
-      
-      // If it's a single value, we might have an icon/color
-      if (selectedOptions.length === 1) {
-        iconUrl = selectedOptions[0].icon_path ? getPublicUrl(selectedOptions[0].icon_path) : "";
-        color = selectedOptions[0].color || "";
+      // Single value: check option_id first, then fallback to value_text
+      const val = values[0];
+      if (val?.option_id) {
+        const selectedOption = field.field_options.find(opt => String(opt.id) === String(val.option_id));
+        if (selectedOption) {
+          displayValue = selectedOption.value_key;
+          iconUrl = selectedOption.icon_path ? getPublicUrl(selectedOption.icon_path) : "";
+          color = selectedOption.color || "";
+        }
+      } else {
+        displayValue = val?.value_text || "";
       }
     }
 

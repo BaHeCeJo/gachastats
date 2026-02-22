@@ -95,6 +95,9 @@ export default async function SectionDetailPage({ params: paramsPromise }: PageP
     console.error("Entities fetch error:", entitiesError?.message);
   }
 
+  // Create a map of fields for easy lookup
+  const fieldsMap = new Map(fields?.map(f => [f.id, f]));
+
   // Process entities
   const processedEntities = (entities || []).map((entity) => {
     const skin = entity.entity_skins?.[0];
@@ -113,18 +116,28 @@ export default async function SectionDetailPage({ params: paramsPromise }: PageP
     const allValues: Record<string, string[]> = {};
 
     entity.entity_field_values?.forEach((val: any) => {
+      const field = fieldsMap.get(val.field_id);
       if (!allValues[val.field_id]) allValues[val.field_id] = [];
-      const value = val.option_id || val.value_text;
-      if (value) allValues[val.field_id].push(String(value));
+      
+      if (field?.is_multi) {
+        // Multi-value: parse from value_text
+        const raw = val.value_text || "";
+        const parts = raw.split(',').filter(Boolean);
+        allValues[val.field_id].push(...parts);
+      } else {
+        // Single value
+        const value = val.option_id || val.value_text;
+        if (value) allValues[val.field_id].push(String(value));
 
-      const opt = val.field_options;
-      if (opt) {
-        fieldValuesMap[val.field_id] = {
-          color: opt.color,
-          iconUrl: opt.icon_path
-            ? supabase.storage.from("games").getPublicUrl(opt.icon_path).data.publicUrl
-            : undefined,
-        };
+        const opt = val.field_options;
+        if (opt) {
+          fieldValuesMap[val.field_id] = {
+            color: opt.color,
+            iconUrl: opt.icon_path
+              ? supabase.storage.from("games").getPublicUrl(opt.icon_path).data.publicUrl
+              : undefined,
+          };
+        }
       }
     });
 
