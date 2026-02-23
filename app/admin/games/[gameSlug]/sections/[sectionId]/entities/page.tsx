@@ -1,6 +1,33 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { LocalizedString, getTranslatedField } from "@/lib/localization-utils";
+import { GameLocalizationProvider } from "@/lib/localization";
+import { headers } from "next/headers";
+
+type Game = {
+  id: string;
+  name: LocalizedString;
+  slug: string;
+  default_lang: string;
+  supported_languages: string[];
+}
+
+type Section = {
+  id: string;
+  key: LocalizedString;
+  game_id: string;
+}
+
+type Entity = {
+  id: string;
+  name: LocalizedString;
+  entity_images: {
+    id: string;
+    type: string;
+    image_path: string;
+  }[];
+}
 
 type PageProps = {
   params: Promise<{ gameSlug: string; sectionId: string }>
@@ -12,11 +39,19 @@ export default async function EntitiesPage({ params }: PageProps) {
 
   const supabase = await createClient()
 
+  const { data: game } = await supabase
+    .from('games')
+    .select('id, name, slug, default_lang, supported_languages')
+    .eq('slug', gameSlug)
+    .single<Game>();
+
+  if (!game) redirect('/admin/games')
+
   const { data: section } = await supabase
     .from('game_sections')
-    .select('id, key')
+    .select('id, key, game_id')
     .eq('id', sectionId)
-    .single()
+    .single<Section>()
 
   if (!section) redirect(`/admin/games/${gameSlug}/sections`)
 
@@ -32,59 +67,64 @@ export default async function EntitiesPage({ params }: PageProps) {
       )
     `)
     .eq('section_id', sectionId)
-    .order('created_at')
+    .order('name->>${game.default_lang}', { ascending: true }) as { data: Entity[] | null }; // Order by localized name
+
+  const headersList = headers();
+  const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
   return (
-    <main className="p-8 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">
-          {section.key} — Entities
-        </h1>
+    <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
+      <main className="p-8 space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold">
+            {getTranslatedField(section.key, currentLang, game.default_lang)} — Entities
+          </h1>
 
-        <Link
-          href={`/admin/games/${gameSlug}/sections/${sectionId}/entities/new`}
-          className="bg-indigo-600 text-white px-4 py-2 rounded"
-          prefetch={false}
-        >
-          Add Entity
-        </Link>
-      </div>
+          <Link
+            href={`/admin/games/${gameSlug}/sections/${sectionId}/entities/new`}
+            className="bg-indigo-600 text-white px-4 py-2 rounded"
+            prefetch={false}
+          >
+            Add Entity
+          </Link>
+        </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {entities?.length ? (
-          entities.map(entity => {
-            const icon = entity.entity_images?.find(i => i.type === 'icon')
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {entities?.length ? (
+            entities.map(entity => {
+              const icon = entity.entity_images?.find(i => i.type === 'icon')
 
-            const iconUrl = icon
-              ? supabase.storage
-                  .from('games')
-                  .getPublicUrl(icon.image_path).data.publicUrl
-              : null
+              const iconUrl = icon
+                ? supabase.storage
+                    .from('games')
+                    .getPublicUrl(icon.image_path).data.publicUrl
+                : null
 
-            return (
-              <Link
-                key={entity.id}
-                href={`/admin/games/${gameSlug}/sections/${sectionId}/entities/${entity.id}`}
-                className="border rounded p-4 flex items-center gap-4 hover:bg-gray-800"
-              >
-                {iconUrl && (
-                  <img
-                    src={iconUrl}
-                    alt=""
-                    width={48}
-                    height={48}
-                    className="w-12 h-12 object-cover rounded"
-                  />
-                )}
+              return (
+                <Link
+                  key={entity.id}
+                  href={`/admin/games/${gameSlug}/sections/${sectionId}/entities/${entity.id}`}
+                  className="border rounded p-4 flex items-center gap-4 hover:bg-gray-800"
+                >
+                  {iconUrl && (
+                    <img
+                      src={iconUrl}
+                      alt={getTranslatedField(entity.name, currentLang, game.default_lang)}
+                      width={48}
+                      height={48}
+                      className="w-12 h-12 object-cover rounded"
+                    />
+                  )}
 
-                <span className="font-medium">{entity.name}</span>
-              </Link>
-            )
-          })
-        ) : (
-          <p className="text-gray-400">No entities yet.</p>
-        )}
-      </div>
-    </main>
+                  <span className="font-medium">{getTranslatedField(entity.name, currentLang, game.default_lang)}</span>
+                </Link>
+              )
+            })
+          ) : (
+            <p className="text-gray-400">No entities yet.</p>
+          )}
+        </div>
+      </main>
+    </GameLocalizationProvider>
   )
 }

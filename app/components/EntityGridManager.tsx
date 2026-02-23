@@ -2,23 +2,24 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import { LocalizedString, getTranslatedField } from "@/lib/localization";
 
 type Option = {
   id: string;
-  value_key: string;
+  value_key: LocalizedString; // Localized
   iconUrl?: string;
   color?: string;
 };
 
 type FilterField = {
   id: string;
-  key: string;
+  key: LocalizedString; // Localized
   options: Option[];
 };
 
 type Entity = {
   id: string;
-  name: string;
+  name: LocalizedString; // Localized
   publicIconUrl: string;
   fieldValuesMap: Record<string, { color?: string; iconUrl?: string }>;
   allValues: Record<string, string[]>;
@@ -30,8 +31,10 @@ type Props = {
   filterFields: FilterField[];
   gameSlug: string;
   sectionId: string;
-  sectionName: string;
+  sectionName: string; // Already localized before passing
   isAdmin?: boolean;
+  gameDefaultLang: string; // Add gameDefaultLang
+  currentLang: string; // Add currentLang
 };
 
 export default function EntityGridManager({
@@ -42,6 +45,8 @@ export default function EntityGridManager({
   sectionId,
   sectionName,
   isAdmin = false,
+  gameDefaultLang,
+  currentLang,
 }: Props) {
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
 
@@ -78,7 +83,7 @@ export default function EntityGridManager({
             <div key={field.id} className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm font-bold uppercase tracking-wider text-gray-500">
-                  {field.key}
+                  {getTranslatedField(field.key, currentLang, gameDefaultLang)}
                 </span>
                 {activeFilters[field.id] && (
                   <button
@@ -96,11 +101,12 @@ export default function EntityGridManager({
               <div className="flex flex-wrap gap-3">
                 {field.options.map((opt) => {
                   const isActive = activeFilters[field.id] === opt.id;
+                  const displayValue = getTranslatedField(opt.value_key, currentLang, gameDefaultLang);
                   return (
                     <button
                       key={opt.id}
                       onClick={() => toggleFilter(field.id, opt.id)}
-                      title={opt.value_key}
+                      title={displayValue}
                       className={`
                         relative group flex items-center justify-center transition-all duration-200
                         ${
@@ -119,16 +125,16 @@ export default function EntityGridManager({
                         <>
                           <img
                             src={opt.iconUrl}
-                            alt={opt.value_key}
+                            alt={displayValue}
                             className={`w-full h-full object-contain ${isActive ? "brightness-0" : ""}`}
                           />
                           {/* Tooltip */}
                           <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50 shadow-xl border border-gray-700">
-                            {opt.value_key}
+                            {displayValue}
                           </div>
                         </>
                       ) : (
-                        <span className={isActive ? "font-bold" : ""}>{opt.value_key}</span>
+                        <span className={isActive ? "font-bold" : ""}>{displayValue}</span>
                       )}
                     </button>
                   );
@@ -177,14 +183,14 @@ export default function EntityGridManager({
                 ? entity.fieldValuesMap[displaySettings.overlay_icon_field_id]
                 : null;
 
-              const entityLink = isAdmin 
+              const entityLink = isAdmin
                 ? `/admin/games/${gameSlug}/sections/${sectionId}/entities/${entity.id}`
                 : `/${gameSlug}/sections/${sectionId}/entities/${entity.id}`;
 
               const cardContent = (
                 <>
                   {/* Square Cell Container */}
-                  <div 
+                  <div
                     className="relative aspect-square overflow-hidden"
                     style={{ backgroundColor: bgValue?.color || "#1a1a1a" }}
                   >
@@ -205,7 +211,7 @@ export default function EntityGridManager({
                         <img
                           src={entity.publicIconUrl}
                           className="w-full h-full object-cover relative z-10"
-                          alt={entity.name}
+                          alt={getTranslatedField(entity.name, currentLang, gameDefaultLang)}
                         />
                       </div>
                     ) : (
@@ -238,7 +244,7 @@ export default function EntityGridManager({
                   {/* Name Label (Attached to the bottom) */}
                   <div className="bg-black/90 p-2 text-center border-t border-gray-800 group-hover:bg-[#22c55e] transition-colors">
                     <span className="text-[11px] font-bold truncate block px-1 text-gray-200 group-hover:text-black uppercase tracking-tight">
-                      {entity.name}
+                      {getTranslatedField(entity.name, currentLang, gameDefaultLang)}
                     </span>
                   </div>
                 </>
@@ -260,7 +266,7 @@ export default function EntityGridManager({
         ) : (
           <div className="py-20 text-center border-2 border-dashed border-gray-800 rounded-2xl">
             <p className="text-gray-500">No entities match the selected filters.</p>
-            <button 
+            <button
               onClick={() => setActiveFilters({})}
               className="mt-4 text-[#22c55e] hover:underline text-sm"
             >

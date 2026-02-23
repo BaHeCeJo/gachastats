@@ -1,158 +1,43 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-import ImageInput from '@/app/components/ImageInput'
+import { createClient as createServerClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
+import { headers } from "next/headers";
+import { getTranslatedField } from "@/lib/localization-utils";
+import EditOptionClient from './EditOptionClient';
 
-type PageProps = {
-  params: Promise<{
-    gameSlug: string
-    sectionId: string
-    fieldId: string
-    optionId: string
-  }>
+type PageProps = { params: Promise<{ gameSlug: string; sectionId: string; fieldId: string; optionId: string }>; };
+
+export async function generateMetadata({ params }: PageProps) {
+  const { gameSlug, sectionId, fieldId, optionId } = await params;
+  const supabase = await createServerClient();
+  const { data: game } = await supabase.from('games').select('name').eq('slug', gameSlug).single();
+  const { data: section } = await supabase.from('game_sections').select('key').eq('id', sectionId).single();
+  const { data: field } = await supabase.from('section_fields').select('key').eq('id', fieldId).single();
+  const { data: option } = await supabase.from('field_options').select('value_key').eq('id', optionId).single();
+
+  const gameName = game?.name ? getTranslatedField(game.name, 'en', 'en') : 'Game';
+  const sectionName = section?.key ? getTranslatedField(section.key, 'en', 'en') : 'Section';
+  const fieldName = field?.key ? getTranslatedField(field.key, 'en', 'en') : 'Field';
+  const optionName = option?.value_key ? getTranslatedField(option.value_key, 'en', 'en') : 'Option';
+
+  return { title: `Edit ${optionName} in ${fieldName} (${sectionName}, ${gameName}) - Admin` };
 }
 
-/* ===========================
-   Server Actions
-=========================== */
-export async function updateOptionAction(
-  gameSlug: string,
-  sectionId: string,
-  fieldId: string,
-  optionId: string,
-  formData: FormData
-) {
-  'use server'
+export default async function EditFieldOptionPage({ params: paramsPromise }: PageProps) {
+  const params = await paramsPromise;
+  const { gameSlug, sectionId, fieldId, optionId } = params;
+  const supabase = await createServerClient();
 
-  const supabase = await createClient()
+  const { data: game } = await supabase.from('games').select('id, name, slug, default_lang, supported_languages').eq('slug', gameSlug).single();
+  if (!game) redirect('/admin/games');
 
-  const value_key = (formData.get('value_key') as string)?.trim()
-  const color = (formData.get('color') as string) || null
-  const icon = formData.get('icon') as File | null
+  const { data: field } = await supabase.from('section_fields').select('id, key, manual_fill, has_icon, has_color').eq('id', fieldId).single();
+  if (!field) redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields`);
 
-  if (!value_key) {
-    throw new Error('Missing required fields')
-  }
+  const { data: option } = await supabase.from('field_options').select('*').eq('id', optionId).single();
+  if (!option) redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields/${fieldId}/options`);
 
-  let icon_path: string | null = null
+  const headersList = await headers();
+  const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
-  if (icon && icon.size > 0) {
-    const ext = icon.name.split('.').pop()
-    icon_path = `fields/${fieldId}/options/${value_key}.${ext}`
-
-    await supabase.storage
-      .from('games')
-      .upload(icon_path, icon, {
-        upsert: true,
-        contentType: icon.type
-      })
-  }
-
-  const { error } = await supabase
-    .from('field_options')
-    .update({
-      value_key,
-      color,
-      ...(icon_path ? { icon_path } : {})
-    })
-    .eq('id', optionId)
-
-  if (error) throw new Error(error.message)
-
-  redirect(
-    `/admin/games/${gameSlug}/sections/${sectionId}/fields/${fieldId}/options`
-  )
-}
-
-export async function deleteOptionAction(
-  gameSlug: string,
-  sectionId: string,
-  fieldId: string,
-  optionId: string
-) {
-  'use server'
-
-  const supabase = await createClient()
-
-  await supabase.from('field_options').delete().eq('id', optionId)
-
-  redirect(
-    `/admin/games/${gameSlug}/sections/${sectionId}/fields/${fieldId}/options`
-  )
-}
-
-/* ===========================
-   Page
-=========================== */
-export default async function EditOptionPage({ params }: PageProps) {
-  const { gameSlug, sectionId, fieldId, optionId } = await params
-  const supabase = await createClient()
-
-  const { data: option } = await supabase
-    .from('field_options')
-    .select('*')
-    .eq('id', optionId)
-    .single()
-
-  if (!option) {
-    redirect(
-      `/admin/games/${gameSlug}/sections/${sectionId}/fields/${fieldId}/options`
-    )
-  }
-
-  return (
-    <main className="max-w-xl p-8 space-y-6">
-      <h1 className="text-2xl font-bold">Edit Option</h1>
-
-      <form
-        action={updateOptionAction.bind(
-          null,
-          gameSlug,
-          sectionId,
-          fieldId,
-          optionId
-        )}
-        className="space-y-4"
-        encType="multipart/form-data"
-      >
-        <input
-          name="value_key"
-          defaultValue={option.value_key}
-          placeholder="Display name (Fire, Ice...)"
-          className="border p-2 w-full"
-          required
-        />
-
-        <input
-          name="color"
-          type="color"
-          defaultValue={option.color ?? '#ffffff'}
-          className="border p-2 w-full"
-        />
-
-        <div>
-          <label className="block mb-1">Icon</label>
-          <ImageInput name="icon" />
-        </div>
-
-        <div className="flex justify-between pt-4">
-          <button className="bg-indigo-600 text-white px-4 py-2 rounded">
-            Save
-          </button>
-
-          <button
-            formAction={deleteOptionAction.bind(
-              null,
-              gameSlug,
-              sectionId,
-              fieldId,
-              optionId
-            )}
-            className="bg-red-600 text-white px-4 py-2 rounded"
-          >
-            Delete
-          </button>
-        </div>
-      </form>
-    </main>
-  )
+  return <EditOptionClient game={game} field={field} option={option as any} sectionId={sectionId} currentLang={currentLang} />;
 }

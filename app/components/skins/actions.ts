@@ -1,83 +1,191 @@
-"use server";
+import { v4 as uuidv4 } from "uuid";
 
-import { createClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
+/**
+ * Extracts the storage path from a public URL.
+ */
+function extractPathFromUrl(url: string, bucket: string): string {
+  if (!url) return "";
+  if (!url.startsWith("http")) return url;
+  
+  const searchStr = `/${bucket}/`;
+  if (!url.includes(searchStr)) return ""; 
+  
+  const parts = url.split(searchStr);
+  return parts[parts.length - 1];
+}
 
-export async function uploadImage(
-  formData: FormData,
-  entityId: string,
-  skinId: string,
+/**
+ * Handles uploading an image file to Supabase storage.
+ */
+async function uploadFileToStorage(file: File, bucket: string, folder: string): Promise<string> {
+  const supabase = await createClient();
+  const fileExtension = file.name.split(".").pop();
+  const path = `${folder}/${uuidv4()}.${fileExtension}`;
+
+  const { error } = await supabase.storage.from(bucket).upload(path, file, {
+    cacheControl: "3600",
+    upsert: false,
+  });
+
+  if (error) {
+    console.error("Error uploading image:", error);
+    throw new Error(`Failed to upload image: ${error.message}`);
+  }
+
+  return path;
+}
+
+
+/**
+ * Upserts (creates or updates) a skin entry.
+ */
+export async function upsertSkin(
   gameSlug: string,
-  sectionId: string
+  sectionId: string,
+  entityId: string,
+  gameDefaultLang: string,
+  formData: FormData
 ) {
   const supabase = await createClient();
-  const file = formData.get("image") as File;
-  const imageType = formData.get("imageType") as string;
 
-  if (!file || file.size === 0) {
-    return { error: "No file provided" };
+  const skinId = formData.get("id") as string | undefined;
+  const rawName = JSON.parse(formData.get("name") as string) as LocalizedString;
+  const isDefault = formData.get("is_default") === "true"; // Assuming "true" or "false" string from form
+
+  if (!rawName[gameDefaultLang]) {
+    return { error: `Name for default language (${gameDefaultLang.toUpperCase()}) is required.` };
+  }
+
+  const skinData = {
+    entity_id: entityId,
+    name: rawName,
+    is_default: isDefault,
+  };
+
+  if (skinId) {
+    // Update existing skin
+    const { error } = await supabase
+      .from("entity_skins")
+      .update(skinData)
+      .eq("id", skinId);
+
+    if (error) {
+      console.error("Error updating skin:", error);
+      return { error: `Failed to update skin: ${error.message}` };
+    }
+  } else {
+    // Create new skin
+    const { error } = await supabase
+      .from("entity_skins")
+      .insert(skinData);
+
+    if (error) {
+      console.error("Error creating skin:", error);
+      return { error: `Failed to create skin: ${error.message}` };
+    }
+  }
+
+  // If this skin is set as default, ensure all other skins for this entity are not default
+  if (isDefault) {
+    await supabase
+      .from("entity_skins")
+      .update({ is_default: false })
+      .eq("entity_id", entityId)
+      .neq("id", skinId || null); // Exclude the current skin if it's an update
+  }
+
+  revalidatePath(`/admin/games/${gameSlug}/sections/${sectionId}/entities/${entityId}`);
+  // No redirect, stay on entity page
+  return { error: undefined };
+}
+
+/**
+ * Upserts (creates or updates) a skin image (icon or splashart).
+ */
+export async function upsertSkinImage(
+  gameSlug: string,
+  sectionId: string,
+  entityId: string,
+  skinId: string,
+  formData: FormData
+) {
+  const supabase = await createClient();
+
+  const imageType = formData.get("imageType") as string; // 'icon' or 'splashart'
+  const imageFile = formData.get("image_file") as File;
+  const existingImagePath = formData.get("existing_image_path") as string | null;
+
+  if (!imageFile || imageFile.size === 0) {
+    return { error: "No image file provided." };
   }
   if (!imageType) {
-    return { error: "Image type is missing" };
+    return { error: "Image type (icon or splashart) is required." };
   }
 
-  // 1. Delete existing image record of the same type for this skin
-  const { data: existingImage } = await supabase
+  let imageUrl: string | null = null;
+  let oldImagePath: string | null = existingImagePath;
+
+  // Upload new image
+  try {
+    const folder = `${gameSlug}/sections/${sectionId}/entities/${entityId}/skins/${skinId}`;
+    imageUrl = await uploadFileToStorage(imageFile, "games", folder);
+  } catch (uploadError: any) {
+    return { error: `Image upload failed: ${uploadError.message}` };
+  }
+
+  // Find if an image of this type already exists for this skin
+  const { data: existingImage, error: fetchError } = await supabase
     .from("entity_images")
     .select("id, image_path")
     .eq("skin_id", skinId)
     .eq("type", imageType)
     .single();
 
+  if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 means no rows found, which is fine
+    console.error("Error fetching existing skin image:", fetchError);
+    return { error: `Failed to check for existing image: ${fetchError.message}` };
+  }
+
   if (existingImage) {
-    // Determine the actual storage path
-    let storagePath = existingImage.image_path;
-    if (storagePath.startsWith('http')) {
-      // Legacy full URL cleanup attempt (fragile, but better than nothing)
-      const parts = storagePath.split('/games/');
-      if (parts.length > 1) {
-        storagePath = parts[1];
-      }
+    // Update existing image
+    const { error: updateError } = await supabase
+      .from("entity_images")
+      .update({ image_path: imageUrl })
+      .eq("id", existingImage.id);
+
+    if (updateError) {
+      console.error("Error updating skin image:", updateError);
+      return { error: `Failed to update image path: ${updateError.message}` };
     }
-    
-    // Remove from storage and database
-    await supabase.storage.from("games").remove([storagePath]);
-    await supabase.from("entity_images").delete().eq("id", existingImage.id);
+    // Delete old image from storage if path changed
+    if (existingImage.image_path && existingImage.image_path !== imageUrl) {
+        await supabase.storage.from("games").remove([existingImage.image_path]);
+    }
+  } else {
+    // Insert new image
+    const { error: insertError } = await supabase
+      .from("entity_images")
+      .insert({
+        entity_id: entityId,
+        skin_id: skinId,
+        type: imageType,
+        image_path: imageUrl,
+      });
+
+    if (insertError) {
+      console.error("Error inserting skin image:", insertError);
+      return { error: `Failed to insert image: ${insertError.message}` };
+    }
   }
 
-  // 2. Upload new image with unique timestamped path
-  const filePath = `entities/${entityId}/skins/${skinId}/${imageType}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-
-  const { error: uploadError } = await supabase.storage
-    .from("games")
-    .upload(filePath, file);
-
-  if (uploadError) {
-    console.error("Upload Error:", uploadError);
-    return { error: uploadError.message };
-  }
-
-  // 3. Save relative path in DB
-  const { error: dbError } = await supabase.from("entity_images").insert({
-    entity_id: entityId,
-    skin_id: skinId,
-    image_path: filePath, // Storing relative path
-    type: imageType,
-  });
-
-  if (dbError) {
-    console.error("Database Error:", dbError);
-    await supabase.storage.from("games").remove([filePath]);
-    return { error: dbError.message };
-  }
-
-  revalidatePath(
-    `/admin/games/${gameSlug}/sections/${sectionId}/entities/${entityId}`
-  );
-
-  return { error: null };
+  revalidatePath(`/admin/games/${gameSlug}/sections/${sectionId}/entities/${entityId}`);
+  return { error: undefined };
 }
 
+
+/**
+ * Deletes a skin and its associated images.
+ */
 export async function deleteSkin(
   skinId: string,
   entityId: string,
@@ -86,26 +194,39 @@ export async function deleteSkin(
 ) {
   const supabase = await createClient();
 
-  const { data: images, error: imagesError } = await supabase
+  // 1. Fetch all image paths for this skin
+  const { data: images } = await supabase
     .from("entity_images")
     .select("image_path")
     .eq("skin_id", skinId);
 
   if (images && images.length > 0) {
-    const paths = images.map((img) => {
-        if (img.image_path.startsWith('http')) {
-            const parts = img.image_path.split('/games/');
-            return parts.length > 1 ? parts[1] : img.image_path;
-        }
-        return img.image_path;
-    });
-    await supabase.storage.from("games").remove(paths);
+    const paths = images
+      .map((img) => img.image_path) // image_path is already a storage path here
+      .filter(Boolean);
+
+    if (paths.length > 0) {
+      await supabase.storage.from("games").remove(paths);
+    }
   }
 
-  await supabase.from("entity_images").delete().eq("skin_id", skinId);
-  await supabase.from("entity_skins").delete().eq("id", skinId);
+  // 2. Delete associated images from the database
+  await supabase
+    .from("entity_images")
+    .delete()
+    .eq("skin_id", skinId);
 
-  revalidatePath(
-    `/admin/games/${gameSlug}/sections/${sectionId}/entities/${entityId}`
-  );
+  // 3. Delete the skin itself
+  const { error } = await supabase
+    .from("entity_skins")
+    .delete()
+    .eq("id", skinId);
+
+  if (error) {
+    console.error("Error deleting skin:", error);
+    throw new Error(`Failed to delete skin: ${error.message}`);
+  }
+
+  revalidatePath(`/admin/games/${gameSlug}/sections/${sectionId}/entities/${entityId}`);
+  // No redirect, stay on entity page
 }

@@ -3,15 +3,30 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { deleteGameAction } from '@/app/admin/games/actions'
 import ConfirmButton from '@/app/components/ConfirmButton'
+import { LocalizedString, getTranslatedField } from "@/lib/localization-utils"; // Server-safe utilities
+import { GameLocalizationProvider } from "@/lib/localization"; // Client-side provider
+
+type Game = {
+  id: string;
+  name: LocalizedString; // Name is now localized
+  slug: string;
+  cover_url: string | null;
+  default_lang: string; // Add default_lang
+  supported_languages: string[]; // Add supported_languages
+};
 
 export default async function AdminGamesPage() {
   const supabase = await createClient()
 
-  // Fetch games including cover_url
+  // Fetch games including cover_url and language settings
   const { data: games } = await supabase
     .from('games')
-    .select('id, name, slug, cover_url')
-    .order('name', { ascending: true })
+    .select('id, name, slug, cover_url, default_lang, supported_languages') // Include language fields
+    .order('name->>en', { ascending: true }) // Order by English name as a default for admin list
+
+  // For server components, we'll hardcode 'en' for now or derive from request headers/cookies.
+  // A client-side context for currentLang will be implemented later.
+  const currentLang = 'en'; // Temporarily hardcode for server component
 
   return (
     <main className="p-8 space-y-6">
@@ -35,30 +50,32 @@ export default async function AdminGamesPage() {
               : null
 
             return (
-              <div key={game.id} className="border rounded p-4 hover:bg-gray-800 transition-colors flex flex-col gap-4">
-                <Link
-                  href={`/admin/games/${game.slug}`}
-                  prefetch={false}
-                  className="flex items-center gap-4 flex-grow"
-                >
-                  {coverUrl && (
-                    <img
-                      src={coverUrl}
-                      alt={game.name}
-                      width={64}
-                      height={64}
-                      className="w-16 h-16 object-cover rounded"
-                    />
-                  )}
-                  <span className="font-medium text-lg">{game.name}</span>
-                </Link>
-                
-                <div className="flex justify-end border-t pt-2">
-                  <form action={deleteGameAction.bind(null, game.id)}>
-                    <ConfirmButton>Delete</ConfirmButton>
-                  </form>
+              <GameLocalizationProvider key={game.id} gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
+                <div className="border rounded p-4 hover:bg-gray-800 transition-colors flex flex-col gap-4">
+                  <Link
+                    href={`/admin/games/${game.slug}`}
+                    prefetch={false}
+                    className="flex items-center gap-4 flex-grow"
+                  >
+                    {coverUrl && (
+                      <img
+                        src={coverUrl}
+                        alt={getTranslatedField(game.name, currentLang, game.default_lang)}
+                        width={64}
+                        height={64}
+                        className="w-16 h-16 object-cover rounded"
+                      />
+                    )}
+                    <span className="font-medium text-lg">{getTranslatedField(game.name, currentLang, game.default_lang)}</span>
+                  </Link>
+                  
+                  <div className="flex justify-end border-t pt-2">
+                    <form action={deleteGameAction.bind(null, game.id)}>
+                      <ConfirmButton>Delete</ConfirmButton>
+                    </form>
+                  </div>
                 </div>
-              </div>
+              </GameLocalizationProvider>
             )
           })
         ) : (

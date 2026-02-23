@@ -2,12 +2,16 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { LocalizedString, getTranslatedField, useLocalizationParams } from "@/lib/localization";
 
 type Game = {
   id: string;
-  name: string;
+  name: LocalizedString;
   slug: string;
+  description: LocalizedString; // Add description
   cover_url: string | null;
+  default_lang: string; // Add default_lang
+  supported_languages: string[]; // Add supported_languages
 };
 
 type Props = {
@@ -18,6 +22,7 @@ type Props = {
 
 export default function GameGrid({ games, supabaseUrl, onHoverChange }: Props) {
   const [hoveredCover, setHoveredCover] = useState<string | null>(null);
+  const { currentLang } = useLocalizationParams(); // Get current language
 
   const handleHover = (url: string | null) => {
     setHoveredCover(url);
@@ -28,7 +33,7 @@ export default function GameGrid({ games, supabaseUrl, onHoverChange }: Props) {
     <>
       {/* Dynamic Background Layer - Placed above page background but below content */}
       <div className="fixed inset-0 pointer-events-none z-[1] overflow-hidden">
-        <div 
+        <div
           className={`absolute inset-0 bg-cover bg-center grayscale transition-all duration-[1500ms] ease-in-out transform ${
             hoveredCover ? "opacity-20 scale-100" : "opacity-0 scale-105"
           }`}
@@ -61,7 +66,7 @@ export default function GameGrid({ games, supabaseUrl, onHoverChange }: Props) {
                       {coverUrl ? (
                         <img
                           src={coverUrl}
-                          alt={game.name}
+                          alt={getTranslatedField(game.name, currentLang, game.default_lang)}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                         />
                       ) : (
@@ -69,7 +74,7 @@ export default function GameGrid({ games, supabaseUrl, onHoverChange }: Props) {
                           No Cover
                         </div>
                       )}
-                      
+
                       {/* Hover Overlay */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                     </div>
@@ -77,7 +82,7 @@ export default function GameGrid({ games, supabaseUrl, onHoverChange }: Props) {
                     {/* Game Name Under the Card */}
                     <div className="mt-4 text-center">
                       <h3 className="font-bold text-xl text-black dark:text-zinc-50 group-hover:text-[#22c55e] transition-colors uppercase tracking-wide">
-                        {game.name}
+                        {getTranslatedField(game.name, currentLang, game.default_lang)}
                       </h3>
                       <div className="h-1 w-0 group-hover:w-12 bg-[#22c55e] mx-auto mt-1 transition-all duration-500 rounded-full" />
                     </div>

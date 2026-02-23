@@ -1,129 +1,47 @@
-// /admin/games/[gameSlug]/page.tsx
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
-import ImageInput from '@/app/components/ImageInput'
-import { deleteGameAction } from '@/app/admin/games/actions'
-import ConfirmButton from '@/app/components/ConfirmButton'
+import { createClient as createServerClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
+import { getTranslatedField, LocalizedString } from '@/lib/localization-utils';
+import EditGameClient from './EditGameClient';
 
-type PageProps = { params: Promise<{ gameSlug: string }> }
+type GameData = {
+  id: string;
+  name: LocalizedString;
+  slug: string;
+  description: LocalizedString;
+  cover_url: string | null;
+  default_lang: string;
+  supported_languages: string[];
+};
 
-async function updateGame(gameId: string, slug: string, formData: FormData) {
-  'use server'
+type PageProps = { params: Promise<{ gameSlug: string }> };
 
-  const supabase = await createClient()
-
-  const name = (formData.get('name') as string)?.trim()
-  const description = (formData.get('description') as string)?.trim() || ''
-  const cover = formData.get('cover') as File | null
-
-  if (!name) throw new Error('Game name is required')
-
-  let coverPath: string | undefined
-
-  if (cover && cover.size > 0) {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
-    if (!allowedTypes.includes(cover.type)) {
-      throw new Error('Invalid cover image format')
-    }
-
-    const ext = cover.name.split('.').pop()
-    coverPath = `${slug}/cover.${ext}`
-
-    const { error: uploadError } = await supabase.storage
-      .from('games')
-      .upload(coverPath, cover, { upsert: true, contentType: cover.type })
-
-    if (uploadError) {
-      console.error('Update Upload Error:', uploadError)
-      throw new Error(`Failed to upload cover: ${uploadError.message}`)
-    }
-  }
-
-  const { error } = await supabase
+export async function generateMetadata({ params }: PageProps) {
+  const { gameSlug } = await params;
+  const supabase = await createServerClient();
+  const { data: game } = await supabase
     .from('games')
-    .update({
-      name,
-      description,
-      ...(coverPath ? { cover_url: coverPath } : {})
-    })
-    .eq('id', gameId)
+    .select('name')
+    .eq('slug', gameSlug)
+    .single();
 
-  if (error) throw new Error(error.message)
+  const gameName = game?.name ? getTranslatedField(game.name, 'en', 'en') : 'Game';
 
-  redirect(`/admin/games/${slug}`)
+  return {
+    title: `Edit ${gameName} - Admin`,
+  };
 }
 
-export default async function AdminGamePage({ params }: PageProps) {
-  const { gameSlug } = await params
-  const supabase = await createClient()
+export default async function ServerAdminGamePage({ params }: PageProps) {
+  const { gameSlug } = await params;
+  const supabase = await createServerClient();
 
   const { data: game } = await supabase
     .from('games')
-    .select('*')
+    .select('id, name, slug, description, cover_url, default_lang, supported_languages')
     .eq('slug', gameSlug)
-    .single()
+    .single<GameData>();
 
-  if (!game) redirect('/admin/games')
+  if (!game) redirect('/admin/games');
 
-  const coverUrl = game.cover_url
-    ? supabase.storage.from('games').getPublicUrl(game.cover_url).data.publicUrl
-    : null
-
-  return (
-    <main className="max-w-2xl p-8 space-y-10">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">{game.name}</h1>
-        <form action={deleteGameAction.bind(null, game.id)}>
-          <ConfirmButton>Delete Game</ConfirmButton>
-        </form>
-      </div>
-
-      {/* Game information */}
-      <section className="space-y-4">
-        <h2 className="text-xl font-semibold">Game information</h2>
-        <form
-          action={updateGame.bind(null, game.id, game.slug)}
-          className="space-y-4"
-          encType="multipart/form-data"
-        >
-          <input
-            name="name"
-            defaultValue={game.name}
-            className="border p-2 w-full"
-            required
-          />
-
-          <textarea
-            name="description"
-            defaultValue={game.description ?? ''}
-            className="border p-2 w-full"
-          />
-
-          <div>
-            <label className="block mb-2 font-medium">Cover</label>
-            <ImageInput name="cover" initialUrl={coverUrl} />
-          </div>
-
-          <button className="bg-blue-600 text-white px-4 py-2 rounded">
-            Save changes
-          </button>
-        </form>
-      </section>
-
-      {/* Sections */}
-      <section className="border rounded p-4 space-y-3">
-        <h2 className="text-xl font-semibold">Sections</h2>
-        <p className="text-sm text-gray-400">
-          Define characters, weapons, bangboo, and other entities for this game.
-        </p>
-
-        <a
-          href={`/admin/games/${game.slug}/sections`}
-          className="inline-block bg-indigo-600 text-white px-4 py-2 rounded"
-        >
-          Manage sections →
-        </a>
-      </section>
-    </main>
-  )
+  return <EditGameClient game={game} />;
 }

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import Header from "./components/Header";
+import { LocalizationProvider } from "@/lib/localization";
+import { headers } from "next/headers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,20 +15,25 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "My App",
-  description: "My application",
+  title: "GachaStats",
+  description: "Gacha Archives & Analytics",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+  const headersList = await headers();
+  const acceptLanguage = headersList.get('Accept-Language');
+  const currentLang = acceptLanguage ? acceptLanguage.split(',')[0].split('-')[0].toLowerCase() : 'en';
 
-        {children}
+  return (
+    <html lang={currentLang}>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <LocalizationProvider currentLang={currentLang}>
+          {children}
+        </LocalizationProvider>
       </body>
     </html>
   );

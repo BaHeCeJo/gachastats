@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import Image from "next/image";
 import Header from "@/app/components/Header";
 import GSBackground from "@/app/components/GSBackground";
+import { getTranslatedField, LocalizedString } from "@/lib/localization-utils";
+import { headers } from "next/headers";
 
 type PageProps = {
   params: Promise<{ gameSlug: string; sectionId: string; entityId: string }>;
@@ -13,14 +15,20 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
   const { gameSlug, sectionId, entityId } = params;
   const supabase = await createClient();
 
+  // For server components, we'll get currentLang from headers
+  const headersList = await headers();
+  const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
+
   // Fetch game details
   const { data: game, error: gameError } = await supabase
     .from("games")
-    .select("id, name, slug, cover_url")
+    .select("id, name, slug, cover_url, default_lang")
     .eq("slug", gameSlug)
     .single();
 
   if (gameError || !game) redirect("/");
+
+  const defaultLang = game.default_lang || 'en';
 
   // Fetch section details
   const { data: section, error: sectionError } = await supabase
@@ -46,6 +54,7 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
     .select(`
       *,
       entity_skins (
+        id,
         is_default,
         entity_images (
           image_path,
@@ -61,7 +70,7 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
     redirect(`/${gameSlug}/sections/${sectionId}`);
   }
 
-  // Fetch all fields and their values for this entity
+  // Fetch all fields for this section
   const { data: fields } = await supabase
     .from("section_fields")
     .select(`
@@ -71,20 +80,28 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
         value_key,
         icon_path,
         color
-      ),
-      entity_field_values (
-        value_text,
-        option_id
       )
     `)
     .eq("section_id", sectionId)
-    .eq("entity_field_values.entity_id", entityId)
     .order("order_index", { ascending: true });
 
+  // Fetch all values for this specific entity
+  const { data: entityValues } = await supabase
+    .from("entity_field_values")
+    .select("*")
+    .eq("entity_id", entityId);
+
+  // Map values to fields
+  const valuesByField = (entityValues || []).reduce((acc: any, val) => {
+    if (!acc[val.field_id]) acc[val.field_id] = [];
+    acc[val.field_id].push(val);
+    return acc;
+  }, {});
+
   // Process Images - Find default skin or fallback to first
-  const defaultSkin = entity.entity_skins?.find(img => img.is_default) || entity.entity_skins?.[0];
-  const iconImage = defaultSkin?.entity_images?.find(img => img.type === 'icon');
-  const fullArtImage = defaultSkin?.entity_images?.find(img => img.type === 'splashart');
+  const defaultSkin = entity.entity_skins?.find((img: any) => img.is_default) || entity.entity_skins?.[0];
+  const iconImage = defaultSkin?.entity_images?.find((img: any) => img.type === 'icon');
+  const fullArtImage = defaultSkin?.entity_images?.find((img: any) => img.type === 'splashart');
 
   const getPublicUrl = (path: string) => {
     if (!path) return "";
@@ -98,35 +115,57 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
 
   // Process Fields
   const processedFields = (fields || []).map(field => {
-    const values = field.entity_field_values || [];
+    const values = valuesByField[field.id] || [];
     let displayValue = "";
     let iconUrl = "";
     let color = "";
 
     // Helper to get labels from IDs
     const getLabelsFromIds = (ids: string[]) => {
-      return field.field_options
-        .filter(opt => ids.includes(String(opt.id)))
-        .map(opt => opt.value_key);
+      const uniqueIds = Array.from(new Set(ids));
+      return (field.field_options || [])
+        .filter((opt: any) => uniqueIds.includes(String(opt.id)))
+        .map((opt: any) => getTranslatedField(opt.value_key as any, currentLang, defaultLang));
     };
 
     if (field.is_multi) {
-      // Multi-value: IDs are stored as comma-separated string in value_text
-      const rawIds = (values[0]?.value_text || "").split(',').filter(Boolean);
-      const labels = getLabelsFromIds(rawIds);
-      displayValue = labels.join(", ");
+      if (field.manual_fill) {
+        // Manual multi-value (tags)
+        // Values are stored as LocalizedString in value_text, possibly comma-separated in a single row or across multiple rows.
+        const tags = values.flatMap((v: any) => {
+          const translated = getTranslatedField(v.value_text as any, currentLang, defaultLang);
+          return translated ? translated.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
+        });
+
+        // For each tag, check if it's an option ID and resolve it if so
+        const resolvedLabels = tags.map((tag: string) => {
+          const option = (field.field_options || []).find((opt: any) => String(opt.id) === tag);
+          if (option) {
+            return getTranslatedField(option.value_key as any, currentLang, defaultLang);
+          }
+          return tag;
+        });
+
+        displayValue = resolvedLabels.join(", ");
+      } else {
+        // Predetermined multi-value (multi-select)
+        // These should be stored in multiple rows using option_id
+        const optionIds = values.map((v: any) => v.option_id).filter(Boolean).map(String);
+        const labels = getLabelsFromIds(optionIds);
+        displayValue = labels.join(", ");
+      }
     } else {
       // Single value: check option_id first, then fallback to value_text
       const val = values[0];
       if (val?.option_id) {
-        const selectedOption = field.field_options.find(opt => String(opt.id) === String(val.option_id));
+        const selectedOption = (field.field_options || []).find((opt: any) => String(opt.id) === String(val.option_id));
         if (selectedOption) {
-          displayValue = selectedOption.value_key;
+          displayValue = getTranslatedField(selectedOption.value_key as any, currentLang, defaultLang);
           iconUrl = selectedOption.icon_path ? getPublicUrl(selectedOption.icon_path) : "";
           color = selectedOption.color || "";
         }
       } else {
-        displayValue = val?.value_text || "";
+        displayValue = getTranslatedField(val?.value_text as any, currentLang, defaultLang);
       }
     }
 
@@ -140,6 +179,10 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
   });
 
   const filterFields = processedFields.filter(f => f.isFilter && f.displayValue);
+
+  const translatedEntityName = getTranslatedField(entity.name as any, currentLang, defaultLang);
+  const translatedGameName = getTranslatedField(game.name as any, currentLang, defaultLang);
+  const translatedSectionKey = getTranslatedField(section.key as any, currentLang, defaultLang);
 
   return (
     <div className="relative flex flex-col min-h-screen bg-zinc-50 dark:bg-black font-sans overflow-x-hidden">
@@ -156,9 +199,9 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
       <Header
         breadcrumbs={[
           { href: "/", label: "Home" },
-          { href: `/${gameSlug}`, label: game.name },
-          { href: `/${gameSlug}/sections/${sectionId}`, label: section.key },
-          { href: `/${gameSlug}/sections/${sectionId}/entities/${entityId}`, label: entity.name },
+          { href: `/${gameSlug}`, label: translatedGameName },
+          { href: `/${gameSlug}/sections/${sectionId}`, label: translatedSectionKey },
+          { href: `/${gameSlug}/sections/${sectionId}/entities/${entityId}`, label: translatedEntityName },
         ]}
       />
 
@@ -173,7 +216,7 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
               <div className="flex items-center gap-8">
                 {iconUrl ? (
                   <div className="relative w-32 h-32 rounded-2xl overflow-hidden shadow-2xl border-2 border-zinc-200 dark:border-zinc-800 bg-zinc-900/50 backdrop-blur-sm">
-                    <img src={iconUrl} alt={entity.name} className="w-full h-full object-cover" />
+                    <img src={iconUrl} alt={translatedEntityName} className="w-full h-full object-cover" />
                   </div>
                 ) : (
                   <div className="w-32 h-32 flex items-center justify-center text-zinc-400 text-4xl border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-2xl bg-zinc-900/10">
@@ -182,7 +225,7 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
                 )}
                 <div>
                   <h1 className="text-6xl font-black text-black dark:text-zinc-50 tracking-tighter uppercase italic">
-                    {entity.name}
+                    {translatedEntityName}
                   </h1>
                   <div className="mt-4 flex flex-wrap gap-3">
                     {filterFields.map(field => (
@@ -194,7 +237,7 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
                           <img src={field.iconUrl} alt="" className="w-5 h-5 object-contain" />
                         )}
                         <span className="text-xs font-bold tracking-widest uppercase text-zinc-500 dark:text-zinc-400">
-                          {field.key}:
+                          {getTranslatedField(field.key as any, currentLang, defaultLang)}:
                         </span>
                         <span className="text-sm font-black text-black dark:text-white uppercase italic">
                           {field.displayValue}
@@ -213,7 +256,7 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
                   <div className="absolute -inset-4 bg-gradient-to-tr from-[#22c55e]/20 to-transparent blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
                   <img 
                     src={fullArtUrl} 
-                    alt={`${entity.name} full art`} 
+                    alt={`${translatedEntityName} full art`} 
                     className="relative max-w-full h-auto max-h-[70vh] object-contain drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)] transition-transform duration-700 group-hover:scale-[1.02]"
                   />
                 </div>
@@ -232,13 +275,13 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
               {/* Name field as requested */}
               <div className="bg-white dark:bg-zinc-900/40 p-6 flex flex-col gap-1">
                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Name</span>
-                <span className="text-xl font-bold uppercase italic text-black dark:text-white">{entity.name}</span>
+                <span className="text-xl font-bold uppercase italic text-black dark:text-white">{translatedEntityName}</span>
               </div>
 
               {processedFields.map(field => (
                 <div key={field.id} className="bg-white dark:bg-zinc-900/40 p-6 flex flex-col gap-1 group hover:bg-zinc-50 dark:hover:bg-zinc-800/60 transition-colors">
                   <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 group-hover:text-[#22c55e] transition-colors">
-                    {field.key}
+                    {getTranslatedField(field.key as any, currentLang, defaultLang)}
                   </span>
                   <div className="flex items-center gap-4">
                     {field.iconUrl && (
