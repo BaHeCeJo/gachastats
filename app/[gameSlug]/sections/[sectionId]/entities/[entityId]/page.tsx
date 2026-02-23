@@ -231,7 +231,7 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
             <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-zinc-200 dark:bg-zinc-800/50 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 shadow-2xl">
               {/* Name field as requested */}
               <div className="bg-white dark:bg-zinc-900/40 p-6 flex flex-col gap-1">
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Subject Name</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Name</span>
                 <span className="text-xl font-bold uppercase italic text-black dark:text-white">{entity.name}</span>
               </div>
 
@@ -240,9 +240,9 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
                   <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 group-hover:text-[#22c55e] transition-colors">
                     {field.key}
                   </span>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-4">
                     {field.iconUrl && (
-                      <img src={field.iconUrl} alt="" className="w-6 h-6 object-contain" />
+                      <img src={field.iconUrl} alt="" className="w-12 h-12 object-contain" />
                     )}
                     <span className="text-xl font-bold uppercase italic text-black dark:text-white">
                       {field.displayValue || "—"}
