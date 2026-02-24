@@ -157,12 +157,72 @@ export async function upsertEntityAction(
   }
 
   // Then, insert new/updated values
-  const valuesToInsert = fieldValues.map((val: any) => ({
-    entity_id: currentEntityId,
-    field_id: val.field_id,
-    value_text: val.value_text, // This is already LocalizedString if from LocalizedTextInput
-    option_id: val.option_id || null,
-  }));
+  // fieldValues is now expected to be an array of { field_id, values: string[] }
+  const valuesToInsert: any[] = [];
+
+  for (const fVal of fieldValues) {
+    const { field_id, values } = fVal;
+    if (!values || values.length === 0) continue;
+
+    // Fetch field definition to check rules
+    const { data: fieldDef } = await supabase
+      .from("section_fields")
+      .select("manual_fill, is_multi")
+      .eq("id", field_id)
+      .single();
+
+    if (!fieldDef) continue;
+
+    const processedOptionIds: string[] = [];
+
+    for (const val of values) {
+      if (!val) continue;
+
+      // Check if val is a UUID
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
+      if (isUuid) {
+        processedOptionIds.push(val);
+      } else if (fieldDef.manual_fill) {
+        // Create new option
+        const { data: newOpt, error: optError } = await supabase
+          .from("field_options")
+          .insert({
+            field_id: field_id,
+            value_key: { [gameDefaultLang]: val } as LocalizedString,
+            order_index: 0
+          })
+          .select("id")
+          .single();
+
+        if (optError) {
+          console.error("Error creating manual option:", optError);
+          continue;
+        }
+        processedOptionIds.push(newOpt.id);
+      }
+    }
+
+    if (processedOptionIds.length === 0) continue;
+
+    if (fieldDef.is_multi) {
+      // Store as comma-separated IDs in value_text
+      valuesToInsert.push({
+        entity_id: currentEntityId,
+        field_id: field_id,
+        value_text: processedOptionIds.join(","),
+        option_id: null
+      });
+    } else {
+      // Store single ID in option_id
+      valuesToInsert.push({
+        entity_id: currentEntityId,
+        field_id: field_id,
+        value_text: null,
+        option_id: processedOptionIds[0]
+      });
+    }
+  }
 
   if (valuesToInsert.length > 0) {
     const { error: insertValuesError } = await supabase

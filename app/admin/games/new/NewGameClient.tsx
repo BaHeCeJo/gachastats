@@ -44,7 +44,7 @@ export default function NewGameClient() {
     <main className="max-w-3xl p-8 space-y-6 mx-auto">
       <h1 className="text-2xl font-bold text-white">Create New Game</h1>
       {state?.error && <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-sm p-4 rounded-lg">{state.error}</div>}
-      <form action={formAction} className="space-y-6" encType="multipart/form-data">
+      <form action={formAction} className="space-y-6">
         <LocalizedTextInput id="name" label="Game Name" value={localizedName} onChange={setLocalizedName} placeholder="Zenless Zone Zero" />
         <LocalizedTextInput id="description" label="Description" value={localizedDescription} onChange={setLocalizedDescription} placeholder="A brief overview..." textarea />
         <div><label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">Cover Image</label><ImageInput name="cover_image" onFileChange={setCoverImage} existingImageUrl={null} /></div>

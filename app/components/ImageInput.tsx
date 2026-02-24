@@ -120,7 +120,7 @@ export default function ImageInput({
         </label>
       </div>
       {(previewUrl && !file) && existingImageUrl && (
-          <p className="text-xs text-zinc-500 mt-2">Currently using existing image. Select a new file or click 'X' to remove.</p>
+          <p className="text-xs text-zinc-500 mt-2">Currently using existing image. Select a new file or click &apos;X&apos; to remove.</p>
       )}
       {(!previewUrl && !file) && (
           <p className="text-xs text-zinc-500 mt-2">No image selected. Select a file to upload.</p>

@@ -31,7 +31,7 @@ export default function NewSectionClient({ game }: { game: GameData }) {
       <main className="max-w-xl p-8 space-y-6 mx-auto">
         <h1 className="text-2xl font-bold text-white">{game.name[game.default_lang]} — Add Section</h1>
         {state?.error && <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-sm p-4 rounded-lg">{state.error}</div>}
-        <form action={formAction} className="space-y-4" encType="multipart/form-data">
+        <form action={formAction} className="space-y-4">
           <LocalizedTextInput id="key" label="Section Name (Key)" value={localizedKey} onChange={setLocalizedKey} placeholder="Characters" />
           <div className="flex gap-4 items-center">
             <div><label htmlFor="color" className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">Color</label><input id="color" name="color" type="color" value={color} onChange={(e) => setColor(e.target.value)} className="w-16 h-10 border-0 rounded-md overflow-hidden bg-zinc-900" /></div>

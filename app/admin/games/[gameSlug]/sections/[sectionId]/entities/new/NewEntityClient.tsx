@@ -1,17 +1,18 @@
 "use client";
 
 import { useState, useActionState } from 'react';
-import { LocalizedString, GameLocalizationProvider, getTranslatedField } from "@/lib/localization";
+import { createClient } from '@/lib/supabase/client';
+import { LocalizedString, getTranslatedField, GameLocalizationProvider } from "@/lib/localization";
 import LocalizedTextInput from '@/app/components/fields/LocalizedTextInput';
 import CreatableTagInput from '@/app/components/fields/CreatableTagInput';
 import ImageInput from '@/app/components/ImageInput';
-import { upsertEntityAction } from './actions';
+import { upsertEntityAction } from '../actions';
+import Link from "next/link";
 
 type GameData = { id: string; name: LocalizedString; slug: string; default_lang: string; supported_languages: string[]; };
 type SectionData = { id: string; key: LocalizedString; game_id: string; };
 type FieldOption = { id: string; field_id: string; value_key: LocalizedString; icon_path: string | null; color: string | null; };
-type FieldData = { id: string; key: LocalizedString; required: boolean; manual_fill: boolean; is_multi: boolean; has_icon: boolean; has_color: boolean; field_type: string; field_options: FieldOption[] | null; };
-type EntityFieldValueState = { field_id: string; value_text: LocalizedString | null; option_id: string | null; is_multi_manual_values?: string[]; };
+type FieldData = { id: string; key: LocalizedString; required: boolean; manual_fill: boolean; is_multi: boolean; has_icon: boolean; has_color: boolean; field_type: string; category: string | null; field_options: FieldOption[] | null; };
 type FormState = { error?: string; };
 
 export default function NewEntityClient({ game, section, fields, currentLang }: {
@@ -20,14 +21,13 @@ export default function NewEntityClient({ game, section, fields, currentLang }: 
   fields: FieldData[];
   currentLang: string;
 }) {
+  const supabase = createClient();
   const [localizedName, setLocalizedName] = useState<LocalizedString>({ [game.default_lang]: "" });
   const [iconFile, setIconFile] = useState<File | null>(null);
-  const [entityFieldValues, setEntityFieldValues] = useState<EntityFieldValueState[]>(() =>
+  const [entityFieldValues, setEntityFieldValues] = useState<any[]>(() =>
     fields.map(field => ({
       field_id: field.id,
-      value_text: field.manual_fill ? { [game.default_lang]: "" } : null,
-      option_id: null,
-      ...(field.is_multi && field.manual_fill && { is_multi_manual_values: [] }),
+      values: []
     }))
   );
 
@@ -37,79 +37,163 @@ export default function NewEntityClient({ game, section, fields, currentLang }: 
       formData.set("section_id", section.id);
       if (iconFile) formData.set("icon_file", iconFile); else formData.delete("icon_file");
 
-      const valuesToSubmit = entityFieldValues.map(val => {
-        const fieldDef = fields.find(f => f.id === val.field_id);
-        if (fieldDef?.manual_fill && fieldDef?.is_multi) {
-          const localizedMultiValue: LocalizedString = {};
-          game.supported_languages.forEach(lang => { localizedMultiValue[lang] = val.is_multi_manual_values?.join(', ') || ''; });
-          return { field_id: val.field_id, value_text: localizedMultiValue, option_id: null };
-        } else if (fieldDef?.manual_fill) {
-          return { field_id: val.field_id, value_text: val.value_text, option_id: null };
-        } else {
-          return { field_id: val.field_id, value_text: null, option_id: val.option_id };
-        }
-      }).filter(Boolean);
-
-      formData.set("field_values", JSON.stringify(valuesToSubmit));
+      // Send field_values as array of { field_id, values: string[] }
+      formData.set("field_values", JSON.stringify(entityFieldValues));
+      
       return await upsertEntityAction(game.slug, section.id, game.default_lang, formData);
     },
     {} as FormState
   );
 
-  const handleFieldValueChange = (fieldId: string, value: LocalizedString | string | string[] | null, isMultiManual?: boolean) => {
+  const handleFieldValueChange = (fieldId: string, newValues: string[] | string, mode: 'single' | 'multi') => {
     setEntityFieldValues(prev => prev.map(val => {
       if (val.field_id === fieldId) {
-        if (isMultiManual) return { ...val, is_multi_manual_values: value as string[], value_text: null, option_id: null };
-        else if (typeof value === 'object' && value !== null && !('length' in value)) return { ...val, value_text: value as LocalizedString, option_id: null };
-        else return { ...val, option_id: value as string, value_text: null };
+        if (mode === 'multi') {
+          return { ...val, values: newValues as string[] };
+        } else {
+          const clickedId = newValues as string;
+          const isCurrentlySelected = val.values.includes(clickedId);
+          return { ...val, values: isCurrentlySelected ? [] : [clickedId] };
+        }
       }
       return val;
     }));
   };
 
+  const handleSingleSelectChange = (fieldId: string, value: string) => {
+    setEntityFieldValues(prev => prev.map(val => {
+      if (val.field_id === fieldId) {
+        return { ...val, values: value ? [value] : [] };
+      }
+      return val;
+    }));
+  };
+
+  const groupedFields: Record<string, FieldData[]> = {};
+  fields.forEach((field) => {
+    const cat = field.category || "General";
+    if (!groupedFields[cat]) groupedFields[cat] = [];
+    groupedFields[cat]!.push(field);
+  });
+
+  const sortedCategories = Object.keys(groupedFields).sort((a, b) => {
+    const minA = Math.min(...groupedFields[a]!.map((f) => f.order_index || 0));
+    const minB = Math.min(...groupedFields[b]!.map((f) => f.order_index || 0));
+    if (minA !== minB) return minA - minB;
+    return a.localeCompare(b);
+  });
+
   return (
     <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
-      <main className="max-w-3xl p-8 space-y-6 mx-auto">
+      <main className="max-w-4xl p-8 space-y-6 mx-auto">
         <h1 className="text-2xl font-bold text-white">{getTranslatedField(section.key, currentLang, game.default_lang)} — Add Entity</h1>
         {state?.error && <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-sm p-4 rounded-lg">{state.error}</div>}
-        <form action={formAction} encType="multipart/form-data" className="space-y-6">
+        <form action={formAction} className="space-y-6">
           <LocalizedTextInput id="name" label="Entity Name" value={localizedName} onChange={setLocalizedName} placeholder="e.g., Acheron" />
           <div>
             <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">Main Icon</label>
             <ImageInput name="icon_file" onFileChange={setIconFile} existingImageUrl={null} />
           </div>
           <div className="space-y-4">
-            <h2 className="text-xl font-semibold text-white mt-8">Entity Data</h2>
-            {fields.map(field => {
-              const currentValue = entityFieldValues.find(v => v.field_id === field.id);
-              if (!currentValue) return null;
-              if (field.manual_fill) {
-                return (
-                  <div key={field.id}>
-                    {field.is_multi ? (
-                      <div className="space-y-1">
-                        <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{getTranslatedField(field.key, currentLang, game.default_lang)}</label>
-                        <CreatableTagInput name={`field-${field.id}`} initialValues={currentValue.is_multi_manual_values || []} options={field.field_options || []} onChange={(values) => handleFieldValueChange(field.id, values, true)} />
-                      </div>
-                    ) : (
-                      <LocalizedTextInput id={`field-${field.id}`} label={getTranslatedField(field.key, currentLang, game.default_lang)} value={currentValue.value_text} onChange={(val) => handleFieldValueChange(field.id, val)} placeholder={`Enter ${getTranslatedField(field.key, currentLang, game.default_lang)}`} />
-                    )}
-                  </div>
-                );
-              } else {
-                return (
-                  <div key={field.id} className="space-y-1">
-                    <label htmlFor={`field-${field.id}`} className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{getTranslatedField(field.key, currentLang, game.default_lang)}</label>
-                    <select id={`field-${field.id}`} className="block w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all" value={currentValue.option_id || ''} onChange={(e) => handleFieldValueChange(field.id, e.target.value)}>
-                      <option value="">Select an option</option>
-                      {field.field_options?.map(option => <option key={option.id} value={option.id}>{getTranslatedField(option.value_key, currentLang, game.default_lang)}</option>)}
-                    </select>
-                  </div>
-                );
-              }
-            })}
+            <h2 className="text-xl font-semibold text-white mt-8 italic flex items-center gap-2">
+              <span className="w-4 h-1 bg-green-500"></span>
+              Entity Data
+            </h2>
+            {sortedCategories.length > 0 ? sortedCategories.map((category) => (
+              <div key={category} className="bg-zinc-900/30 border border-zinc-800 rounded-2xl p-6 space-y-6">
+                <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500 border-b border-zinc-800 pb-2">{category}</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {groupedFields[category]!.map((field) => {
+                    const currentValue = entityFieldValues.find(v => v.field_id === field.id);
+                    if (!currentValue) return null;
+                    
+                    const fieldLabel = getTranslatedField(field.key, currentLang, game.default_lang);
+
+                    if (field.manual_fill) {
+                      return (
+                        <div key={field.id} className="md:col-span-2 space-y-2">
+                          <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest ml-1">{fieldLabel}</label>
+                          <CreatableTagInput 
+                            name={`field-${field.id}`} 
+                            initialValues={currentValue.values} 
+                            options={field.field_options || []} 
+                            isMulti={field.is_multi}
+                            onChange={(values) => handleFieldValueChange(field.id, values, 'multi')} 
+                          />
+                        </div>
+                      );
+                    } else {
+                      return (
+                        <div key={field.id} className={field.is_multi ? "md:col-span-2 space-y-3" : "space-y-2"}>
+                          <label htmlFor={`field-${field.id}`} className="block text-xs font-bold text-zinc-500 uppercase tracking-widest ml-1">
+                            {fieldLabel}
+                          </label>
+                          {field.is_multi ? (
+                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                              {field.field_options?.map(option => {
+                                const isSelected = currentValue.values.includes(option.id);
+                                const optionLabel = getTranslatedField(option.value_key, currentLang, game.default_lang);
+                                return (
+                                  <button
+                                    key={option.id}
+                                    type="button"
+                                    onClick={() => handleFieldValueChange(field.id, option.id, 'multi')}
+                                    className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all text-sm ${
+                                      isSelected 
+                                        ? "bg-green-600/20 border-green-500 text-green-400" 
+                                        : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-700"
+                                    }`}
+                                  >
+                                    {option.icon_path && (
+                                      <img 
+                                        src={supabase.storage.from('games').getPublicUrl(option.icon_path).data.publicUrl} 
+                                        className="w-5 h-5 object-contain" 
+                                        alt="" 
+                                      />
+                                    )}
+                                    <span className="truncate">{optionLabel}</span>
+                                  </button>
+                                );
+                              })}
+                              {(!field.field_options || field.field_options.length === 0) && (
+                                <p className="text-xs text-zinc-600 italic col-span-full">No options defined for this field.</p>
+                              )}
+                            </div>
+                          ) : (
+                            <select 
+                              id={`field-${field.id}`} 
+                              className="block w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all" 
+                              value={(currentValue.values && currentValue.values[0]) || ''} 
+                              onChange={(e) => handleSingleSelectChange(field.id, e.target.value)}
+                            >
+                              <option value="">Select an option</option>
+                              {field.field_options?.map(option => (
+                                <option key={option.id} value={option.id}>
+                                  {getTranslatedField(option.value_key, currentLang, game.default_lang)}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                      );
+                    }
+                  })}
+                </div>
+              </div>
+            )) : (
+              <div className="bg-zinc-900/30 border border-dashed border-zinc-800 rounded-2xl p-12 text-center">
+                <p className="text-zinc-500 italic text-sm">No custom fields defined for this section.</p>
+                <Link href={`/admin/games/${game.slug}/sections/${section.id}/fields`} className="text-green-500 text-xs font-bold uppercase tracking-widest mt-4 inline-block hover:underline">
+                  Manage section fields →
+                </Link>
+              </div>
+            )}
           </div>
-          <button type="submit" className="w-full bg-green-600 text-black font-bold px-4 py-3 rounded-xl hover:bg-green-500 transition-colors">Create Entity</button>
+          <div className="pt-6 border-t border-zinc-800">
+            <button type="submit" className="w-full bg-blue-600 text-white font-bold px-4 py-4 rounded-2xl hover:bg-blue-500 transition-all shadow-lg hover:shadow-blue-500/20 active:scale-[0.98]">
+              Create Entity
+            </button>
+          </div>
         </form>
       </main>
     </GameLocalizationProvider>

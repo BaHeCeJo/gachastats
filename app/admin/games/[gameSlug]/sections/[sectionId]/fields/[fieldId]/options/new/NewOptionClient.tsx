@@ -4,7 +4,7 @@ import { useState, useActionState } from 'react';
 import { LocalizedString, GameLocalizationProvider, getTranslatedField } from "@/lib/localization";
 import LocalizedTextInput from '@/app/components/fields/LocalizedTextInput';
 import ImageInput from '@/app/components/ImageInput';
-import { upsertOptionAction } from './actions';
+import { upsertOptionAction } from '../actions';
 
 type GameData = { id: string; name: LocalizedString; slug: string; default_lang: string; supported_languages: string[]; };
 type FieldData = { id: string; key: LocalizedString; manual_fill: boolean; has_icon: boolean; has_color: boolean; };
@@ -35,9 +35,9 @@ export default function NewOptionClient({ game, field, sectionId, currentLang }:
   return (
     <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
       <main className="max-w-xl p-8 space-y-6 mx-auto">
-        <h1 className="text-2xl font-bold text-white">Add Option for "{getTranslatedField(field.key, currentLang, game.default_lang)}"</h1>
+        <h1 className="text-2xl font-bold text-white">Add Option for &quot;{getTranslatedField(field.key, currentLang, game.default_lang)}&quot;</h1>
         {state?.error && <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-sm p-4 rounded-lg">{state.error}</div>}
-        <form action={formAction} className="space-y-4" encType="multipart/form-data">
+        <form action={formAction} className="space-y-4">
           <LocalizedTextInput id="value_key" label="Option Value Key" value={localizedValueKey} onChange={setLocalizedValueKey} placeholder="e.g., Fire, Ice" />
           {field.has_color && (
             <div>

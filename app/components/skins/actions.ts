@@ -1,3 +1,8 @@
+"use server";
+
+import { createClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
+import { LocalizedString } from "@/lib/localization";
 import { v4 as uuidv4 } from "uuid";
 
 /**
@@ -229,4 +234,23 @@ export async function deleteSkin(
 
   revalidatePath(`/admin/games/${gameSlug}/sections/${sectionId}/entities/${entityId}`);
   // No redirect, stay on entity page
+}
+
+/**
+ * Deletes a single skin image from storage and database.
+ */
+export async function deleteSkinImage(imageId: string, imagePath: string, gameSlug: string, sectionId: string, entityId: string) {
+  const supabase = await createClient();
+  let storagePath = imagePath;
+  if (storagePath.startsWith("http")) {
+    const parts = storagePath.split("/games/");
+    if (parts.length > 1) {
+      storagePath = parts[1];
+    }
+  }
+  await supabase.storage.from("games").remove([storagePath]);
+  await supabase.from("entity_images").delete().eq("id", imageId);
+  revalidatePath(
+    `/admin/games/${gameSlug}/sections/${sectionId}/entities/${entityId}`
+  );
 }

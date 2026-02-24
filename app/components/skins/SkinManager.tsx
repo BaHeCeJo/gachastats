@@ -4,7 +4,7 @@ import { useState, useActionState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { LocalizedString, getTranslatedField } from "@/lib/localization";
 import SkinImageInput from "../SkinImageInput"; // Assuming SkinImageInput is also updated to handle localization if needed
-import { deleteSkin, upsertSkin } from "./actions"; // Assuming upsertSkin is defined
+import { deleteSkin, upsertSkin, deleteSkinImage } from "./actions"; // Assuming upsertSkin is defined
 import LocalizedTextInput from "../fields/LocalizedTextInput"; // For localized skin name input
 import ConfirmButton from "../ConfirmButton";
 
@@ -201,23 +201,5 @@ export default function SkinManager({
         })}
       </div>
     </div>
-  );
-}
-
-// Helper to delete skin image
-async function deleteSkinImage(imageId: string, imagePath: string, gameSlug: string, sectionId: string, entityId: string) {
-  "use server";
-  const supabase = createClient();
-  let storagePath = imagePath;
-  if (storagePath.startsWith('http')) {
-    const parts = storagePath.split('/games/');
-    if (parts.length > 1) {
-      storagePath = parts[1];
-    }
-  }
-  await supabase.storage.from("games").remove([storagePath]);
-  await supabase.from("entity_images").delete().eq("id", imageId);
-  revalidatePath(
-    `/admin/games/${gameSlug}/sections/${sectionId}/entities/${entityId}`
   );
 }

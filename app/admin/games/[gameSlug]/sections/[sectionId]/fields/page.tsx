@@ -79,7 +79,7 @@ export default async function FieldsPage({ params }: PageProps) {
     return a.localeCompare(b)
   })
 
-  const headersList = headers();
+  const headersList = await headers();
   const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
 

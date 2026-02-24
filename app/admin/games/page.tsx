@@ -5,6 +5,7 @@ import { deleteGameAction } from '@/app/admin/games/actions'
 import ConfirmButton from '@/app/components/ConfirmButton'
 import { LocalizedString, getTranslatedField } from "@/lib/localization-utils"; // Server-safe utilities
 import { GameLocalizationProvider } from "@/lib/localization"; // Client-side provider
+import { headers } from 'next/headers'
 
 type Game = {
   id: string;
@@ -24,9 +25,8 @@ export default async function AdminGamesPage() {
     .select('id, name, slug, cover_url, default_lang, supported_languages') // Include language fields
     .order('name->>en', { ascending: true }) // Order by English name as a default for admin list
 
-  // For server components, we'll hardcode 'en' for now or derive from request headers/cookies.
-  // A client-side context for currentLang will be implemented later.
-  const currentLang = 'en'; // Temporarily hardcode for server component
+  const headersList = await headers();
+  const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
   return (
     <main className="p-8 space-y-6">

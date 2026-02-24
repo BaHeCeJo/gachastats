@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { LocalizedString, getTranslatedField, GameLocalizationProvider } from "@/lib/localization";
 import LocalizedTextInput from '@/app/components/fields/LocalizedTextInput';
 import ConfirmButton from '@/app/components/ConfirmButton';
-import { upsertFieldAction, deleteFieldAction } from './actions';
+import { upsertFieldAction, deleteFieldAction } from '../actions';
 
 type GameData = { id: string; name: LocalizedString; slug: string; default_lang: string; supported_languages: string[]; };
 type SectionData = { id: string; key: LocalizedString; game_id: string; };

@@ -65,7 +65,7 @@ export default async function FieldOptionsPage({ params }: PageProps) {
     .eq('field_id', fieldId)
     .order('order_index', { ascending: true }) as { data: Option[] | null };
 
-  const headersList = headers();
+  const headersList = await headers();
   const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
   return (

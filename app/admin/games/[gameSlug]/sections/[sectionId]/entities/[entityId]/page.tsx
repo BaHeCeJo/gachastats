@@ -53,8 +53,26 @@ export default async function EntityPage({ params: paramsPromise }: PageProps) {
     }
   }
 
-  const { data: fields } = await supabase.from('section_fields').select('id, key, required, manual_fill, is_multi, has_icon, has_color, field_type, category, field_options(id, value_key, icon_path, color, order_index)').eq('section_id', sectionId).order('order_index', { ascending: true });
-  const { data: entityFieldValuesData } = await supabase.from('entity_field_values').select('field_id, value_text, option_id').eq('entity_id', entityId);
+  // Debug: Try a simpler fetch first
+  const { data: simpleFields, error: simpleError } = await supabase.from('section_fields').select('id').eq('section_id', sectionId);
+  console.log("Debug Simple Fields Fetch:", { sectionId, count: simpleFields?.length, error: simpleError });
+
+  // Fetch all fields for this section
+  const { data: fields, error: fieldsError } = await supabase
+    .from("section_fields")
+    .select('*, field_options(id, value_key, icon_path, color, order_index)')
+    .eq('section_id', sectionId)
+    .order('order_index', { ascending: true });
+
+  if (fieldsError) {
+    console.error("Error fetching section fields:", fieldsError);
+  }
+
+  const { data: entityFieldValuesData, error: valuesError } = await supabase.from('entity_field_values').select('field_id, value_text, option_id').eq('entity_id', entityId);
+  
+  if (valuesError) {
+    console.error("Error fetching entity values:", valuesError);
+  }
 
   return <EditEntityClient game={game} section={section} entity={{ ...entity, entity_field_values: entityFieldValuesData || [] } as any} fields={fields || []} currentLang={currentLang} />;
 }

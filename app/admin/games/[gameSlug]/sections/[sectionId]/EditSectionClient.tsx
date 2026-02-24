@@ -9,7 +9,6 @@ import ImageInput from '@/app/components/ImageInput';
 import EntityGridManager from '@/app/components/EntityGridManager';
 import { LocalizedString, getTranslatedField, GameLocalizationProvider } from "@/lib/localization";
 import Link from "next/link";
-import { revalidatePath } from 'next/cache';
 
 type Game = { id: string; name: LocalizedString; slug: string; default_lang: string; supported_languages: string[]; };
 type Section = { id: string; key: LocalizedString; game_id: string; icon_path: string | null; color: string | null; order_index: number; };
@@ -81,7 +80,7 @@ export default function EditSectionClient({
           <div className="lg:col-span-2 space-y-10">
             <section className="space-y-6 border-b pb-10">
               <h2 className="text-xl font-semibold">General Info</h2>
-              <form action={sectionFormAction} className="space-y-4" encType="multipart/form-data">
+              <form action={sectionFormAction} className="space-y-4">
                 <LocalizedTextInput id="key" label="Section Name (Key)" value={localizedKey} onChange={setLocalizedKey} placeholder="Characters" />
                 <div className="flex gap-4 items-center">
                   <div><label htmlFor="color" className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">Color</label><input id="color" name="color" type="color" value={color} onChange={(e) => setColor(e.target.value)} className="w-16 h-10 border-0 rounded-md overflow-hidden bg-zinc-900" /></div>

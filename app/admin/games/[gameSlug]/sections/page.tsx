@@ -45,7 +45,7 @@ export default async function SectionsPage({ params }: PageProps) {
     .eq('game_id', game.id)
     .order('order_index', { ascending: true });
 
-  const headersList = headers();
+  const headersList = await headers();
   const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
   return (

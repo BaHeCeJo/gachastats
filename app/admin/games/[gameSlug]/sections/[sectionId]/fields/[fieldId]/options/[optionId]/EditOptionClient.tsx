@@ -6,7 +6,7 @@ import { LocalizedString, getTranslatedField, GameLocalizationProvider } from "@
 import LocalizedTextInput from '@/app/components/fields/LocalizedTextInput';
 import ImageInput from '@/app/components/ImageInput';
 import ConfirmButton from '@/app/components/ConfirmButton';
-import { upsertOptionAction, deleteOptionAction } from './actions';
+import { upsertOptionAction, deleteOptionAction } from '../actions';
 
 type GameData = { id: string; name: LocalizedString; slug: string; default_lang: string; supported_languages: string[]; };
 type FieldData = { id: string; key: LocalizedString; manual_fill: boolean; has_icon: boolean; has_color: boolean; };
@@ -52,7 +52,7 @@ export default function EditOptionClient({ game, field, option, sectionId, curre
           </form>
         </div>
         {state?.error && <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-sm p-4 rounded-lg">{state.error}</div>}
-        <form action={formAction} className="space-y-4" encType="multipart/form-data">
+        <form action={formAction} className="space-y-4">
           <LocalizedTextInput id="value_key" label="Option Value Key" value={localizedValueKey} onChange={setLocalizedValueKey} placeholder="e.g., Fire, Ice" />
           {field.has_color && (
             <div>

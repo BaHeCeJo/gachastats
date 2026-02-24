@@ -31,7 +31,7 @@ export default function LocalizedTextInput({
     if (!value) {
       onChange({ [gameDefaultLang]: "" });
       setActiveTab(gameDefaultLang);
-    } else if (!value[gameDefaultLang] && gameDefaultLang && gameSupportedLanguages.includes(gameDefaultLang)) {
+    } else if (gameDefaultLang && !(gameDefaultLang in value) && gameSupportedLanguages.includes(gameDefaultLang)) {
       // Ensure default language has an entry if it's missing but supported
       onChange({ ...value, [gameDefaultLang]: "" });
     }

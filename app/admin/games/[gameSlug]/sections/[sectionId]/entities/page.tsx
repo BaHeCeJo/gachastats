@@ -69,7 +69,7 @@ export default async function EntitiesPage({ params }: PageProps) {
     .eq('section_id', sectionId)
     .order('name->>${game.default_lang}', { ascending: true }) as { data: Entity[] | null }; // Order by localized name
 
-  const headersList = headers();
+  const headersList = await headers();
   const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
   return (

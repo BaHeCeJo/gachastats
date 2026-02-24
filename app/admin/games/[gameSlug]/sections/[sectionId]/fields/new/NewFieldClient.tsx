@@ -3,7 +3,7 @@
 import { useState, useActionState } from 'react';
 import { LocalizedString, GameLocalizationProvider, getTranslatedField } from "@/lib/localization";
 import LocalizedTextInput from '@/app/components/fields/LocalizedTextInput';
-import { upsertFieldAction } from './actions';
+import { upsertFieldAction } from '../actions';
 
 type GameData = { id: string; name: LocalizedString; slug: string; default_lang: string; supported_languages: string[]; };
 type SectionData = { id: string; key: LocalizedString; game_id: string; };
@@ -14,7 +14,7 @@ export default function NewFieldClient({ game, section, categories }: { game: Ga
   const [category, setCategory] = useState<string>('General');
   const [orderIndex, setOrderIndex] = useState<number>(0);
   const [required, setRequired] = useState<boolean>(false);
-  const [manualFill, setManualFill] = useState<boolean>(false);
+  const [manualFill, setManualFill] = useState<boolean>(true);
   const [isMulti, setIsMulti] = useState<boolean>(false);
   const [hasIcon, setHasIcon] = useState<boolean>(false);
   const [hasColor, setHasColor] = useState<boolean>(false);

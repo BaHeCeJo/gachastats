@@ -129,12 +129,12 @@ export default function SkinImageInput({
               For now, this component is focused on uploading a new image. */}
         </div>
       ) : (
-        <div className="flex items-center justify-center h-24 w-24 md:h-32 md:w-32 rounded-md bg-zinc-800 border border-zinc-700 text-zinc-500 text-sm">
+        <div className="flex items-center justify-center h-24 w-24 md:h-32 md:w-32 rounded-md bg-zinc-900/50 border border-zinc-800 text-zinc-500 text-sm">
           No {imageType}
         </div>
       )}
 
-      <form action={formAction} encType="multipart/form-data" className="flex flex-col gap-2">
+      <form action={formAction} className="flex flex-col gap-2">
         <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mt-2">
           {inputLabel}
         </label>

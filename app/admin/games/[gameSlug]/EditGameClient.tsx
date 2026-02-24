@@ -33,9 +33,10 @@ type FormState = {
 
 type AdminGamePageProps = {
   game: GameData;
+  currentLang: string;
 };
 
-export default function EditGameClient({ game }: AdminGamePageProps) {
+export default function EditGameClient({ game, currentLang }: AdminGamePageProps) {
   const supabase = createClient();
   const [localizedName, setLocalizedName] = useState<LocalizedString>(game.name);
   const [localizedDescription, setLocalizedDescription] = useState<LocalizedString>(game.description || {});
@@ -114,7 +115,7 @@ export default function EditGameClient({ game }: AdminGamePageProps) {
     <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
       <main className="max-w-3xl p-8 space-y-10 mx-auto">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">{getTranslatedField(localizedName, 'en', game.default_lang)}</h1>
+          <h1 className="text-3xl font-bold">{getTranslatedField(localizedName, currentLang, game.default_lang)}</h1>
           <form action={deleteGameAction.bind(null, game.id)}>
             <ConfirmButton>Delete Game</ConfirmButton>
           </form>
@@ -128,7 +129,7 @@ export default function EditGameClient({ game }: AdminGamePageProps) {
 
         <section className="space-y-4">
           <h2 className="text-xl font-semibold">Game information</h2>
-          <form action={formAction} className="space-y-6" encType="multipart/form-data">
+          <form action={formAction} className="space-y-6">
             <LocalizedTextInput id="name" label="Game Name" value={localizedName} onChange={setLocalizedName} placeholder="e.g., Zenless Zone Zero" />
             <LocalizedTextInput id="description" label="Description" value={localizedDescription} onChange={setLocalizedDescription} placeholder="A brief overview of the game..." textarea />
             <div>

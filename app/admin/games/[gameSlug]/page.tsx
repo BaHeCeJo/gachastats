@@ -1,5 +1,6 @@
 import { createClient as createServerClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
 import { getTranslatedField, LocalizedString } from '@/lib/localization-utils';
 import EditGameClient from './EditGameClient';
 
@@ -18,13 +19,16 @@ type PageProps = { params: Promise<{ gameSlug: string }> };
 export async function generateMetadata({ params }: PageProps) {
   const { gameSlug } = await params;
   const supabase = await createServerClient();
+  const headersList = await headers();
+  const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
+
   const { data: game } = await supabase
     .from('games')
-    .select('name')
+    .select('name, default_lang')
     .eq('slug', gameSlug)
     .single();
 
-  const gameName = game?.name ? getTranslatedField(game.name, 'en', 'en') : 'Game';
+  const gameName = game?.name ? getTranslatedField(game.name, currentLang, game.default_lang || 'en') : 'Game';
 
   return {
     title: `Edit ${gameName} - Admin`,
@@ -34,6 +38,8 @@ export async function generateMetadata({ params }: PageProps) {
 export default async function ServerAdminGamePage({ params }: PageProps) {
   const { gameSlug } = await params;
   const supabase = await createServerClient();
+  const headersList = await headers();
+  const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
   const { data: game } = await supabase
     .from('games')
@@ -43,5 +49,5 @@ export default async function ServerAdminGamePage({ params }: PageProps) {
 
   if (!game) redirect('/admin/games');
 
-  return <EditGameClient game={game} />;
+  return <EditGameClient game={game} currentLang={currentLang} />;
 }

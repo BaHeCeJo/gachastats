@@ -18,11 +18,13 @@ type Props = {
   initialValues?: (string | Tag)[]; // Can be strings (labels) or Tag objects
   options?: Option[];       // These are existing labels from field_options
   onChange?: (values: string[]) => void; // Returns the values to be saved (labels or IDs)
+  isMulti?: boolean;
 };
 
-export default function CreatableTagInput({ name, initialValues = [], options = [], onChange }: Props) {
+export default function CreatableTagInput({ name, initialValues = [], options = [], onChange, isMulti = true }: Props) {
   const [tags, setTags] = useState<Tag[]>(() => {
-    return initialValues.map(val => {
+    const vals = isMulti ? initialValues : initialValues.slice(0, 1);
+    return vals.map(val => {
       if (typeof val === 'string') {
         // Try to find if this string is a UUID that matches an option
         const option = options.find(opt => opt.id === val);
@@ -49,12 +51,13 @@ export default function CreatableTagInput({ name, initialValues = [], options = 
 
   const filteredOptions = useMemo(() => {
     if (!inputValue) return [];
+    if (!isMulti && tags.length > 0) return [];
     const lowerInput = inputValue.toLowerCase();
     return options.filter(opt => {
       const label = getTranslatedField(opt.value_key, currentLang, gameDefaultLang).toLowerCase();
       return label.includes(lowerInput) && !tags.some(t => t.id === opt.id || t.label.toLowerCase() === label);
     });
-  }, [inputValue, options, tags, currentLang, gameDefaultLang]);
+  }, [inputValue, options, tags, currentLang, gameDefaultLang, isMulti]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && inputValue.trim() !== '') {
@@ -65,7 +68,7 @@ export default function CreatableTagInput({ name, initialValues = [], options = 
 
   const addManualTag = (label: string) => {
     if (!tags.some(t => t.label.toLowerCase() === label.toLowerCase())) {
-      const newTags = [...tags, { label }];
+      const newTags = isMulti ? [...tags, { label }] : [{ label }];
       setTags(newTags);
       onChange?.(newTags.map(t => t.id || t.label));
     }
@@ -74,7 +77,7 @@ export default function CreatableTagInput({ name, initialValues = [], options = 
 
   const addOptionTag = (option: Option) => {
     if (!tags.some(t => t.id === option.id)) {
-      const newTags = [...tags, { id: option.id, label: getTranslatedField(option.value_key, currentLang, gameDefaultLang) }];
+      const newTags = isMulti ? [...tags, { id: option.id, label: getTranslatedField(option.value_key, currentLang, gameDefaultLang) }] : [{ id: option.id, label: getTranslatedField(option.value_key, currentLang, gameDefaultLang) }];
       setTags(newTags);
       onChange?.(newTags.map(t => t.id || t.label));
     }
@@ -108,14 +111,16 @@ export default function CreatableTagInput({ name, initialValues = [], options = 
               </button>
             </div>
           ))}
-          <input
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type to search or add..."
-            className="flex-grow bg-transparent focus:outline-none p-1 text-zinc-100 placeholder:text-zinc-600"
-          />
+          {(!isMulti && tags.length > 0) ? null : (
+            <input
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={tags.length > 0 ? "" : "Type to search or add..."}
+              className="flex-grow bg-transparent focus:outline-none p-1 text-zinc-100 placeholder:text-zinc-600"
+            />
+          )}
         </div>
 
         {/* Suggestions Dropdown */}
@@ -140,7 +145,9 @@ export default function CreatableTagInput({ name, initialValues = [], options = 
       </div>
       
       {tags.length === 0 && !inputValue && (
-        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 ml-1">Press Enter to add new tags or select from suggestions</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 ml-1">
+          {isMulti ? "Press Enter to add new tags or select from suggestions" : "Type and press Enter to add or select from suggestions"}
+        </p>
       )}
     </div>
   );
