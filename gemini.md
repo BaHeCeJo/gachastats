@@ -54,6 +54,7 @@ The following core features are implemented and functional:
 -   **Localized Dynamic Fields:** Support for multi-language names, descriptions, and custom field values with automatic fallbacks.
 -   **Advanced Filtering:** A visual filtering system for sections that allows users to drill down by dynamic attributes (e.g., Element, Rarity, Path).
 -   **Skin Management:** Support for multiple skins per entity, including dedicated Icon and Full Art (Splash Art) image management via Supabase Storage.
+-   **Admin Translation Tools:** A manual language selector in the admin header combined with visual "missing translation" indicators to help admins ensure full coverage across all supported languages.
 -   **Responsive Design:** A modern, "gamer-centric" UI that works across various screen sizes.
 
 ## 3. Admin Workflow Example

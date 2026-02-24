@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { LocalizedString, getTranslatedField, useLocalizationParams } from "@/lib/localization";
+import MissingTranslationIndicator from '../MissingTranslationIndicator';
 
 type Option = {
   id: string;
@@ -37,13 +38,14 @@ export default function CreatableTagInput({ name, initialValues = [], options = 
     });
   });
   const [inputValue, setInputValue] = useState('');
-  const { currentLang, gameDefaultLang } = useLocalizationParams();
+  const { currentLang, displayLang, gameDefaultLang } = useLocalizationParams() as any;
+  const activeLang = displayLang || currentLang;
 
   const getLabelForTag = (tag: Tag) => {
     if (tag.id) {
       const option = options.find(opt => opt.id === tag.id);
       if (option) {
-        return getTranslatedField(option.value_key, currentLang, gameDefaultLang);
+        return getTranslatedField(option.value_key, activeLang, gameDefaultLang);
       }
     }
     return tag.label;
@@ -54,10 +56,10 @@ export default function CreatableTagInput({ name, initialValues = [], options = 
     if (!isMulti && tags.length > 0) return [];
     const lowerInput = inputValue.toLowerCase();
     return options.filter(opt => {
-      const label = getTranslatedField(opt.value_key, currentLang, gameDefaultLang).toLowerCase();
+      const label = getTranslatedField(opt.value_key, activeLang, gameDefaultLang).toLowerCase();
       return label.includes(lowerInput) && !tags.some(t => t.id === opt.id || t.label.toLowerCase() === label);
     });
-  }, [inputValue, options, tags, currentLang, gameDefaultLang, isMulti]);
+  }, [inputValue, options, tags, activeLang, gameDefaultLang, isMulti]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && inputValue.trim() !== '') {
@@ -77,7 +79,7 @@ export default function CreatableTagInput({ name, initialValues = [], options = 
 
   const addOptionTag = (option: Option) => {
     if (!tags.some(t => t.id === option.id)) {
-      const newTags = isMulti ? [...tags, { id: option.id, label: getTranslatedField(option.value_key, currentLang, gameDefaultLang) }] : [{ id: option.id, label: getTranslatedField(option.value_key, currentLang, gameDefaultLang) }];
+      const newTags = isMulti ? [...tags, { id: option.id, label: getTranslatedField(option.value_key, activeLang, gameDefaultLang) }] : [{ id: option.id, label: getTranslatedField(option.value_key, activeLang, gameDefaultLang) }];
       setTags(newTags);
       onChange?.(newTags.map(t => t.id || t.label));
     }
@@ -102,6 +104,9 @@ export default function CreatableTagInput({ name, initialValues = [], options = 
           {tags.map((tag, index) => (
             <div key={index} className="flex items-center gap-1 bg-zinc-800 text-zinc-200 rounded-lg px-2 py-1 text-sm border border-zinc-700">
               <span className="font-medium">{getLabelForTag(tag)}</span>
+              {tag.id && (
+                <MissingTranslationIndicator value={options.find(o => o.id === tag.id)?.value_key} />
+              )}
               <button
                 type="button"
                 onClick={() => removeTag(index)}

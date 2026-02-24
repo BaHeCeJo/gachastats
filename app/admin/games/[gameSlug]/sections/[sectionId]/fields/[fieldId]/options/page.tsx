@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { LocalizedString, getTranslatedField } from "@/lib/localization-utils";
 import { GameLocalizationProvider } from "@/lib/localization";
 import { headers } from "next/headers";
+import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
+import AdminOptionList from './AdminOptionList';
 
 type Game = {
   id: string;
@@ -55,7 +57,7 @@ export default async function FieldOptionsPage({ params }: PageProps) {
     .eq('id', fieldId)
     .single<Field>();
 
-  if (!field || field.manual_fill) {
+  if (!field) {
     redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields`);
   }
 
@@ -72,8 +74,9 @@ export default async function FieldOptionsPage({ params }: PageProps) {
     <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
       <main className="p-8 space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold">
+          <h1 className="text-2xl font-bold flex items-center gap-2">
             Options — {getTranslatedField(field.key, currentLang, game.default_lang)}
+            <MissingTranslationIndicator value={field.key} />
           </h1>
 
           <Link
@@ -85,42 +88,18 @@ export default async function FieldOptionsPage({ params }: PageProps) {
           </Link>
         </div>
 
-        <div className="grid gap-3">
-          {options && options.length > 0 ? (
-            options.map(opt => (
-              <Link
-                key={opt.id}
-                href={`/admin/games/${gameSlug}/sections/${sectionId}/fields/${fieldId}/options/${opt.id}`}
-                className="border rounded p-3 flex items-center gap-4 hover:bg-gray-800"
-                prefetch={false}
-              >
-                {opt.icon_path && (
-                  <img
-                    src={
-                      supabase.storage
-                        .from('games')
-                        .getPublicUrl(opt.icon_path)
-                        .data.publicUrl
-                    }
-                    className="w-8 h-8 object-cover rounded"
-                    alt={getTranslatedField(opt.value_key, currentLang, game.default_lang)}
-                  />
-                )}
-
-                <span className="font-medium">{getTranslatedField(opt.value_key, currentLang, game.default_lang)}</span>
-
-                {opt.color && (
-                  <span
-                    className="ml-auto w-4 h-4 rounded-full"
-                    style={{ backgroundColor: opt.color }}
-                  />
-                )}
-              </Link>
-            ))
-          ) : (
-            <p className="text-gray-400">No options yet.</p>
-          )}
-        </div>
+        {options && options.length > 0 ? (
+          <AdminOptionList 
+            options={options as any} 
+            gameSlug={gameSlug} 
+            sectionId={sectionId} 
+            fieldId={fieldId} 
+            gameDefaultLang={game.default_lang}
+            supabaseUrl={process.env.NEXT_PUBLIC_SUPABASE_URL!}
+          />
+        ) : (
+          <p className="text-gray-400">No options yet.</p>
+        )}
       </main>
     </GameLocalizationProvider>
   )

@@ -6,6 +6,7 @@ import { LocalizedString, getTranslatedField, GameLocalizationProvider } from "@
 import LocalizedTextInput from '@/app/components/fields/LocalizedTextInput';
 import ConfirmButton from '@/app/components/ConfirmButton';
 import { upsertFieldAction, deleteFieldAction } from '../actions';
+import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
 
 type GameData = { id: string; name: LocalizedString; slug: string; default_lang: string; supported_languages: string[]; };
 type SectionData = { id: string; key: LocalizedString; game_id: string; };
@@ -52,7 +53,10 @@ export default function EditFieldClient({ game, section, field, categories, curr
     <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
       <main className="max-w-xl p-8 space-y-10 mx-auto">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-white">Edit Field: {getTranslatedField(field.key, currentLang, game.default_lang)}</h1>
+          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+            Edit Field: {getTranslatedField(field.key, currentLang, game.default_lang)}
+            <MissingTranslationIndicator value={field.key} />
+          </h1>
           <form action={deleteFieldAction.bind(null, field.id, game.slug, section.id)}>
             <ConfirmButton>Delete Field</ConfirmButton>
           </form>
@@ -93,13 +97,11 @@ export default function EditFieldClient({ game, section, field, categories, curr
             <button type="submit" className="w-full bg-blue-600 text-white font-bold px-4 py-3 rounded-xl hover:bg-blue-500 transition-colors">Save Field</button>
           </form>
         </section>
-        {canHaveOptions && (
-          <section className="border-t pt-6 space-y-3">
-            <h2 className="text-lg font-semibold text-white">Field Options</h2>
-            <p className="text-sm text-gray-400">Define the allowed values for this field.</p>
-            <Link href={`/admin/games/${game.slug}/sections/${section.id}/fields/${field.id}/options`} className="inline-block bg-indigo-600 text-white px-4 py-2 rounded">Manage Options →</Link>
-          </section>
-        )}
+        <section className="border-t pt-6 space-y-3">
+          <h2 className="text-lg font-semibold text-white">Field Options</h2>
+          <p className="text-sm text-gray-400">Define the allowed values or localized tags for this field.</p>
+          <Link href={`/admin/games/${game.slug}/sections/${section.id}/fields/${field.id}/options`} className="inline-block bg-indigo-600 text-white px-4 py-2 rounded">Manage Options →</Link>
+        </section>
       </main>
     </GameLocalizationProvider>
   );

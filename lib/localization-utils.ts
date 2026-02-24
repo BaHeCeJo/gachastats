@@ -36,3 +36,16 @@ export function getTranslatedField(
 
   return "";
 }
+
+/**
+ * Checks if a LocalizedString is missing a value for a specific language.
+ */
+export function isMissingTranslation(
+  localizedString: LocalizedString | string | null | undefined,
+  langCode: string
+): boolean {
+  if (!localizedString) return true;
+  if (typeof localizedString === "string") return false; // If it's a string, it's considered "translated" (though maybe only in one language)
+  
+  return !localizedString[langCode] || localizedString[langCode].trim() === "";
+}

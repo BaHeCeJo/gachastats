@@ -2,7 +2,7 @@
 
 import { useState, useActionState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { LocalizedString, getTranslatedField, GameLocalizationProvider } from "@/lib/localization";
+import { LocalizedString, getTranslatedField, GameLocalizationProvider, useLocalizationParams } from "@/lib/localization";
 import LocalizedTextInput from '@/app/components/fields/LocalizedTextInput';
 import CreatableTagInput from '@/app/components/fields/CreatableTagInput';
 import ImageInput from '@/app/components/ImageInput';
@@ -10,6 +10,7 @@ import ConfirmButton from '@/app/components/ConfirmButton';
 import SkinManager from "@/app/components/skins/SkinManager";
 import { upsertEntityAction, deleteEntityAction } from '../actions';
 import Link from "next/link";
+import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
 
 type GameData = {
   id: string;
@@ -80,7 +81,7 @@ type FormState = {
   error?: string;
 };
 
-export default function EditEntityClient({ game, section, entity, fields, currentLang }: {
+export default function EditEntityClient({ game, section, entity, fields, currentLang: browserLang }: {
   game: GameData;
   section: SectionData;
   entity: EntityData;
@@ -88,6 +89,9 @@ export default function EditEntityClient({ game, section, entity, fields, curren
   currentLang: string;
 }) {
   const supabase = createClient();
+  const { displayLang } = useLocalizationParams() as any;
+  const activeLang = displayLang || browserLang;
+
   const [localizedName, setLocalizedName] = useState<LocalizedString>(entity.name);
   const [iconFile, setIconFile] = useState<File | null>(null);
   const [existingIconPath, setExistingIconPath] = useState<string | null>(entity.icon_path);
@@ -215,7 +219,10 @@ export default function EditEntityClient({ game, section, entity, fields, curren
     <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
       <div className="p-8 max-w-4xl mx-auto space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-white">Edit Entity: {getTranslatedField(entity.name, currentLang, game.default_lang)}</h1>
+          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+            Edit Entity: {getTranslatedField(entity.name, activeLang, game.default_lang)}
+            <MissingTranslationIndicator value={entity.name} />
+          </h1>
           <form action={deleteEntityAction.bind(null, entity.id, game.slug, section.id)}>
             <ConfirmButton>Delete Entity</ConfirmButton>
           </form>
@@ -241,12 +248,15 @@ export default function EditEntityClient({ game, section, entity, fields, curren
                     const currentValue = entityFieldValues.find(v => v.field_id === field.id);
                     if (!currentValue) return null;
                     
-                    const fieldLabel = getTranslatedField(field.key, currentLang, game.default_lang);
+                    const fieldLabel = getTranslatedField(field.key, activeLang, game.default_lang);
 
                     if (field.manual_fill) {
                       return (
                         <div key={field.id} className="md:col-span-2 space-y-2">
-                          <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest ml-1">{fieldLabel}</label>
+                          <label className="flex items-center gap-2 text-xs font-bold text-zinc-500 uppercase tracking-widest ml-1">
+                            {fieldLabel}
+                            <MissingTranslationIndicator value={field.key} />
+                          </label>
                           <CreatableTagInput 
                             name={`field-${field.id}`} 
                             initialValues={currentValue.values} 
@@ -259,14 +269,15 @@ export default function EditEntityClient({ game, section, entity, fields, curren
                     } else {
                       return (
                         <div key={field.id} className={field.is_multi ? "md:col-span-2 space-y-3" : "space-y-2"}>
-                          <label htmlFor={`field-${field.id}`} className="block text-xs font-bold text-zinc-500 uppercase tracking-widest ml-1">
+                          <label htmlFor={`field-${field.id}`} className="flex items-center gap-2 text-xs font-bold text-zinc-500 uppercase tracking-widest ml-1">
                             {fieldLabel}
+                            <MissingTranslationIndicator value={field.key} />
                           </label>
                           {field.is_multi ? (
                             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                               {field.field_options?.map(option => {
                                 const isSelected = currentValue.values.includes(option.id);
-                                const optionLabel = getTranslatedField(option.value_key, currentLang, game.default_lang);
+                                const optionLabel = getTranslatedField(option.value_key, activeLang, game.default_lang);
                                 return (
                                   <button
                                     key={option.id}
@@ -303,7 +314,7 @@ export default function EditEntityClient({ game, section, entity, fields, curren
                               <option value="">Select an option</option>
                               {field.field_options?.map(option => (
                                 <option key={option.id} value={option.id}>
-                                  {getTranslatedField(option.value_key, currentLang, game.default_lang)}
+                                  {getTranslatedField(option.value_key, activeLang, game.default_lang)}
                                 </option>
                               ))}
                             </select>
@@ -329,7 +340,7 @@ export default function EditEntityClient({ game, section, entity, fields, curren
             </button>
           </div>
         </form>
-        <SkinManager entity={entity} skins={entity.entity_skins} gameSlug={game.slug} sectionId={section.id} gameDefaultLang={game.default_lang} currentLang={currentLang} />
+        <SkinManager entity={entity} skins={entity.entity_skins} gameSlug={game.slug} sectionId={section.id} gameDefaultLang={game.default_lang} activeLang={activeLang} />
       </div>
     </GameLocalizationProvider>
   );

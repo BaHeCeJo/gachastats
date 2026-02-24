@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, ReactNode } from "react";
+import { createContext, useContext, ReactNode, useState, useEffect } from "react";
 import { LocalizedString } from "./localization-utils";
 
 // Re-export type for convenience
@@ -8,6 +8,9 @@ export type { LocalizedString };
 
 type LocalizationContextType = {
   currentLang: string;
+  adminSelectedLang: string | null;
+  setAdminSelectedLang: (lang: string | null) => void;
+  displayLang: string;
 };
 
 type GameLocalizationContextType = {
@@ -19,9 +22,33 @@ const LocalizationContext = createContext<LocalizationContextType | undefined>(u
 const GameLocalizationContext = createContext<GameLocalizationContextType | undefined>(undefined);
 
 // --- Client Component Provider ---
-export function LocalizationProvider({ children, currentLang }: { children: ReactNode; currentLang: string }) {
+export function LocalizationProvider({ children, currentLang: initialLang }: { children: ReactNode; currentLang: string }) {
+  const [adminSelectedLang, setAdminSelectedLang] = useState<string | null>(null);
+  
+  // Persist admin choice in session storage for better UX
+  useEffect(() => {
+    const saved = sessionStorage.getItem('admin_preview_lang');
+    if (saved) setAdminSelectedLang(saved);
+  }, []);
+
+  const handleSetAdminLang = (lang: string | null) => {
+    setAdminSelectedLang(lang);
+    if (lang) {
+      sessionStorage.setItem('admin_preview_lang', lang);
+    } else {
+      sessionStorage.removeItem('admin_preview_lang');
+    }
+  };
+
+  const displayLang = adminSelectedLang || initialLang;
+
   return (
-    <LocalizationContext.Provider value={{ currentLang }}>
+    <LocalizationContext.Provider value={{ 
+      currentLang: initialLang, 
+      adminSelectedLang, 
+      setAdminSelectedLang: handleSetAdminLang,
+      displayLang 
+    }}>
       {children}
     </LocalizationContext.Provider>
   );
@@ -31,7 +58,7 @@ export function LocalizationProvider({ children, currentLang }: { children: Reac
 export function useCurrentLanguage() {
   const context = useContext(LocalizationContext);
   if (context === undefined) {
-    return { currentLang: 'en' };
+    return { currentLang: 'en', adminSelectedLang: null, setAdminSelectedLang: () => {}, displayLang: 'en' };
   }
   return context;
 }
@@ -66,11 +93,11 @@ export function useGameLocalizationParams() {
  * A client-side hook to get the current language, default language, and languages supported by the game.
  */
 export function useLocalizationParams() {
-  const { currentLang } = useCurrentLanguage();
+  const { currentLang, adminSelectedLang, setAdminSelectedLang, displayLang } = useCurrentLanguage();
   const { gameDefaultLang, gameSupportedLanguages } = useGameLocalizationParams();
 
-  return { currentLang, gameDefaultLang, gameSupportedLanguages };
+  return { currentLang, adminSelectedLang, setAdminSelectedLang, displayLang, gameDefaultLang, gameSupportedLanguages };
 }
 
 // Re-export logic function for client components that import from here
-export { getTranslatedField } from "./localization-utils";
+export { getTranslatedField, isMissingTranslation } from "./localization-utils";

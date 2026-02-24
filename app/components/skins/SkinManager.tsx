@@ -2,7 +2,7 @@
 
 import { useState, useActionState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { LocalizedString, getTranslatedField } from "@/lib/localization";
+import { LocalizedString, getTranslatedField, useLocalizationParams } from "@/lib/localization";
 import SkinImageInput from "../SkinImageInput"; // Assuming SkinImageInput is also updated to handle localization if needed
 import { deleteSkin, upsertSkin, deleteSkinImage } from "./actions"; // Assuming upsertSkin is defined
 import LocalizedTextInput from "../fields/LocalizedTextInput"; // For localized skin name input
@@ -37,7 +37,7 @@ type SkinManagerProps = {
   gameSlug: string;
   sectionId: string;
   gameDefaultLang: string;
-  currentLang: string;
+  activeLang: string;
 };
 
 type FormState = {
@@ -50,9 +50,12 @@ export default function SkinManager({
   gameSlug,
   sectionId,
   gameDefaultLang,
-  currentLang,
+  activeLang: browserLang,
 }: SkinManagerProps) {
   const supabase = createClient();
+  const { displayLang } = useLocalizationParams() as any;
+  const activeLang = displayLang || browserLang;
+
   const entityId = entity.id;
   const [newSkinName, setNewSkinName] = useState<LocalizedString>({ [gameDefaultLang]: "" });
 
@@ -114,7 +117,7 @@ export default function SkinManager({
             <div key={skin.id} className="p-4 border border-zinc-700 rounded-xl bg-zinc-800">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="font-bold text-lg text-white">
-                  {getTranslatedField(skin.name, currentLang, gameDefaultLang)} {skin.is_default && "(Default)"}
+                  {getTranslatedField(skin.name, activeLang, gameDefaultLang)} {skin.is_default && "(Default)"}
                 </h3>
                 <div className="flex gap-2">
                   {!skin.is_default && (
@@ -139,7 +142,7 @@ export default function SkinManager({
                         src={icon.publicUrl}
                         width={96}
                         height={96}
-                        alt={getTranslatedField(skin.name, currentLang, gameDefaultLang) + " Icon"}
+                        alt={getTranslatedField(skin.name, activeLang, gameDefaultLang) + " Icon"}
                         className="w-full h-full object-cover rounded-md"
                       />
                       <ConfirmButton
@@ -159,7 +162,7 @@ export default function SkinManager({
                         imageType="icon"
                         existingImageUrl={null}
                         gameDefaultLang={gameDefaultLang}
-                        currentLang={currentLang}
+                        activeLang={activeLang}
                     />
                   )}
                 </div>
@@ -171,7 +174,7 @@ export default function SkinManager({
                       <img
                         src={splash.publicUrl}
                         width={800}
-                        alt={getTranslatedField(skin.name, currentLang, gameDefaultLang) + " Full Art"}
+                        alt={getTranslatedField(skin.name, activeLang, gameDefaultLang) + " Full Art"}
                         className="w-full h-auto max-h-[500px] object-contain rounded-md"
                       />
                       <ConfirmButton
@@ -191,7 +194,7 @@ export default function SkinManager({
                         imageType="splashart"
                         existingImageUrl={null}
                         gameDefaultLang={gameDefaultLang}
-                        currentLang={currentLang}
+                        activeLang={activeLang}
                     />
                   )}
                 </div>

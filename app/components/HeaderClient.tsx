@@ -4,6 +4,8 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import React from "react"
 import { signOut } from "@/app/auth/signout/action"
+import { useLocalizationParams } from "@/lib/localization"
+import { languages } from "@/lib/constants/languages"
 
 export default function HeaderClient({ 
   isAdmin, 
@@ -13,6 +15,12 @@ export default function HeaderClient({
   isLoggedIn: boolean
 }) {
   const pathname = usePathname() ?? "/"
+  const { 
+    adminSelectedLang, 
+    setAdminSelectedLang, 
+    gameSupportedLanguages, 
+    currentLang 
+  } = useLocalizationParams() as any;
 
   const isAdminRoute = pathname.startsWith("/admin")
 
@@ -30,6 +38,41 @@ export default function HeaderClient({
 
   return (
     <nav className="flex gap-6 items-center ml-auto">
+      {isAdmin && isAdminRoute && gameSupportedLanguages && gameSupportedLanguages.length > 0 && (
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
+          <svg 
+            width="16" 
+            height="16" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round" 
+            className="text-zinc-500"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="2" y1="12" x2="22" y2="12" />
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+          </svg>
+          <select 
+            className="bg-transparent text-sm font-medium focus:outline-none appearance-none cursor-pointer pr-4"
+            value={adminSelectedLang || ""}
+            onChange={(e) => setAdminSelectedLang(e.target.value || null)}
+          >
+            <option value="">Browser ({currentLang.toUpperCase()})</option>
+            {gameSupportedLanguages.map((langCode: string) => {
+              const langInfo = languages.find(l => l.code === langCode);
+              return (
+                <option key={langCode} value={langCode}>
+                  {langInfo ? langInfo.native_name : langCode.toUpperCase()}
+                </option>
+              );
+            })}
+          </select>
+        </div>
+      )}
+
       {!isLoggedIn ? (
         <Link
           href="/auth/signin"

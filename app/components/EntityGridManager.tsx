@@ -2,7 +2,8 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { LocalizedString, getTranslatedField } from "@/lib/localization";
+import { LocalizedString, getTranslatedField, useLocalizationParams } from "@/lib/localization";
+import MissingTranslationIndicator from "./MissingTranslationIndicator";
 
 type Option = {
   id: string;
@@ -46,8 +47,11 @@ export default function EntityGridManager({
   sectionName,
   isAdmin = false,
   gameDefaultLang,
-  currentLang,
+  currentLang: browserLang,
 }: Props) {
+  const { displayLang } = useLocalizationParams() as any;
+  const activeLang = displayLang || browserLang;
+
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
 
   const filteredEntities = useMemo(() => {
@@ -83,7 +87,7 @@ export default function EntityGridManager({
             <div key={field.id} className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm font-bold uppercase tracking-wider text-gray-500">
-                  {getTranslatedField(field.key, currentLang, gameDefaultLang)}
+                  {getTranslatedField(field.key, activeLang, gameDefaultLang)}
                 </span>
                 {activeFilters[field.id] && (
                   <button
@@ -101,7 +105,7 @@ export default function EntityGridManager({
               <div className="flex flex-wrap gap-3">
                 {field.options.map((opt) => {
                   const isActive = activeFilters[field.id] === opt.id;
-                  const displayValue = getTranslatedField(opt.value_key, currentLang, gameDefaultLang);
+                  const displayValue = getTranslatedField(opt.value_key, activeLang, gameDefaultLang);
                   return (
                     <button
                       key={opt.id}
@@ -211,7 +215,7 @@ export default function EntityGridManager({
                         <img
                           src={entity.publicIconUrl}
                           className="w-full h-full object-cover relative z-10"
-                          alt={getTranslatedField(entity.name, currentLang, gameDefaultLang)}
+                          alt={getTranslatedField(entity.name, activeLang, gameDefaultLang)}
                         />
                       </div>
                     ) : (
@@ -243,8 +247,9 @@ export default function EntityGridManager({
 
                   {/* Name Label (Attached to the bottom) */}
                   <div className="bg-black/90 p-2 text-center border-t border-gray-800 group-hover:bg-[#22c55e] transition-colors">
-                    <span className="text-[11px] font-bold truncate block px-1 text-gray-200 group-hover:text-black uppercase tracking-tight">
-                      {getTranslatedField(entity.name, currentLang, gameDefaultLang)}
+                    <span className="text-[11px] font-bold truncate px-1 text-gray-200 group-hover:text-black uppercase tracking-tight flex items-center justify-center gap-1">
+                      {getTranslatedField(entity.name, activeLang, gameDefaultLang)}
+                      {isAdmin && <MissingTranslationIndicator value={entity.name} />}
                     </span>
                   </div>
                 </>
