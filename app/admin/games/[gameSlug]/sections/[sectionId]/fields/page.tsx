@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { LocalizedString, getTranslatedField, getTranslation } from "@/lib/localization-utils";
 import { GameLocalizationProvider } from "@/lib/localization";
 import { headers } from "next/headers";
+import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
 
 type Game = {
   id: string;
@@ -111,8 +112,9 @@ export default async function FieldsPage({ params }: PageProps) {
                       key={f.id}
                       className="border p-3 rounded flex justify-between items-center bg-zinc-900/50 border-zinc-800"
                     >
-                      <span>
+                      <span className="flex items-center gap-2">
                         {getTranslatedField(f.key, currentLang, game.default_lang)}
+                        <MissingTranslationIndicator value={f.key} />
                       </span>
 
                       <Link

@@ -135,7 +135,10 @@ export default function EditGameClient({ game, currentLang: browserLang }: Admin
         )}
 
         <section className="space-y-4">
-          <h2 className="text-xl font-semibold">{t('gameDescription')}</h2>
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            {t('gameDescription')}
+            <MissingTranslationIndicator value={localizedDescription} />
+          </h2>
           <form action={formAction} className="space-y-6">
             <LocalizedTextInput id="name" label={t('gameName')} value={localizedName} onChange={setLocalizedName} placeholder="e.g., Zenless Zone Zero" />
             <LocalizedTextInput id="description" label={t('description')} value={localizedDescription} onChange={setLocalizedDescription} placeholder="A brief overview of the game..." textarea />

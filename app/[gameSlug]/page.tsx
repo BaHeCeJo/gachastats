@@ -64,7 +64,22 @@ export default async function GameDetailPage({ params: paramsPromise }: PageProp
   // For server components, we'll get currentLang from headers
   const headersList = await headers();
   const acceptLanguage = headersList.get('Accept-Language');
-  const currentLang = acceptLanguage ? acceptLanguage.split(',')[0].split('-')[0].toLowerCase() : 'en';
+  const browserLang = acceptLanguage ? acceptLanguage.split(',')[0].split('-')[0].toLowerCase() : 'en';
+
+  // --- Language Completeness Logic ---
+  // A language is only "Ready" if the Game Name, Description, and ALL Section keys are translated.
+  const readyLanguages = game.supported_languages.filter(lang => {
+    if (lang === game.default_lang) return true; // Default is always ready
+    
+    const hasGameName = game.name?.[lang]?.trim();
+    const hasGameDesc = game.description?.[lang]?.trim();
+    const allSectionsReady = (sections || []).every(s => s.key?.[lang]?.trim());
+    
+    return hasGameName && hasGameDesc && allSectionsReady;
+  });
+
+  // If the browser language isn't "Ready", fallback to the game's default language
+  const currentLang = readyLanguages.includes(browserLang) ? browserLang : game.default_lang;
 
   return (
     <div className="relative flex flex-col min-h-screen bg-zinc-50 dark:bg-black font-sans overflow-x-hidden">
@@ -78,7 +93,10 @@ export default async function GameDetailPage({ params: paramsPromise }: PageProp
         <div className="absolute inset-0 bg-zinc-50/60 dark:bg-black/80" />
       </div>
 
-      <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
+      <GameLocalizationProvider 
+        gameDefaultLang={game.default_lang} 
+        gameSupportedLanguages={readyLanguages}
+      >
         {/* GS logo as a lower layer for brand presence, hidden if cover is present */}
         <GSBackground isHidden={!!coverUrl} />
         

@@ -57,3 +57,17 @@ export function isMissingTranslation(
   
   return !localizedString[langCode] || localizedString[langCode].trim() === "";
 }
+
+/**
+ * Returns a list of language codes that are missing translations in a LocalizedString.
+ */
+export function getMissingLanguages(
+  localizedString: LocalizedString | string | null | undefined,
+  supportedLangs: string[]
+): string[] {
+  if (!localizedString || typeof localizedString === "string") {
+    return []; // If it's a string, we can't check other languages here
+  }
+  
+  return supportedLangs.filter(lang => !localizedString[lang] || localizedString[lang].trim() === "");
+}

@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { LocalizedString, getTranslatedField, getTranslation } from "@/lib/localization-utils";
 import { GameLocalizationProvider } from "@/lib/localization";
 import { headers } from "next/headers";
+import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
 
 type Game = {
   id: string;
@@ -52,8 +53,10 @@ export default async function SectionsPage({ params }: PageProps) {
     <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
       <main className="p-8 space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold">
-            {getTranslatedField(game.name, currentLang, game.default_lang)} — {getTranslation('sections', currentLang)}
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            {getTranslatedField(game.name, currentLang, game.default_lang)}
+            <MissingTranslationIndicator value={game.name} />
+            — {getTranslation('sections', currentLang)}
           </h1>
 
           <Link
@@ -88,8 +91,9 @@ export default async function SectionsPage({ params }: PageProps) {
                       className="w-12 h-12 object-cover rounded"
                     />
                   )}
-                  <span className="font-medium">
+                  <span className="font-medium flex items-center gap-2">
                     {getTranslatedField(section.key, currentLang, game.default_lang)}
+                    <MissingTranslationIndicator value={section.key} />
                   </span>
                 </Link>
               )

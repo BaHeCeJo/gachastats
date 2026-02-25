@@ -13,7 +13,7 @@ export default async function Home() {
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("HOME PAGE GAMES ERROR:", error);
+    console.error("HOME PAGE GAMES ERROR:", error.message, error.details, error.hint);
   }
 
   // Determine a default game or use the first one to pass its language settings

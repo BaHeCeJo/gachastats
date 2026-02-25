@@ -7,6 +7,7 @@ import LocalizedTextInput from '@/app/components/fields/LocalizedTextInput';
 import ImageInput from '@/app/components/ImageInput';
 import ConfirmButton from '@/app/components/ConfirmButton';
 import { upsertOptionAction, deleteOptionAction } from '../actions';
+import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
 
 type GameData = { id: string; name: LocalizedString; slug: string; default_lang: string; supported_languages: string[]; };
 type FieldData = { id: string; key: LocalizedString; manual_fill: boolean; has_icon: boolean; has_color: boolean; };
@@ -48,7 +49,10 @@ export default function EditOptionClient({ game, field, option, sectionId, curre
     <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
       <main className="max-w-xl p-8 space-y-6 mx-auto">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-white">{t('editOption')}: {getTranslatedField(option.value_key, activeLang, game.default_lang)}</h1>
+          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+            {t('editOption')}: {getTranslatedField(option.value_key, activeLang, game.default_lang)}
+            <MissingTranslationIndicator value={option.value_key} />
+          </h1>
           <form action={deleteOptionAction.bind(null, option.id, game.slug, sectionId, field.id)}>
             <ConfirmButton>{t('delete')} {t('option')}</ConfirmButton>
           </form>

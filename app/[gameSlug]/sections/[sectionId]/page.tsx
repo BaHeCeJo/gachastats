@@ -174,7 +174,22 @@ export default async function SectionDetailPage({ params: paramsPromise }: PageP
 
   // For server components, we'll get currentLang from headers
   const headersList = await headers();
-  const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
+  const browserLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
+
+  // --- Language Completeness Logic ---
+  // A language is only "Ready" for this section if the Game Name and ALL Entity names in this section are translated.
+  // Note: We check entities here specifically for this page's completeness.
+  const readyLanguages = game.supported_languages.filter(lang => {
+    if (lang === game.default_lang) return true; // Default is always ready
+    
+    const hasGameName = game.name?.[lang]?.trim();
+    const allEntitiesReady = (entities || []).every(e => e.name?.[lang]?.trim());
+    
+    return hasGameName && allEntitiesReady;
+  });
+
+  // If the browser language isn't "Ready", fallback to the game's default language
+  const currentLang = readyLanguages.includes(browserLang) ? browserLang : game.default_lang;
 
   // Create a map of fields for easy lookup
   const fieldsMap = new Map((fields || [])?.map(f => [f.id, f]));
@@ -269,7 +284,10 @@ export default async function SectionDetailPage({ params: paramsPromise }: PageP
         <div className="absolute inset-0 bg-zinc-50/60 dark:bg-black/80" />
       </div>
 
-      <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
+      <GameLocalizationProvider 
+        gameDefaultLang={game.default_lang} 
+        gameSupportedLanguages={readyLanguages}
+      >
         {/* GS logo as a lower layer for brand presence, hidden if game cover is present */}
         <GSBackground isHidden={!!gameCoverUrl} />
         
