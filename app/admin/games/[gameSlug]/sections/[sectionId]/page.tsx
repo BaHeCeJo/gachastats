@@ -51,7 +51,13 @@ export default async function EditSectionPage({ params: paramsPromise }: PagePro
   const { data: entities } = await supabase.from("section_entities").select(`id, section_id, name, icon_path, entity_skins (is_default, entity_images (image_path)), entity_field_values (id, field_id, value_text, option_id, field_options (color, icon_path, value_key))`).eq("section_id", sectionId).eq("entity_skins.is_default", true).order(`name->>${game.default_lang}`, { ascending: true });
 
   const headersList = await headers();
-  const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
+  const cookiesList = headersList.get('cookie') || '';
+  const userLang = cookiesList.split('; ').find(row => row.startsWith('user_lang='))?.split('=')[1];
+  const acceptLanguage = headersList.get('Accept-Language');
+  const browserLang = acceptLanguage ? acceptLanguage.split(',')[0].split('-')[0].toLowerCase() : 'en';
+  
+  const currentLang = userLang || browserLang;
+  
   const fieldsMap = new Map((fields || [])?.map(f => [f.id, f]));
 
   const processedEntities = (entities || []).map((entity: any) => {

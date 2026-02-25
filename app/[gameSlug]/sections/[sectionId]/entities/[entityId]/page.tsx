@@ -4,25 +4,53 @@ import Image from "next/image";
 import Header from "@/app/components/Header";
 import GSBackground from "@/app/components/GSBackground";
 import { getTranslatedField, LocalizedString, getTranslation } from "@/lib/localization-utils";
-import { headers } from "next/headers";
+import { headers, cookies } from "next/headers";
+import { GameLocalizationProvider } from "@/lib/localization";
 
 type PageProps = {
   params: Promise<{ gameSlug: string; sectionId: string; entityId: string }>;
 };
+
+export async function generateMetadata({ params: paramsPromise }: PageProps) {
+  const { gameSlug, sectionId, entityId } = await paramsPromise;
+  const supabase = await createClient();
+  
+  // Get current language from cookie or header
+  const headersList = await headers();
+  const cookieStore = await cookies();
+  const userLang = cookieStore.get('user_lang')?.value;
+  
+  const acceptLanguage = headersList.get('Accept-Language');
+  const browserLang = acceptLanguage ? acceptLanguage.split(',')[0].split('-')[0].toLowerCase() : 'en';
+
+  const preferredLang = userLang || browserLang;
+
+  const { data: game } = await supabase.from("games").select("name, default_lang, supported_languages").eq("slug", gameSlug).single();
+  const { data: entity } = await supabase.from("section_entities").select("name").eq("id", entityId).single();
+
+  if (!game || !entity) return { title: 'Entity Not Found' };
+
+  // Note: We don't have readyLanguages here, so we just use the raw currentLang
+  const title = getTranslatedField(entity.name, preferredLang, game.default_lang || 'en');
+  const gameTitle = getTranslatedField(game.name, preferredLang, game.default_lang || 'en');
+
+  return {
+    title: `${title} - ${gameTitle} | GachaStats`,
+    openGraph: {
+      title: `${title} - ${gameTitle} | GachaStats`,
+    },
+  };
+}
 
 export default async function EntityDetailPage({ params: paramsPromise }: PageProps) {
   const params = await paramsPromise;
   const { gameSlug, sectionId, entityId } = params;
   const supabase = await createClient();
 
-  // For server components, we'll get currentLang from headers
-  const headersList = await headers();
-  const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
-
-  // Fetch game details
+  // Fetch game details first
   const { data: game, error: gameError } = await supabase
     .from("games")
-    .select("id, name, slug, cover_url, default_lang")
+    .select("id, name, slug, cover_url, default_lang, supported_languages")
     .eq("slug", gameSlug)
     .single();
 
@@ -30,66 +58,36 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
 
   const defaultLang = game.default_lang || 'en';
 
-  // Fetch section details
-  const { data: section, error: sectionError } = await supabase
-    .from("game_sections")
-    .select("*")
-    .eq("id", sectionId)
-    .single();
+  // 1. Initiate remaining requests in parallel
+  const [sectionRes, settingsRes, entityRes, fieldsRes, valuesRes] = await Promise.all([
+    supabase.from("game_sections").select("*").eq("id", sectionId).single(),
+    supabase.from("section_display_settings").select("*").eq("section_id", sectionId).single(),
+    supabase.from("section_entities").select(`*, entity_skins (id, is_default, name, entity_images (image_path, type))`).eq("id", entityId).single(),
+    supabase.from("section_fields").select(`*, field_options (id, value_key, icon_path, color)`).eq("section_id", sectionId).order("order_index", { ascending: true }),
+    supabase.from("entity_field_values").select("*").eq("entity_id", entityId)
+  ]);
 
-  if (sectionError || !section) redirect(`/${gameSlug}`);
+  const { data: section } = sectionRes;
+  const { data: displaySettings } = settingsRes;
+  const { data: entity } = entityRes;
+  const { data: fields } = fieldsRes;
+  const { data: entityValues } = valuesRes;
 
-  // Fetch display settings for the section to identify filter fields
-  const { data: displaySettings } = await supabase
-    .from("section_display_settings")
-    .select("*")
-    .eq("section_id", sectionId)
-    .single();
+  if (!section || !entity) redirect(`/${gameSlug}`);
+
+  // --- Language Detection ---
+  const headersList = await headers();
+  const cookieStore = await cookies();
+  const userLang = cookieStore.get('user_lang')?.value;
+  
+  const acceptLanguage = headersList.get('Accept-Language');
+  const browserLang = acceptLanguage ? acceptLanguage.split(',')[0].split('-')[0].toLowerCase() : 'en';
+
+  const preferredLang = userLang || browserLang;
+
+  const currentLang = game.supported_languages.includes(preferredLang) ? preferredLang : defaultLang;
 
   const filterFieldIds = displaySettings?.filter_field_ids || [];
-
-  // Fetch entity with its default skin and images
-  const { data: entity, error: entityError } = await supabase
-    .from("section_entities")
-    .select(`
-      *,
-      entity_skins (
-        id,
-        is_default,
-        entity_images (
-          image_path,
-          type
-        )
-      )
-    `)
-    .eq("id", entityId)
-    .single();
-
-  if (entityError || !entity) {
-    console.error("Entity fetch error:", entityError?.message || "Entity not found");
-    redirect(`/${gameSlug}/sections/${sectionId}`);
-  }
-
-  // Fetch all fields for this section
-  const { data: fields } = await supabase
-    .from("section_fields")
-    .select(`
-      *,
-      field_options (
-        id,
-        value_key,
-        icon_path,
-        color
-      )
-    `)
-    .eq("section_id", sectionId)
-    .order("order_index", { ascending: true });
-
-  // Fetch all values for this specific entity
-  const { data: entityValues } = await supabase
-    .from("entity_field_values")
-    .select("*")
-    .eq("entity_id", entityId);
 
   // Map values to fields
   const valuesByField = (entityValues || []).reduce((acc: any, val) => {
@@ -99,7 +97,7 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
   }, {});
 
   // Process Images - Find default skin or fallback to first
-  const defaultSkin = entity.entity_skins?.find((img: any) => img.is_default) || entity.entity_skins?.[0];
+  const defaultSkin = entity.entity_skins?.find((skin: any) => skin.is_default) || entity.entity_skins?.[0];
   const iconImage = defaultSkin?.entity_images?.find((img: any) => img.type === 'icon');
   const fullArtImage = defaultSkin?.entity_images?.find((img: any) => img.type === 'splashart');
 
@@ -130,32 +128,21 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
 
     if (field.is_multi) {
       if (field.manual_fill) {
-        // Manual multi-value (tags)
-        // Values are stored as LocalizedString in value_text, possibly comma-separated in a single row or across multiple rows.
         const tags = values.flatMap((v: any) => {
           const translated = getTranslatedField(v.value_text as any, currentLang, defaultLang);
           return translated ? translated.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
         });
-
-        // For each tag, check if it's an option ID and resolve it if so
         const resolvedLabels = tags.map((tag: string) => {
           const option = (field.field_options || []).find((opt: any) => String(opt.id) === tag);
-          if (option) {
-            return getTranslatedField(option.value_key as any, currentLang, defaultLang);
-          }
+          if (option) return getTranslatedField(option.value_key as any, currentLang, defaultLang);
           return tag;
         });
-
         displayValue = resolvedLabels.join(", ");
       } else {
-        // Predetermined multi-value (multi-select)
-        // These should be stored in multiple rows using option_id
         const optionIds = values.map((v: any) => v.option_id).filter(Boolean).map(String);
-        const labels = getLabelsFromIds(optionIds);
-        displayValue = labels.join(", ");
+        displayValue = getLabelsFromIds(optionIds).join(", ");
       }
     } else {
-      // Single value: check option_id first, then fallback to value_text
       const val = values[0];
       if (val?.option_id) {
         const selectedOption = (field.field_options || []).find((opt: any) => String(opt.id) === String(val.option_id));
@@ -195,110 +182,115 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
         <div className="absolute inset-0 bg-zinc-50/60 dark:bg-black/80" />
       </div>
 
-      <GSBackground isHidden={!!gameCoverUrl} />
-      
-      <Header
-        breadcrumbs={[
-          { href: "/", label: getTranslation('home', currentLang) },
-          { href: `/${gameSlug}`, label: translatedGameName },
-          { href: `/${gameSlug}/sections/${sectionId}`, label: translatedSectionKey },
-          { href: `/${gameSlug}/sections/${sectionId}/entities/${entityId}`, label: translatedEntityName },
-        ]}
-      />
+      <GameLocalizationProvider 
+        gameDefaultLang={defaultLang} 
+        gameSupportedLanguages={game.supported_languages}
+      >
+        <GSBackground isHidden={!!gameCoverUrl} />
+        
+        <Header
+          breadcrumbs={[
+            { href: "/", label: getTranslation('home', currentLang) },
+            { href: `/${gameSlug}`, label: translatedGameName },
+            { href: `/${gameSlug}/sections/${sectionId}`, label: translatedSectionKey },
+            { href: `/${gameSlug}/sections/${sectionId}/entities/${entityId}`, label: translatedEntityName },
+          ]}
+        />
 
-      <main className="flex-1 px-8 py-24 z-10 relative">
-        <div className="max-w-7xl mx-auto space-y-12">
-          
-          {/* Top Section: Icon, Name, Filters (Left) and Full Art (Right) */}
-          <div className="flex flex-col lg:flex-row gap-12 items-start justify-between">
+        <main className="flex-1 px-8 py-24 z-10 relative">
+          <div className="max-w-7xl mx-auto space-y-12">
             
-            {/* Left Side: Identity & Filters */}
-            <div className="flex-1 space-y-8">
-              <div className="flex items-center gap-8">
-                {iconUrl ? (
-                  <div className="relative w-32 h-32 rounded-2xl overflow-hidden shadow-2xl border-2 border-zinc-200 dark:border-zinc-800 bg-zinc-900/50 backdrop-blur-sm">
-                    <img src={iconUrl} alt={translatedEntityName} className="w-full h-full object-cover" />
-                  </div>
-                ) : (
-                  <div className="w-32 h-32 flex items-center justify-center text-zinc-400 text-4xl border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-2xl bg-zinc-900/10">
-                    ?
-                  </div>
-                )}
-                <div>
-                  <h1 className="text-6xl font-black text-black dark:text-zinc-50 tracking-tighter uppercase italic">
-                    {translatedEntityName}
-                  </h1>
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    {filterFields.map(field => (
-                      <div 
-                        key={field.id}
-                        className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-zinc-900/80 dark:bg-zinc-100/10 backdrop-blur-md border border-zinc-200/20 dark:border-white/5 shadow-xl transition-all hover:scale-105"
-                      >
-                        {field.iconUrl && (
-                          <img src={field.iconUrl} alt="" className="w-5 h-5 object-contain" />
-                        )}
-                        <span className="text-xs font-bold tracking-widest uppercase text-zinc-500 dark:text-zinc-400">
-                          {getTranslatedField(field.key as any, currentLang, defaultLang)}:
-                        </span>
-                        <span className="text-sm font-black text-black dark:text-white uppercase italic">
-                          {field.displayValue}
-                        </span>
-                      </div>
-                    ))}
+            {/* Top Section: Icon, Name, Filters (Left) and Full Art (Right) */}
+            <div className="flex flex-col lg:flex-row gap-12 items-start justify-between">
+              
+              {/* Left Side: Identity & Filters */}
+              <div className="flex-1 space-y-8">
+                <div className="flex items-center gap-8">
+                  {iconUrl ? (
+                    <div className="relative w-32 h-32 rounded-2xl overflow-hidden shadow-2xl border-2 border-zinc-200 dark:border-zinc-800 bg-zinc-900/50 backdrop-blur-sm">
+                      <img src={iconUrl} alt={translatedEntityName} className="w-full h-full object-cover" />
+                    </div>
+                  ) : (
+                    <div className="w-32 h-32 flex items-center justify-center text-zinc-400 text-4xl border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-2xl bg-zinc-900/10">
+                      ?
+                    </div>
+                  )}
+                  <div>
+                    <h1 className="text-6xl font-black text-black dark:text-zinc-50 tracking-tighter uppercase italic">
+                      {translatedEntityName}
+                    </h1>
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      {filterFields.map(field => (
+                        <div 
+                          key={field.id}
+                          className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-zinc-900/80 dark:bg-zinc-100/10 backdrop-blur-md border border-zinc-200/20 dark:border-white/5 shadow-xl transition-all hover:scale-105"
+                        >
+                          {field.iconUrl && (
+                            <img src={field.iconUrl} alt="" className="w-5 h-5 object-contain" />
+                          )}
+                          <span className="text-xs font-bold tracking-widest uppercase text-zinc-500 dark:text-zinc-400">
+                            {getTranslatedField(field.key as any, currentLang, defaultLang)}:
+                          </span>
+                          <span className="text-sm font-black text-black dark:text-white uppercase italic">
+                            {field.displayValue}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
+
+              {/* Right Side: Full Art */}
+              {fullArtUrl && (
+                <div className="lg:w-1/2 flex justify-end">
+                  <div className="relative group">
+                    <div className="absolute -inset-4 bg-gradient-to-tr from-[#22c55e]/20 to-transparent blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                    <img 
+                      src={fullArtUrl} 
+                      alt={`${translatedEntityName} ${getTranslation('fullArt', currentLang)}`} 
+                      className="relative max-w-full h-auto max-h-[70vh] object-contain drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)] transition-transform duration-700 group-hover:scale-[1.02]"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Right Side: Full Art */}
-            {fullArtUrl && (
-              <div className="lg:w-1/2 flex justify-end">
-                <div className="relative group">
-                  <div className="absolute -inset-4 bg-gradient-to-tr from-[#22c55e]/20 to-transparent blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-                  <img 
-                    src={fullArtUrl} 
-                    alt={`${translatedEntityName} ${getTranslation('fullArt', currentLang)}`} 
-                    className="relative max-w-full h-auto max-h-[70vh] object-contain drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)] transition-transform duration-700 group-hover:scale-[1.02]"
-                  />
+            {/* Details Block: Two Columns */}
+            <div className="mt-20 pt-12 border-t border-zinc-200/20 dark:border-white/5">
+              <h2 className="text-2xl font-black uppercase tracking-widest mb-10 italic flex items-center gap-4">
+                <span className="w-8 h-1 bg-[#22c55e]" />
+                {getTranslation('technicalData', currentLang)}
+              </h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-zinc-200 dark:bg-zinc-800/50 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 shadow-2xl">
+                {/* Name field as requested */}
+                <div className="bg-white dark:bg-zinc-900/40 p-6 flex flex-col gap-1">
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">{getTranslation('name', currentLang)}</span>
+                  <span className="text-xl font-bold uppercase italic text-black dark:text-white">{translatedEntityName}</span>
                 </div>
-              </div>
-            )}
-          </div>
 
-          {/* Details Block: Two Columns */}
-          <div className="mt-20 pt-12 border-t border-zinc-200/20 dark:border-white/5">
-            <h2 className="text-2xl font-black uppercase tracking-widest mb-10 italic flex items-center gap-4">
-              <span className="w-8 h-1 bg-[#22c55e]" />
-              {getTranslation('technicalData', currentLang)}
-            </h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-zinc-200 dark:bg-zinc-800/50 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 shadow-2xl">
-              {/* Name field as requested */}
-              <div className="bg-white dark:bg-zinc-900/40 p-6 flex flex-col gap-1">
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">{getTranslation('name', currentLang)}</span>
-                <span className="text-xl font-bold uppercase italic text-black dark:text-white">{translatedEntityName}</span>
-              </div>
-
-              {processedFields.map(field => (
-                <div key={field.id} className="bg-white dark:bg-zinc-900/40 p-6 flex flex-col gap-1 group hover:bg-zinc-50 dark:hover:bg-zinc-800/60 transition-colors">
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 group-hover:text-[#22c55e] transition-colors">
-                    {getTranslatedField(field.key as any, currentLang, defaultLang)}
-                  </span>
-                  <div className="flex items-center gap-4">
-                    {field.iconUrl && (
-                      <img src={field.iconUrl} alt="" className="w-12 h-12 object-contain" />
-                    )}
-                    <span className="text-xl font-bold uppercase italic text-black dark:text-white">
-                      {field.displayValue || "—"}
+                {processedFields.map(field => (
+                  <div key={field.id} className="bg-white dark:bg-zinc-900/40 p-6 flex flex-col gap-1 group hover:bg-zinc-50 dark:hover:bg-zinc-800/60 transition-colors">
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 group-hover:text-[#22c55e] transition-colors">
+                      {getTranslatedField(field.key as any, currentLang, defaultLang)}
                     </span>
+                    <div className="flex items-center gap-4">
+                      {field.iconUrl && (
+                        <img src={field.iconUrl} alt="" className="w-12 h-12 object-contain" />
+                      )}
+                      <span className="text-xl font-bold uppercase italic text-black dark:text-white">
+                        {field.displayValue || "—"}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
 
-        </div>
-      </main>
+          </div>
+        </main>
+      </GameLocalizationProvider>
     </div>
   );
 }

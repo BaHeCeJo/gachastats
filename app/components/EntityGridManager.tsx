@@ -55,14 +55,37 @@ export default function EntityGridManager({
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
 
   const filteredEntities = useMemo(() => {
-    return entities.filter((entity) => {
+    const filtered = entities.filter((entity) => {
       for (const [fieldId, value] of Object.entries(activeFilters)) {
         const entityValues = entity.allValues[fieldId] || [];
         if (!entityValues.includes(value)) return false;
       }
       return true;
     });
-  }, [entities, activeFilters]);
+
+    // Alphabetical sort based on current activeLang
+    return [...filtered].sort((a, b) => {
+      const nameA = getTranslatedField(a.name, activeLang, gameDefaultLang).trim();
+      const nameB = getTranslatedField(b.name, activeLang, gameDefaultLang).trim();
+      
+      // Handle empty names by pushing them to the bottom
+      if (!nameA && nameB) return 1;
+      if (nameA && !nameB) return -1;
+      if (!nameA && !nameB) return 0;
+
+      // Use localeCompare for correct alphabetical order in the target language
+      // Using sensitivity 'accent' to ensure items like "é" are sorted predictably 
+      // while still being case-insensitive.
+      const cmp = nameA.localeCompare(nameB, activeLang, { 
+        sensitivity: 'accent',
+        numeric: true 
+      });
+
+      // If names are identical, fallback to ID for a stable sort
+      if (cmp === 0) return a.id.localeCompare(b.id);
+      return cmp;
+    });
+  }, [entities, activeFilters, activeLang, gameDefaultLang]);
 
   function toggleFilter(fieldId: string, value: string) {
     setActiveFilters((prev) => {

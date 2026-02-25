@@ -6,7 +6,7 @@ import Header from "@/app/components/Header";
 import GSBackground from "@/app/components/GSBackground"; // For consistent background layering
 import { LocalizedString, getTranslatedField, getTranslation } from "@/lib/localization-utils"; // Server-safe utilities
 import { GameLocalizationProvider } from "@/lib/localization"; // Client-side provider
-import { headers } from "next/headers";
+import { headers, cookies } from "next/headers";
 
 type Game = {
   id: string;
@@ -28,6 +28,39 @@ type Section = {
 type PageProps = {
   params: Promise<{ gameSlug: string }>;
 };
+
+export async function generateMetadata({ params: paramsPromise }: PageProps) {
+  const { gameSlug } = await paramsPromise;
+  const supabase = await createClient();
+  
+  // Get current language from cookie or header
+  const headersList = await headers();
+  const cookies = headersList.get('cookie') || '';
+  const userLang = cookies.split('; ').find(row => row.startsWith('user_lang='))?.split('=')[1];
+  const acceptLanguage = headersList.get('Accept-Language');
+  const browserLang = acceptLanguage ? acceptLanguage.split(',')[0].split('-')[0].toLowerCase() : 'en';
+  const currentLang = userLang || browserLang;
+
+  const { data: game } = await supabase
+    .from("games")
+    .select("name, description, default_lang")
+    .eq("slug", gameSlug)
+    .single();
+
+  if (!game) return { title: 'Game Not Found' };
+
+  const title = getTranslatedField(game.name, currentLang, game.default_lang || 'en');
+  const description = getTranslatedField(game.description, currentLang, game.default_lang || 'en');
+
+  return {
+    title: `${title} - GachaStats`,
+    description: description,
+    openGraph: {
+      title: `${title} - GachaStats`,
+      description: description,
+    },
+  };
+}
 
 export default async function GameDetailPage({ params: paramsPromise }: PageProps) {
   const params = await paramsPromise;
@@ -61,25 +94,25 @@ export default async function GameDetailPage({ params: paramsPromise }: PageProp
     ? supabase.storage.from("games").getPublicUrl(game.cover_url).data.publicUrl
     : null;
 
-  // For server components, we'll get currentLang from headers
+  // --- Language Detection ---
   const headersList = await headers();
+  const cookieStore = await cookies();
+  const userLang = cookieStore.get('user_lang')?.value;
+  
   const acceptLanguage = headersList.get('Accept-Language');
   const browserLang = acceptLanguage ? acceptLanguage.split(',')[0].split('-')[0].toLowerCase() : 'en';
 
-  // --- Language Completeness Logic ---
-  // A language is only "Ready" if the Game Name, Description, and ALL Section keys are translated.
-  const readyLanguages = game.supported_languages.filter(lang => {
-    if (lang === game.default_lang) return true; // Default is always ready
-    
-    const hasGameName = game.name?.[lang]?.trim();
-    const hasGameDesc = game.description?.[lang]?.trim();
-    const allSectionsReady = (sections || []).every(s => s.key?.[lang]?.trim());
-    
-    return hasGameName && hasGameDesc && allSectionsReady;
-  });
+  const preferredLang = userLang || browserLang;
 
-  // If the browser language isn't "Ready", fallback to the game's default language
-  const currentLang = readyLanguages.includes(browserLang) ? browserLang : game.default_lang;
+  // Use the preferred language if it's supported by the game, otherwise fallback to game default
+  const currentLang = game.supported_languages.includes(preferredLang) ? preferredLang : game.default_lang;
+
+  // --- Sorting Logic ---
+  const sortedSections = [...(sections || [])].sort((a, b) => {
+    const nameA = getTranslatedField(a.key, currentLang, game.default_lang).trim();
+    const nameB = getTranslatedField(b.key, currentLang, game.default_lang).trim();
+    return nameA.localeCompare(nameB, currentLang, { sensitivity: 'base' });
+  });
 
   return (
     <div className="relative flex flex-col min-h-screen bg-zinc-50 dark:bg-black font-sans overflow-x-hidden">
@@ -95,7 +128,7 @@ export default async function GameDetailPage({ params: paramsPromise }: PageProp
 
       <GameLocalizationProvider 
         gameDefaultLang={game.default_lang} 
-        gameSupportedLanguages={readyLanguages}
+        gameSupportedLanguages={game.supported_languages}
       >
         {/* GS logo as a lower layer for brand presence, hidden if cover is present */}
         <GSBackground isHidden={!!coverUrl} />
@@ -128,8 +161,8 @@ export default async function GameDetailPage({ params: paramsPromise }: PageProp
             <section className="space-y-6">
               <h2 className="text-3xl font-bold text-black dark:text-zinc-50">{getTranslation('sections', currentLang)}</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
-                {sections && sections.length > 0 ? (
-                  sections.map((section) => {
+                {sortedSections && sortedSections.length > 0 ? (
+                  sortedSections.map((section) => {
                     const sectionIconUrl = section.icon_path
                       ? supabase.storage.from("games").getPublicUrl(section.icon_path).data.publicUrl
                       : null;

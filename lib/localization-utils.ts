@@ -37,11 +37,6 @@ export function getTranslatedField(
     return localizedString[defaultLang];
   }
 
-  const firstAvailableLang = Object.keys(localizedString)[0];
-  if (firstAvailableLang) {
-    return (localizedString as LocalizedString)[firstAvailableLang];
-  }
-
   return "";
 }
 
@@ -70,4 +65,19 @@ export function getMissingLanguages(
   }
   
   return supportedLangs.filter(lang => !localizedString[lang] || localizedString[lang].trim() === "");
+}
+
+/**
+ * Formats a number according to the active language.
+ */
+export function formatNumber(value: number, lang: string, options?: Intl.NumberFormatOptions): string {
+  return new Intl.NumberFormat(lang, options).format(value);
+}
+
+/**
+ * Formats a date according to the active language.
+ */
+export function formatDate(date: Date | string | number, lang: string, options?: Intl.DateTimeFormatOptions): string {
+  const d = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date;
+  return new Intl.DateTimeFormat(lang, options).format(d);
 }

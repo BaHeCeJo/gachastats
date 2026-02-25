@@ -7,7 +7,7 @@ import GSBackground from "@/app/components/GSBackground";
 import EntityGridManager from "@/app/components/EntityGridManager";
 import { LocalizedString, getTranslatedField, getTranslation } from "@/lib/localization-utils";
 import { GameLocalizationProvider } from "@/lib/localization";
-import { headers } from "next/headers"; // Import headers for server components
+import { headers, cookies } from "next/headers"; // Import cookies helper
 
 // --- Type Definitions ---
 type Game = {
@@ -83,12 +83,40 @@ type PageProps = {
   params: Promise<{ gameSlug: string; sectionId: string }>;
 };
 
+export async function generateMetadata({ params: paramsPromise }: PageProps) {
+  const { gameSlug, sectionId } = await paramsPromise;
+  const supabase = await createClient();
+  
+  // Get current language from cookie or header
+  const headersList = await headers();
+  const cookies = headersList.get('cookie') || '';
+  const userLang = cookies.split('; ').find(row => row.startsWith('user_lang='))?.split('=')[1];
+  const acceptLanguage = headersList.get('Accept-Language');
+  const browserLang = acceptLanguage ? acceptLanguage.split(',')[0].split('-')[0].toLowerCase() : 'en';
+  const currentLang = userLang || browserLang;
+
+  const { data: game } = await supabase.from("games").select("name, default_lang").eq("slug", gameSlug).single();
+  const { data: section } = await supabase.from("game_sections").select("key").eq("id", sectionId).single();
+
+  if (!game || !section) return { title: 'Section Not Found' };
+
+  const gameTitle = getTranslatedField(game.name, currentLang, game.default_lang || 'en');
+  const sectionTitle = getTranslatedField(section.key, currentLang, game.default_lang || 'en');
+
+  return {
+    title: `${sectionTitle} | ${gameTitle} - GachaStats`,
+    openGraph: {
+      title: `${sectionTitle} | ${gameTitle} - GachaStats`,
+    },
+  };
+}
+
 export default async function SectionDetailPage({ params: paramsPromise }: PageProps) {
   const params = await paramsPromise;
   const { gameSlug, sectionId } = params;
   const supabase = await createClient();
 
-  // Fetch game details (including language settings)
+  // 1. Fetch game details first to get the default_lang needed for sorting child queries
   const { data: game, error: gameError } = await supabase
     .from("games")
     .select("id, name, slug, cover_url, default_lang, supported_languages")
@@ -100,96 +128,43 @@ export default async function SectionDetailPage({ params: paramsPromise }: PageP
     redirect("/");
   }
 
-  // Fetch section details
-  const { data: section, error: sectionError } = await supabase
-    .from("game_sections")
-    .select("id, key, game_id, icon_path, color") // Select specific columns for section
-    .eq("id", sectionId)
-    .eq("game_id", game.id)
-    .single<Section>();
+  // 2. Initiate remaining requests in parallel using game data
+  const [sectionRes, fieldsRes, settingsRes, entitiesRes] = await Promise.all([
+    supabase.from("game_sections").select("id, key, game_id, icon_path, color").eq("id", sectionId).single<Section>(),
+    supabase.from("section_fields").select("id, key, required, manual_fill, has_icon, has_color, order_index, is_multi, category, field_options(*)").eq("section_id", sectionId).order("order_index", { ascending: true }),
+    supabase.from("section_display_settings").select("*").eq("section_id", sectionId).single(),
+    supabase.from("section_entities").select(`
+      id, section_id, name, icon_path,
+      entity_skins ( is_default, entity_images ( image_path, type ) ),
+      entity_field_values ( id, field_id, value_text, option_id, field_options ( color, icon_path, value_key ) )
+    `).eq("section_id", sectionId).eq("entity_skins.is_default", true).order(`name->>${game.default_lang}`, { ascending: true })
+  ]);
+
+  const { data: section, error: sectionError } = sectionRes;
+  const { data: fields } = fieldsRes;
+  const { data: displaySettings } = settingsRes;
+  const { data: entities, error: entitiesError } = entitiesRes;
 
   if (sectionError || !section) {
     console.error("Section fetch error:", sectionError?.message || "Section not found.");
     redirect(`/${gameSlug}`);
   }
 
-  // Fetch fields with options for filtering
-  const { data: fields, error: fieldsError } = await supabase
-    .from("section_fields")
-    .select("id, key, required, manual_fill, has_icon, has_color, order_index, is_multi, category, field_options(*)")
-    .eq("section_id", sectionId)
-    .order("order_index", { ascending: true });
-
-  if (fieldsError) {
-    console.error("Fields fetch error:", fieldsError?.message);
-  }
-
-  // Fetch display settings for the section
-  const { data: displaySettings, error: displaySettingsError } = await supabase
-    .from("section_display_settings")
-    .select("*")
-    .eq("section_id", sectionId)
-    .single();
-
-  if (displaySettingsError) {
-    console.error("Display settings fetch error:", displaySettingsError?.message);
-  }
-
-  // Fetch entities with their technical field values and images from the default skin
-  const { data: entities, error: entitiesError } = await supabase
-    .from("section_entities")
-    .select(
-      `
-      id,
-      section_id,
-      name,
-      icon_path,
-      entity_skins (
-        is_default,
-        entity_images (
-          image_path,
-          type
-        )
-      ),
-      entity_field_values (
-        id,
-        field_id,
-        value_text,
-        option_id,
-        field_options (
-          color,
-          icon_path,
-          value_key
-        )
-      )
-    `
-    )
-    .eq("section_id", sectionId)
-    .eq("entity_skins.is_default", true)
-    .order(`name->>${game.default_lang}`, { ascending: true });
-
   if (entitiesError) {
     console.error("Entities fetch error:", entitiesError?.message);
   }
 
-  // For server components, we'll get currentLang from headers
+  // --- Language Detection ---
   const headersList = await headers();
-  const browserLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
+  const cookieStore = await cookies();
+  const userLang = cookieStore.get('user_lang')?.value;
+  
+  const acceptLanguage = headersList.get('Accept-Language');
+  const browserLang = acceptLanguage ? acceptLanguage.split(',')[0].split('-')[0].toLowerCase() : 'en';
 
-  // --- Language Completeness Logic ---
-  // A language is only "Ready" for this section if the Game Name and ALL Entity names in this section are translated.
-  // Note: We check entities here specifically for this page's completeness.
-  const readyLanguages = game.supported_languages.filter(lang => {
-    if (lang === game.default_lang) return true; // Default is always ready
-    
-    const hasGameName = game.name?.[lang]?.trim();
-    const allEntitiesReady = (entities || []).every(e => e.name?.[lang]?.trim());
-    
-    return hasGameName && allEntitiesReady;
-  });
+  const preferredLang = userLang || browserLang;
 
-  // If the browser language isn't "Ready", fallback to the game's default language
-  const currentLang = readyLanguages.includes(browserLang) ? browserLang : game.default_lang;
+  const currentLang = game.supported_languages.includes(preferredLang) ? preferredLang : game.default_lang;
 
   // Create a map of fields for easy lookup
   const fieldsMap = new Map((fields || [])?.map(f => [f.id, f]));
@@ -286,7 +261,7 @@ export default async function SectionDetailPage({ params: paramsPromise }: PageP
 
       <GameLocalizationProvider 
         gameDefaultLang={game.default_lang} 
-        gameSupportedLanguages={readyLanguages}
+        gameSupportedLanguages={game.supported_languages}
       >
         {/* GS logo as a lower layer for brand presence, hidden if game cover is present */}
         <GSBackground isHidden={!!gameCoverUrl} />
