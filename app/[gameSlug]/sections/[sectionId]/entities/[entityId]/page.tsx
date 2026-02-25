@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import Image from "next/image";
 import Header from "@/app/components/Header";
 import GSBackground from "@/app/components/GSBackground";
-import { getTranslatedField, LocalizedString } from "@/lib/localization-utils";
+import { getTranslatedField, LocalizedString, getTranslation } from "@/lib/localization-utils";
 import { headers } from "next/headers";
 
 type PageProps = {
@@ -196,9 +196,10 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
       </div>
 
       <GSBackground isHidden={!!gameCoverUrl} />
+      
       <Header
         breadcrumbs={[
-          { href: "/", label: "Home" },
+          { href: "/", label: getTranslation('home', currentLang) },
           { href: `/${gameSlug}`, label: translatedGameName },
           { href: `/${gameSlug}/sections/${sectionId}`, label: translatedSectionKey },
           { href: `/${gameSlug}/sections/${sectionId}/entities/${entityId}`, label: translatedEntityName },
@@ -256,7 +257,7 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
                   <div className="absolute -inset-4 bg-gradient-to-tr from-[#22c55e]/20 to-transparent blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
                   <img 
                     src={fullArtUrl} 
-                    alt={`${translatedEntityName} full art`} 
+                    alt={`${translatedEntityName} ${getTranslation('fullArt', currentLang)}`} 
                     className="relative max-w-full h-auto max-h-[70vh] object-contain drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)] transition-transform duration-700 group-hover:scale-[1.02]"
                   />
                 </div>
@@ -268,13 +269,13 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
           <div className="mt-20 pt-12 border-t border-zinc-200/20 dark:border-white/5">
             <h2 className="text-2xl font-black uppercase tracking-widest mb-10 italic flex items-center gap-4">
               <span className="w-8 h-1 bg-[#22c55e]" />
-              Technical Data
+              {getTranslation('technicalData', currentLang)}
             </h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-zinc-200 dark:bg-zinc-800/50 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 shadow-2xl">
               {/* Name field as requested */}
               <div className="bg-white dark:bg-zinc-900/40 p-6 flex flex-col gap-1">
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Name</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">{getTranslation('name', currentLang)}</span>
                 <span className="text-xl font-bold uppercase italic text-black dark:text-white">{translatedEntityName}</span>
               </div>
 

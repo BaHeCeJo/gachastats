@@ -17,7 +17,7 @@ type Game = {
 };
 
 export default function AdminGameList({ games, supabaseUrl }: { games: Game[], supabaseUrl: string }) {
-  const { displayLang, currentLang } = useLocalizationParams() as any;
+  const { displayLang, currentLang, t } = useLocalizationParams() as any;
   const activeLang = displayLang || currentLang;
 
   const getPublicUrl = (path: string) => {
@@ -57,7 +57,7 @@ export default function AdminGameList({ games, supabaseUrl }: { games: Game[], s
               
               <div className="flex justify-end border-t border-zinc-800 pt-2">
                 <form action={deleteGameAction.bind(null, game.id)}>
-                  <ConfirmButton>Delete</ConfirmButton>
+                  <ConfirmButton>{t('delete')}</ConfirmButton>
                 </form>
               </div>
             </div>

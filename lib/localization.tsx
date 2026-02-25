@@ -1,7 +1,8 @@
 "use client";
 
-import { createContext, useContext, ReactNode, useState, useEffect } from "react";
+import { createContext, useContext, ReactNode, useState, useEffect, useCallback } from "react";
 import { LocalizedString } from "./localization-utils";
+import { uiTranslations, TranslationKey } from "./i18n/translations";
 
 // Re-export type for convenience
 export type { LocalizedString };
@@ -96,7 +97,13 @@ export function useLocalizationParams() {
   const { currentLang, adminSelectedLang, setAdminSelectedLang, displayLang } = useCurrentLanguage();
   const { gameDefaultLang, gameSupportedLanguages } = useGameLocalizationParams();
 
-  return { currentLang, adminSelectedLang, setAdminSelectedLang, displayLang, gameDefaultLang, gameSupportedLanguages };
+  const t = useCallback((key: TranslationKey): string => {
+    const lang = displayLang || currentLang || 'en';
+    const translation = uiTranslations[lang]?.[key] || uiTranslations['en']?.[key] || key;
+    return translation;
+  }, [displayLang, currentLang]);
+
+  return { currentLang, adminSelectedLang, setAdminSelectedLang, displayLang, gameDefaultLang, gameSupportedLanguages, t };
 }
 
 // Re-export logic function for client components that import from here

@@ -15,13 +15,16 @@ type FieldOption = { id: string; field_id: string; value_key: LocalizedString; i
 type FieldData = { id: string; key: LocalizedString; required: boolean; manual_fill: boolean; is_multi: boolean; has_icon: boolean; has_color: boolean; field_type: string; category: string | null; field_options: FieldOption[] | null; };
 type FormState = { error?: string; };
 
-export default function NewEntityClient({ game, section, fields, currentLang }: {
+export default function NewEntityClient({ game, section, fields, currentLang: browserLang }: {
   game: GameData;
   section: SectionData;
   fields: FieldData[];
   currentLang: string;
 }) {
   const supabase = createClient();
+  const { displayLang, t } = useLocalizationParams() as any;
+  const activeLang = displayLang || browserLang;
+
   const [localizedName, setLocalizedName] = useState<LocalizedString>({ [game.default_lang]: "" });
   const [iconFile, setIconFile] = useState<File | null>(null);
   const [entityFieldValues, setEntityFieldValues] = useState<any[]>(() =>
@@ -86,18 +89,18 @@ export default function NewEntityClient({ game, section, fields, currentLang }: 
   return (
     <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
       <main className="max-w-4xl p-8 space-y-6 mx-auto">
-        <h1 className="text-2xl font-bold text-white">{getTranslatedField(section.key, currentLang, game.default_lang)} — Add Entity</h1>
+        <h1 className="text-2xl font-bold text-white">{getTranslatedField(section.key, activeLang, game.default_lang)} — {t('newEntity')}</h1>
         {state?.error && <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-sm p-4 rounded-lg">{state.error}</div>}
         <form action={formAction} className="space-y-6">
-          <LocalizedTextInput id="name" label="Entity Name" value={localizedName} onChange={setLocalizedName} placeholder="e.g., Acheron" />
+          <LocalizedTextInput id="name" label={t('entityName')} value={localizedName} onChange={setLocalizedName} placeholder="e.g., Acheron" />
           <div>
-            <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">Main Icon</label>
+            <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{t('mainIcon')}</label>
             <ImageInput name="icon_file" onFileChange={setIconFile} existingImageUrl={null} />
           </div>
           <div className="space-y-4">
             <h2 className="text-xl font-semibold text-white mt-8 italic flex items-center gap-2">
               <span className="w-4 h-1 bg-green-500"></span>
-              Entity Data
+              {t('entityData')}
             </h2>
             {sortedCategories.length > 0 ? sortedCategories.map((category) => (
               <div key={category} className="bg-zinc-900/30 border border-zinc-800 rounded-2xl p-6 space-y-6">
@@ -107,7 +110,7 @@ export default function NewEntityClient({ game, section, fields, currentLang }: 
                     const currentValue = entityFieldValues.find(v => v.field_id === field.id);
                     if (!currentValue) return null;
                     
-                    const fieldLabel = getTranslatedField(field.key, currentLang, game.default_lang);
+                    const fieldLabel = getTranslatedField(field.key, activeLang, game.default_lang);
 
                     if (field.manual_fill) {
                       return (
@@ -132,7 +135,7 @@ export default function NewEntityClient({ game, section, fields, currentLang }: 
                             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                               {field.field_options?.map(option => {
                                 const isSelected = currentValue.values.includes(option.id);
-                                const optionLabel = getTranslatedField(option.value_key, currentLang, game.default_lang);
+                                const optionLabel = getTranslatedField(option.value_key, activeLang, game.default_lang);
                                 return (
                                   <button
                                     key={option.id}
@@ -156,7 +159,7 @@ export default function NewEntityClient({ game, section, fields, currentLang }: 
                                 );
                               })}
                               {(!field.field_options || field.field_options.length === 0) && (
-                                <p className="text-xs text-zinc-600 italic col-span-full">No options defined for this field.</p>
+                                <p className="text-xs text-zinc-600 italic col-span-full">{t('noOptions')}</p>
                               )}
                             </div>
                           ) : (
@@ -166,10 +169,10 @@ export default function NewEntityClient({ game, section, fields, currentLang }: 
                               value={(currentValue.values && currentValue.values[0]) || ''} 
                               onChange={(e) => handleSingleSelectChange(field.id, e.target.value)}
                             >
-                              <option value="">Select an option</option>
+                              <option value="">{t('selectOption')}</option>
                               {field.field_options?.map(option => (
                                 <option key={option.id} value={option.id}>
-                                  {getTranslatedField(option.value_key, currentLang, game.default_lang)}
+                                  {getTranslatedField(option.value_key, activeLang, game.default_lang)}
                                 </option>
                               ))}
                             </select>
@@ -182,16 +185,16 @@ export default function NewEntityClient({ game, section, fields, currentLang }: 
               </div>
             )) : (
               <div className="bg-zinc-900/30 border border-dashed border-zinc-800 rounded-2xl p-12 text-center">
-                <p className="text-zinc-500 italic text-sm">No custom fields defined for this section.</p>
+                <p className="text-zinc-500 italic text-sm">{t('noFields')}</p>
                 <Link href={`/admin/games/${game.slug}/sections/${section.id}/fields`} className="text-green-500 text-xs font-bold uppercase tracking-widest mt-4 inline-block hover:underline">
-                  Manage section fields →
+                  {t('manageSectionFields')} →
                 </Link>
               </div>
             )}
           </div>
           <div className="pt-6 border-t border-zinc-800">
             <button type="submit" className="w-full bg-blue-600 text-white font-bold px-4 py-4 rounded-2xl hover:bg-blue-500 transition-all shadow-lg hover:shadow-blue-500/20 active:scale-[0.98]">
-              Create Entity
+              {t('createEntity')}
             </button>
           </div>
         </form>

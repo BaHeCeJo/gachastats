@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { LocalizedString, getTranslatedField } from "@/lib/localization-utils";
+import { LocalizedString, getTranslatedField, getTranslation } from "@/lib/localization-utils";
 import { GameLocalizationProvider } from "@/lib/localization";
 import { headers } from "next/headers";
 
@@ -77,15 +77,15 @@ export default async function EntitiesPage({ params }: PageProps) {
       <main className="p-8 space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold">
-            {getTranslatedField(section.key, currentLang, game.default_lang)} — Entities
+            {getTranslatedField(section.key, currentLang, game.default_lang)} — {getTranslation('entities', currentLang)}
           </h1>
 
           <Link
             href={`/admin/games/${gameSlug}/sections/${sectionId}/entities/new`}
-            className="bg-indigo-600 text-white px-4 py-2 rounded"
+            className="bg-[#22c55e] text-black font-bold px-4 py-2 rounded hover:bg-[#1da34a] transition"
             prefetch={false}
           >
-            Add Entity
+            {getTranslation('createEntity', currentLang)}
           </Link>
         </div>
 
@@ -104,7 +104,7 @@ export default async function EntitiesPage({ params }: PageProps) {
                 <Link
                   key={entity.id}
                   href={`/admin/games/${gameSlug}/sections/${sectionId}/entities/${entity.id}`}
-                  className="border rounded p-4 flex items-center gap-4 hover:bg-gray-800"
+                  className="border rounded p-4 flex items-center gap-4 hover:bg-zinc-800 border-zinc-800 bg-zinc-900/50"
                 >
                   {iconUrl && (
                     <img
@@ -121,7 +121,7 @@ export default async function EntitiesPage({ params }: PageProps) {
               )
             })
           ) : (
-            <p className="text-gray-400">No entities yet.</p>
+            <p className="text-zinc-400">{getTranslation('noEntities', currentLang)}</p>
           )}
         </div>
       </main>

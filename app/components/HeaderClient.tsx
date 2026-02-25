@@ -19,7 +19,8 @@ export default function HeaderClient({
     adminSelectedLang, 
     setAdminSelectedLang, 
     gameSupportedLanguages, 
-    currentLang 
+    currentLang,
+    t 
   } = useLocalizationParams() as any;
 
   const isAdminRoute = pathname.startsWith("/admin")
@@ -60,7 +61,7 @@ export default function HeaderClient({
             value={adminSelectedLang || ""}
             onChange={(e) => setAdminSelectedLang(e.target.value || null)}
           >
-            <option value="">Browser ({currentLang.toUpperCase()})</option>
+            <option value="">{t('browserDefault')} ({currentLang.toUpperCase()})</option>
             {gameSupportedLanguages.map((langCode: string) => {
               const langInfo = languages.find(l => l.code === langCode);
               return (
@@ -78,7 +79,7 @@ export default function HeaderClient({
           href="/auth/signin"
           className="px-4 py-2 rounded-md bg-[#22c55e] text-black font-bold hover:bg-[#1da34a] transition"
         >
-          Sign In
+          {t('signIn')}
         </Link>
       ) : (
         <div className="flex items-center gap-4">
@@ -90,14 +91,14 @@ export default function HeaderClient({
                   href={publicHref}
                   className="px-3 py-1 rounded-md border border-zinc-200 dark:border-zinc-800 font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 text-black dark:text-zinc-50 transition"
                 >
-                  Exit Admin
+                  {t('exitAdmin')}
                 </Link>
               ) : (
                 <Link
                   href={adminHref}
                   className="px-3 py-1 rounded-md bg-blue-600 text-white font-medium hover:bg-blue-700 transition"
                 >
-                  Admin
+                  {t('admin')}
                 </Link>
               )}
             </>
@@ -108,7 +109,7 @@ export default function HeaderClient({
               type="submit"
               className="text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 transition"
             >
-              Sign Out
+              {t('signOut')}
             </button>
           </form>
         </div>

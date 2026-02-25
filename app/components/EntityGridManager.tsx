@@ -49,7 +49,7 @@ export default function EntityGridManager({
   gameDefaultLang,
   currentLang: browserLang,
 }: Props) {
-  const { displayLang } = useLocalizationParams() as any;
+  const { displayLang, t } = useLocalizationParams() as any;
   const activeLang = displayLang || browserLang;
 
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
@@ -98,7 +98,7 @@ export default function EntityGridManager({
                     }}
                     className="text-xs text-[#22c55e] hover:text-[#1da34a]"
                   >
-                    Clear
+                    {t('clear')}
                   </button>
                 )}
               </div>
@@ -160,7 +160,7 @@ export default function EntityGridManager({
               href={`/admin/games/${gameSlug}/sections/${sectionId}/entities/new`}
               className="bg-[#22c55e] text-black px-4 py-2 rounded text-sm font-bold hover:bg-[#1da34a] transition"
             >
-              Add Entity
+              {t('addEntity')}
             </Link>
           )}
         </div>
@@ -270,12 +270,12 @@ export default function EntityGridManager({
           </div>
         ) : (
           <div className="py-20 text-center border-2 border-dashed border-gray-800 rounded-2xl">
-            <p className="text-gray-500">No entities match the selected filters.</p>
+            <p className="text-gray-500">{t('noEntities')}</p>
             <button
               onClick={() => setActiveFilters({})}
               className="mt-4 text-[#22c55e] hover:underline text-sm"
             >
-              Clear all filters
+              {t('clearFilters')}
             </button>
           </div>
         )}

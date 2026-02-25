@@ -2,6 +2,10 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { LocalizedString, getTranslatedField } from "@/lib/localization-utils";
+import Link from 'next/link'
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import { LocalizedString, getTranslatedField, getTranslation } from "@/lib/localization-utils";
 import { GameLocalizationProvider } from "@/lib/localization";
 import { headers } from "next/headers";
 import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
@@ -75,16 +79,16 @@ export default async function FieldOptionsPage({ params }: PageProps) {
       <main className="p-8 space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            Options — {getTranslatedField(field.key, currentLang, game.default_lang)}
+            {getTranslation('options', currentLang)} — {getTranslatedField(field.key, currentLang, game.default_lang)}
             <MissingTranslationIndicator value={field.key} />
           </h1>
 
           <Link
             href={`/admin/games/${gameSlug}/sections/${sectionId}/fields/${fieldId}/options/new`}
-            className="bg-indigo-600 text-white px-4 py-2 rounded"
+            className="bg-[#22c55e] text-black font-bold px-4 py-2 rounded hover:bg-[#1da34a] transition"
             prefetch={false}
           >
-            Add option
+            {getTranslation('createOption', currentLang)}
           </Link>
         </div>
 
@@ -98,7 +102,7 @@ export default async function FieldOptionsPage({ params }: PageProps) {
             supabaseUrl={process.env.NEXT_PUBLIC_SUPABASE_URL!}
           />
         ) : (
-          <p className="text-gray-400">No options yet.</p>
+          <p className="text-gray-400">{getTranslation('noOptionsYet', currentLang)}</p>
         )}
       </main>
     </GameLocalizationProvider>

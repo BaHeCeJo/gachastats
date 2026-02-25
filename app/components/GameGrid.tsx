@@ -22,7 +22,7 @@ type Props = {
 
 export default function GameGrid({ games, supabaseUrl, onHoverChange }: Props) {
   const [hoveredCover, setHoveredCover] = useState<string | null>(null);
-  const { currentLang } = useLocalizationParams(); // Get current language
+  const { currentLang, t } = useLocalizationParams() as any; // Get current language and t function
 
   const handleHover = (url: string | null) => {
     setHoveredCover(url);
@@ -44,7 +44,7 @@ export default function GameGrid({ games, supabaseUrl, onHoverChange }: Props) {
       <main className="flex-1 px-8 py-24 z-10 relative">
         <div className="max-w-7xl mx-auto">
           <h1 className="text-5xl font-extrabold text-center mb-16 text-black dark:text-zinc-50 tracking-tight">
-            Explore <span className="text-[#22c55e]">Games</span>
+            {t('exploreGames')} <span className="text-[#22c55e]">{t('gamesTitle')}</span>
           </h1>
 
           <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-10">
@@ -71,7 +71,7 @@ export default function GameGrid({ games, supabaseUrl, onHoverChange }: Props) {
                         />
                       ) : (
                         <div className="w-full h-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-zinc-400">
-                          No Cover
+                          {t('noCover')}
                         </div>
                       )}
 
@@ -94,7 +94,7 @@ export default function GameGrid({ games, supabaseUrl, onHoverChange }: Props) {
 
           {games.length === 0 && (
             <div className="text-center py-20 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-3xl backdrop-blur-sm">
-              <p className="text-zinc-500">No games have been added to the archives yet.</p>
+              <p className="text-zinc-500">{t('noGamesArchives')}</p>
             </div>
           )}
         </div>

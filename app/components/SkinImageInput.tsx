@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import { XCircleIcon } from "@heroicons/react/24/solid";
 import { upsertSkinImage } from "./skins/actions";
-import { getTranslatedField } from "@/lib/localization";
+import { getTranslatedField, useLocalizationParams } from "@/lib/localization";
 import { useActionState } from "react";
 
 type Props = {
@@ -30,8 +30,10 @@ export default function SkinImageInput({
   imageType,
   existingImageUrl,
   gameDefaultLang,
-  currentLang,
+  currentLang: browserLang,
 }: Props) {
+  const { displayLang, t } = useLocalizationParams() as any;
+  const activeLang = displayLang || browserLang;
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(existingImageUrl);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -103,7 +105,7 @@ export default function SkinImageInput({
   }, []);
 
 
-  const inputLabel = imageType === "icon" ? "Upload Icon" : "Upload Full Art";
+  const inputLabel = imageType === "icon" ? t('uploadIcon') : t('uploadFullArt');
 
   return (
     <div className="space-y-2">
@@ -130,7 +132,7 @@ export default function SkinImageInput({
         </div>
       ) : (
         <div className="flex items-center justify-center h-24 w-24 md:h-32 md:w-32 rounded-md bg-zinc-900/50 border border-zinc-800 text-zinc-500 text-sm">
-          No {imageType}
+          {imageType === "icon" ? t('noIcon') : t('noFullArt')}
         </div>
       )}
 
@@ -151,7 +153,9 @@ export default function SkinImageInput({
           className="bg-green-600 text-black font-bold px-4 py-2 rounded-xl hover:bg-green-500 transition-colors mt-2"
           disabled={!file} // Disable if no file is selected
         >
-          {previewUrl && existingImageUrl ? `Update ${imageType}` : `Upload ${imageType}`}
+          {previewUrl && existingImageUrl 
+            ? `${t('update')} ${imageType === "icon" ? t('icon') : t('fullArt')}` 
+            : `${t('upload')} ${imageType === "icon" ? t('icon') : t('fullArt')}`}
         </button>
       </form>
     </div>

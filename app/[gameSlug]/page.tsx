@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import Header from "@/app/components/Header";
 import GSBackground from "@/app/components/GSBackground"; // For consistent background layering
-import { LocalizedString, getTranslatedField } from "@/lib/localization-utils"; // Server-safe utilities
+import { LocalizedString, getTranslatedField, getTranslation } from "@/lib/localization-utils"; // Server-safe utilities
 import { GameLocalizationProvider } from "@/lib/localization"; // Client-side provider
 import { headers } from "next/headers";
 
@@ -81,7 +81,8 @@ export default async function GameDetailPage({ params: paramsPromise }: PageProp
       <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
         {/* GS logo as a lower layer for brand presence, hidden if cover is present */}
         <GSBackground isHidden={!!coverUrl} />
-        <Header breadcrumbs={[{ href: '/', label: 'Home' }, { href: `/${gameSlug}`, label: getTranslatedField(game.name, currentLang, game.default_lang) }]} />
+        
+        <Header breadcrumbs={[{ href: '/', label: getTranslation('home', currentLang) }, { href: `/${gameSlug}`, label: getTranslatedField(game.name, currentLang, game.default_lang) }]} />
 
         <main className="flex-1 px-8 py-24 z-10 relative">
           <div className="max-w-7xl mx-auto space-y-12">
@@ -107,7 +108,7 @@ export default async function GameDetailPage({ params: paramsPromise }: PageProp
             )}
 
             <section className="space-y-6">
-              <h2 className="text-3xl font-bold text-black dark:text-zinc-50">Sections</h2>
+              <h2 className="text-3xl font-bold text-black dark:text-zinc-50">{getTranslation('sections', currentLang)}</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
                 {sections && sections.length > 0 ? (
                   sections.map((section) => {
@@ -143,7 +144,7 @@ export default async function GameDetailPage({ params: paramsPromise }: PageProp
                     );
                   })
                 ) : (
-                  <p className="text-zinc-500 col-span-full text-center">No sections defined for this game yet.</p>
+                  <p className="text-zinc-500 col-span-full text-center">{getTranslation('noSections', currentLang)}</p>
                 )}
               </div>
             </section>

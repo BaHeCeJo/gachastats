@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { useLocalizationParams } from "@/lib/localization";
 
 export default function GSIntro() {
   const [isFinished, setIsFinished] = useState(false);
@@ -10,6 +11,7 @@ export default function GSIntro() {
   const [gPathLength, setGPathLength] = useState(0);
   const sPathRef = useRef<SVGPathElement>(null);
   const gPathRef = useRef<SVGPathElement>(null);
+  const { t } = useLocalizationParams() as any;
 
   useEffect(() => {
     if (sPathRef.current) {
@@ -86,7 +88,7 @@ export default function GSIntro() {
           <div className="flex flex-col items-center text-center">
             <span className="tracking-[2.2em] font-black text-4xl mr-[-2.2em] uppercase text-white">Gacha</span>
             <span className="tracking-[0.8em] font-light text-sm text-green-500 mt-4 uppercase whitespace-nowrap mr-[-0.8em]">
-              Archives & Analytics
+              {t('archivesAnalytics')}
             </span>
           </div>
         </div>

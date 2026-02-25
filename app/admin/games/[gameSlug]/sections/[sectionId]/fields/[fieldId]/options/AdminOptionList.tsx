@@ -27,7 +27,7 @@ export default function AdminOptionList({
   gameDefaultLang: string,
   supabaseUrl: string
 }) {
-  const { displayLang, currentLang } = useLocalizationParams() as any;
+  const { displayLang, currentLang, t } = useLocalizationParams() as any;
   const activeLang = displayLang || currentLang;
 
   const getPublicUrl = (path: string) => {

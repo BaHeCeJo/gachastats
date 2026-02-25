@@ -89,7 +89,7 @@ export default function EditEntityClient({ game, section, entity, fields, curren
   currentLang: string;
 }) {
   const supabase = createClient();
-  const { displayLang } = useLocalizationParams() as any;
+  const { displayLang, t } = useLocalizationParams() as any;
   const activeLang = displayLang || browserLang;
 
   const [localizedName, setLocalizedName] = useState<LocalizedString>(entity.name);
@@ -220,25 +220,25 @@ export default function EditEntityClient({ game, section, entity, fields, curren
       <div className="p-8 max-w-4xl mx-auto space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            Edit Entity: {getTranslatedField(entity.name, activeLang, game.default_lang)}
+            {t('editEntity')}: {getTranslatedField(entity.name, activeLang, game.default_lang)}
             <MissingTranslationIndicator value={entity.name} />
           </h1>
           <form action={deleteEntityAction.bind(null, entity.id, game.slug, section.id)}>
-            <ConfirmButton>Delete Entity</ConfirmButton>
+            <ConfirmButton>{t('delete')} {t('entity')}</ConfirmButton>
           </form>
         </div>
         {state?.error && <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-sm p-4 rounded-lg">{state.error}</div>}
         <form action={formAction} className="space-y-6">
-          <LocalizedTextInput id="name" label="Entity Name" value={localizedName} onChange={setLocalizedName} placeholder="e.g., Acheron" />
+          <LocalizedTextInput id="name" label={t('entityName')} value={localizedName} onChange={setLocalizedName} placeholder="e.g., Acheron" />
           <div>
-            <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">Main Icon</label>
+            <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{t('icon')}</label>
             <ImageInput name="icon_file" onFileChange={setIconFile} existingImageUrl={entityIconPublicUrl} onRemoveExisting={() => setExistingIconPath(null)} />
             <input type="hidden" name="existing_icon_path" value={existingIconPath || ""} />
           </div>
           <div className="space-y-4">
             <h2 className="text-xl font-semibold text-white mt-8 italic flex items-center gap-2">
               <span className="w-4 h-1 bg-green-500"></span>
-              Entity Data
+              {t('entityData')}
             </h2>
             {sortedCategories.length > 0 ? sortedCategories.map((category) => (
               <div key={category} className="bg-zinc-900/30 border border-zinc-800 rounded-2xl p-6 space-y-6">
@@ -301,7 +301,7 @@ export default function EditEntityClient({ game, section, entity, fields, curren
                                 );
                               })}
                               {(!field.field_options || field.field_options.length === 0) && (
-                                <p className="text-xs text-zinc-600 italic col-span-full">No options defined for this field.</p>
+                                <p className="text-xs text-zinc-600 italic col-span-full">{t('noOptions')}</p>
                               )}
                             </div>
                           ) : (
@@ -311,7 +311,7 @@ export default function EditEntityClient({ game, section, entity, fields, curren
                               value={(currentValue.values && currentValue.values[0]) || ''} 
                               onChange={(e) => handleSingleSelectChange(field.id, e.target.value)}
                             >
-                              <option value="">Select an option</option>
+                              <option value="">{t('selectOption')}</option>
                               {field.field_options?.map(option => (
                                 <option key={option.id} value={option.id}>
                                   {getTranslatedField(option.value_key, activeLang, game.default_lang)}
@@ -327,16 +327,16 @@ export default function EditEntityClient({ game, section, entity, fields, curren
               </div>
             )) : (
               <div className="bg-zinc-900/30 border border-dashed border-zinc-800 rounded-2xl p-12 text-center">
-                <p className="text-zinc-500 italic text-sm">No custom fields defined for this section.</p>
+                <p className="text-zinc-500 italic text-sm">{t('noFields')}</p>
                 <Link href={`/admin/games/${game.slug}/sections/${section.id}/fields`} className="text-green-500 text-xs font-bold uppercase tracking-widest mt-4 inline-block hover:underline">
-                  Manage section fields →
+                  {t('manageSectionFields')} →
                 </Link>
               </div>
             )}
           </div>
           <div className="pt-6 border-t border-zinc-800">
-            <button type="submit" className="w-full bg-blue-600 text-white font-bold px-4 py-4 rounded-2xl hover:bg-blue-500 transition-all shadow-lg hover:shadow-blue-500/20 active:scale-[0.98]">
-              Save Entity Changes
+            <button type="submit" className="w-full bg-[#22c55e] text-black font-bold px-4 py-4 rounded-2xl hover:bg-[#1da34a] transition-all shadow-lg hover:shadow-[#22c55e]/20 active:scale-[0.98]">
+              {t('save')} {t('entity')}
             </button>
           </div>
         </form>

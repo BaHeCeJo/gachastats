@@ -3,8 +3,10 @@
 import { useActionState } from "react";
 import { signUp } from "./action";
 import Link from "next/link";
+import { useLocalizationParams } from "@/lib/localization";
 
 export default function SignUpPage() {
+  const { t } = useLocalizationParams() as any;
   const [state, formAction, isPending] = useActionState(
     async (prevState: any, formData: FormData) => {
       return await signUp(formData);
@@ -53,13 +55,13 @@ export default function SignUpPage() {
               <span className="text-3xl font-black text-white tracking-tighter">
                 GACHA
               </span>
-              <span className="text-xs font-bold text-green-600 tracking-[0.4em] uppercase mt-1">
+              <span className="text-[10px] font-bold text-green-600 tracking-[0.4em] uppercase mt-1">
                 Stats
               </span>
             </div>
           </Link>
           <h1 className="text-zinc-400 text-sm font-medium tracking-widest uppercase mt-4">
-            Create a new account
+            {t('signUpTitle')}
           </h1>
         </div>
 
@@ -77,7 +79,7 @@ export default function SignUpPage() {
                 htmlFor="email"
                 className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1"
               >
-                Email Address
+                {t('emailAddress')}
               </label>
               <input
                 id="email"
@@ -95,7 +97,7 @@ export default function SignUpPage() {
                 htmlFor="password"
                 className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1"
               >
-                Password
+                {t('password')}
               </label>
               <input
                 id="password"
@@ -115,18 +117,18 @@ export default function SignUpPage() {
               disabled={isPending}
               className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-black rounded-xl text-black bg-green-500 hover:bg-green-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-widest"
             >
-              {isPending ? "Creating account..." : "Create account"}
+              {isPending ? t('creatingAccount') : t('createAccount')}
             </button>
           </div>
 
           <div className="text-center">
             <p className="text-zinc-500 text-sm">
-              Already have an account?{" "}
+              {t('alreadyHaveAccount')}{" "}
               <Link
                 href="/auth/signin"
                 className="font-bold text-green-500 hover:text-green-400 transition-colors"
               >
-                Sign in
+                {t('signIn')}
               </Link>
             </p>
           </div>
@@ -135,7 +137,7 @@ export default function SignUpPage() {
 
       <footer className="mt-20">
         <p className="text-zinc-700 text-[10px] font-bold tracking-[0.3em] uppercase">
-          &copy; {new Date().getFullYear()} GachaStats / GS
+          &copy; {new Date().getFullYear()} {t('footerText')}
         </p>
       </footer>
     </div>

@@ -5,7 +5,7 @@ import Link from "next/link";
 import Header from "@/app/components/Header";
 import GSBackground from "@/app/components/GSBackground";
 import EntityGridManager from "@/app/components/EntityGridManager";
-import { LocalizedString, getTranslatedField } from "@/lib/localization-utils";
+import { LocalizedString, getTranslatedField, getTranslation } from "@/lib/localization-utils";
 import { GameLocalizationProvider } from "@/lib/localization";
 import { headers } from "next/headers"; // Import headers for server components
 
@@ -268,9 +268,10 @@ export default async function SectionDetailPage({ params: paramsPromise }: PageP
       <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
         {/* GS logo as a lower layer for brand presence, hidden if game cover is present */}
         <GSBackground isHidden={!!gameCoverUrl} />
+        
         <Header
           breadcrumbs={[
-            { href: "/", label: "Home" },
+            { href: "/", label: getTranslation('home', currentLang) },
             { href: `/${gameSlug}`, label: getTranslatedField(game.name, currentLang, game.default_lang) },
             { href: `/${game.slug}/sections/${sectionId}`, label: getTranslatedField(section.key, currentLang, game.default_lang) },
           ]}

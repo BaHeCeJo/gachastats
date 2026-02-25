@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { LocalizedString, getTranslatedField } from "@/lib/localization-utils";
+import { LocalizedString, getTranslatedField, getTranslation } from "@/lib/localization-utils";
 import { GameLocalizationProvider } from "@/lib/localization";
 import { headers } from "next/headers";
 
@@ -88,14 +88,14 @@ export default async function FieldsPage({ params }: PageProps) {
       <main className="max-w-3xl p-8 space-y-6 mx-auto">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold">
-            {getTranslatedField(section.key, currentLang, game.default_lang)} — Fields
+            {getTranslatedField(section.key, currentLang, game.default_lang)} — {getTranslation('fields', currentLang)}
           </h1>
 
           <Link
             href={`/admin/games/${gameSlug}/sections/${sectionId}/fields/new`}
-            className="bg-indigo-600 text-white px-4 py-2 rounded"
+            className="bg-[#22c55e] text-black font-bold px-4 py-2 rounded hover:bg-[#1da34a] transition"
           >
-            Add Field
+            {getTranslation('createField', currentLang)}
           </Link>
         </div>
 
@@ -110,20 +110,20 @@ export default async function FieldsPage({ params }: PageProps) {
                   {groupedFields[category]!.map(f => (
                     <li
                       key={f.id}
-                      className="border p-3 rounded flex justify-between items-center bg-gray-900/50"
+                      className="border p-3 rounded flex justify-between items-center bg-zinc-900/50 border-zinc-800"
                     >
                       <span>
                         {getTranslatedField(f.key, currentLang, game.default_lang)}{' '}
-                        <span className="text-sm text-gray-400">
+                        {/* <span className="text-sm text-gray-400">
                           ({f.field_type})
-                        </span>
+                        </span> */}
                       </span>
 
                       <Link
                         href={`/admin/games/${gameSlug}/sections/${sectionId}/fields/${f.id}`}
-                        className="text-indigo-600 font-medium"
+                        className="text-[#22c55e] font-medium hover:underline"
                       >
-                        Edit
+                        {getTranslation('edit', currentLang)}
                       </Link>
                     </li>
                   ))}
@@ -132,7 +132,7 @@ export default async function FieldsPage({ params }: PageProps) {
             ))}
           </div>
         ) : (
-          <p className="text-gray-400">No fields yet.</p>
+          <p className="text-gray-400">{getTranslation('noFields', currentLang)}</p>
         )}
       </main>
     </GameLocalizationProvider>

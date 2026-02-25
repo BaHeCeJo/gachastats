@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { LocalizedString, getTranslatedField } from "@/lib/localization-utils";
+import { LocalizedString, getTranslatedField, getTranslation } from "@/lib/localization-utils";
 import { GameLocalizationProvider } from "@/lib/localization";
 import { headers } from "next/headers";
 
@@ -53,7 +53,7 @@ export default async function SectionsPage({ params }: PageProps) {
       <main className="p-8 space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold">
-            {getTranslatedField(game.name, currentLang, game.default_lang)} — Sections
+            {getTranslatedField(game.name, currentLang, game.default_lang)} — {getTranslation('sections', currentLang)}
           </h1>
 
           <Link
@@ -61,7 +61,7 @@ export default async function SectionsPage({ params }: PageProps) {
             prefetch={false}
             className="bg-[#22c55e] text-black font-bold px-4 py-2 rounded hover:bg-[#1da34a] transition"
           >
-            Add Section
+            {getTranslation('createSection', currentLang)}
           </Link>
         </div>
 
@@ -95,7 +95,7 @@ export default async function SectionsPage({ params }: PageProps) {
               )
             })
           ) : (
-            <p className="text-gray-400">No sections yet.</p>
+            <p className="text-gray-400">{getTranslation('noSections', currentLang)}</p>
           )}
         </div>
       </main>

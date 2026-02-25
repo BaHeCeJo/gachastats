@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
+import { useLocalizationParams } from "@/lib/localization";
 
 type Props = {
   name: string; // The name for the file input in case it's directly used in a form
@@ -18,10 +19,13 @@ export default function ImageInput({
   existingImageUrl,
   onRemoveExisting,
   className,
-  label = "Upload Image",
+  label,
 }: Props) {
+  const { t } = useLocalizationParams() as any;
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  const displayLabel = label || t('upload');
 
   // Effect to handle existing image URL changes
   useEffect(() => {
@@ -67,8 +71,8 @@ export default function ImageInput({
 
   return (
     <div className={className}>
-      <label htmlFor={`${name}-input`} className="block text-sm font-medium text-gray-300 mb-2">
-        {label}
+      <label htmlFor={`${name}-input`} className="block text-sm font-medium text-zinc-500 mb-2">
+        {displayLabel}
       </label>
       <div className="mt-1 flex items-center space-x-4">
         {(previewUrl && !file) && ( // Display existing image or previous file preview
@@ -107,7 +111,7 @@ export default function ImageInput({
             <path d="M16.88 9.1A4 4 0 0116 17H5a5 5 0 01-1-9.9V7a3 3 0 014.52-2.59A4.98 4.98 0 0117 8c0 .38-.04.74-.12 1.1zM11 11v3h-1v-3H8l3-3 3 3h-2z" />
           </svg>
           <span className="mt-1 text-base leading-normal">
-            {previewUrl ? "Change Image" : "Select Image"}
+            {previewUrl ? t('changeImage') : t('selectImage')}
           </span>
           <input
             id={`${name}-input`}
@@ -120,10 +124,10 @@ export default function ImageInput({
         </label>
       </div>
       {(previewUrl && !file) && existingImageUrl && (
-          <p className="text-xs text-zinc-500 mt-2">Currently using existing image. Select a new file or click &apos;X&apos; to remove.</p>
+          <p className="text-xs text-zinc-500 mt-2">{t('usingExistingImage')}</p>
       )}
       {(!previewUrl && !file) && (
-          <p className="text-xs text-zinc-500 mt-2">No image selected. Select a file to upload.</p>
+          <p className="text-xs text-zinc-500 mt-2">{t('noImageSelected')}</p>
       )}
     </div>
   );
