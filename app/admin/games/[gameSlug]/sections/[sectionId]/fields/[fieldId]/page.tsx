@@ -31,7 +31,7 @@ export default async function EditFieldPage({ params: paramsPromise }: PageProps
   const { data: section } = await supabase.from('game_sections').select('id, key, game_id').eq('id', sectionId).single();
   if (!section) redirect(`/admin/games/${gameSlug}/sections`);
 
-  const { data: field } = await supabase.from('section_fields').select('*').eq('id', fieldId).single();
+  const { data: field } = await supabase.from('section_fields').select('id, section_id, key, category, required, manual_fill, is_multi, has_icon, has_color, order_index').eq('id', fieldId).single();
   if (!field) redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields`);
 
   const { data: existingFields } = await supabase.from('section_fields').select('category').eq('section_id', sectionId);

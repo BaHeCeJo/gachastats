@@ -190,6 +190,7 @@ export async function upsertSkinImage(
 
 /**
  * Deletes a skin and its associated images.
+ * Database CASCADE handles child records in entity_images.
  */
 export async function deleteSkin(
   skinId: string,
@@ -199,7 +200,7 @@ export async function deleteSkin(
 ) {
   const supabase = await createClient();
 
-  // 1. Fetch all image paths for this skin
+  // 1. Fetch image paths for storage cleanup before they are deleted from DB
   const { data: images } = await supabase
     .from("entity_images")
     .select("image_path")
@@ -207,7 +208,7 @@ export async function deleteSkin(
 
   if (images && images.length > 0) {
     const paths = images
-      .map((img) => img.image_path) // image_path is already a storage path here
+      .map((img) => img.image_path)
       .filter(Boolean);
 
     if (paths.length > 0) {
@@ -215,13 +216,7 @@ export async function deleteSkin(
     }
   }
 
-  // 2. Delete associated images from the database
-  await supabase
-    .from("entity_images")
-    .delete()
-    .eq("skin_id", skinId);
-
-  // 3. Delete the skin itself
+  // 2. Delete the skin itself - CASCADE handles associated records in entity_images
   const { error } = await supabase
     .from("entity_skins")
     .delete()

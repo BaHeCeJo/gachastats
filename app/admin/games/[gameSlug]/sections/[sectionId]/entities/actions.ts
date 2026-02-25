@@ -242,7 +242,8 @@ export async function upsertEntityAction(
 }
 
 /**
- * Deletes an entity and all its associated records and images.
+ * Deletes an entity and its associated images.
+ * Database CASCADE handles child records.
  */
 export async function deleteEntityAction(
   entityId: string,
@@ -251,7 +252,7 @@ export async function deleteEntityAction(
 ) {
   const supabase = await createClient();
 
-  // 1. Fetch all image paths for this entity
+  // 1. Fetch all image paths for this entity before they are deleted from DB
   const { data: images } = await supabase
     .from("entity_images")
     .select("image_path")
@@ -267,12 +268,7 @@ export async function deleteEntityAction(
     }
   }
 
-  // 2. Delete related records manually to avoid FK constraint errors
-  await supabase.from("entity_images").delete().eq("entity_id", entityId);
-  await supabase.from("entity_skins").delete().eq("entity_id", entityId);
-  await supabase.from("entity_field_values").delete().eq("entity_id", entityId);
-
-  // 3. Delete the entity itself
+  // 2. Delete the entity itself - CASCADE handles images, skins, and field values in DB
   const { error } = await supabase
     .from("section_entities")
     .delete()

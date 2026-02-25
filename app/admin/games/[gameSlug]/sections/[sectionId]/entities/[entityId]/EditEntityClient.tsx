@@ -42,7 +42,6 @@ type FieldData = {
   is_multi: boolean;
   has_icon: boolean;
   has_color: boolean;
-  field_type: string;
   category: string | null;
   field_options: FieldOption[] | null;
 };

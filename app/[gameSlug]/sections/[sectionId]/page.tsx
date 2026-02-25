@@ -116,7 +116,7 @@ export default async function SectionDetailPage({ params: paramsPromise }: PageP
   // Fetch fields with options for filtering
   const { data: fields, error: fieldsError } = await supabase
     .from("section_fields")
-    .select("*, field_options(*)")
+    .select("id, key, required, manual_fill, has_icon, has_color, order_index, is_multi, category, field_options(*)")
     .eq("section_id", sectionId)
     .order("order_index", { ascending: true });
 
@@ -135,7 +135,7 @@ export default async function SectionDetailPage({ params: paramsPromise }: PageP
     console.error("Display settings fetch error:", displaySettingsError?.message);
   }
 
-  // Fetch entities with their default skin and a single image for the icon, ordered alphabetically
+  // Fetch entities with their technical field values and images from the default skin
   const { data: entities, error: entitiesError } = await supabase
     .from("section_entities")
     .select(
@@ -147,7 +147,8 @@ export default async function SectionDetailPage({ params: paramsPromise }: PageP
       entity_skins (
         is_default,
         entity_images (
-          image_path
+          image_path,
+          type
         )
       ),
       entity_field_values (
@@ -165,8 +166,7 @@ export default async function SectionDetailPage({ params: paramsPromise }: PageP
     )
     .eq("section_id", sectionId)
     .eq("entity_skins.is_default", true)
-    .order(`name->>${game.default_lang}`, { ascending: true }) // Order by localized name
-    .limit(1, { foreignTable: "entity_skins.entity_images" });
+    .order(`name->>${game.default_lang}`, { ascending: true });
 
   if (entitiesError) {
     console.error("Entities fetch error:", entitiesError?.message);
@@ -180,9 +180,13 @@ export default async function SectionDetailPage({ params: paramsPromise }: PageP
   const fieldsMap = new Map((fields || [])?.map(f => [f.id, f]));
 
   // Process entities
-  const processedEntities: ProcessedEntity[] = (entities || []).map((entity: Entity) => {
-    const skin = entity.entity_skins?.[0];
-    const iconPath = skin?.entity_images?.[0]?.image_path;
+  const processedEntities: ProcessedEntity[] = (entities || []).map((entity: any) => {
+    // 1. Try to get the direct icon_path from the entity table
+    // 2. Fallback to the icon from the default skin
+    const defaultSkin = entity.entity_skins?.[0];
+    const skinIconPath = defaultSkin?.entity_images?.find((img: any) => img.type === 'icon')?.image_path;
+    const iconPath = entity.icon_path || skinIconPath;
+    
     let publicIconUrl = "";
 
     if (iconPath) {

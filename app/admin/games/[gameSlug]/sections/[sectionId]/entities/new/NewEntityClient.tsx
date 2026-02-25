@@ -2,7 +2,7 @@
 
 import { useState, useActionState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { LocalizedString, getTranslatedField, GameLocalizationProvider } from "@/lib/localization";
+import { LocalizedString, getTranslatedField, GameLocalizationProvider, useLocalizationParams } from "@/lib/localization";
 import LocalizedTextInput from '@/app/components/fields/LocalizedTextInput';
 import CreatableTagInput from '@/app/components/fields/CreatableTagInput';
 import ImageInput from '@/app/components/ImageInput';
@@ -12,7 +12,7 @@ import Link from "next/link";
 type GameData = { id: string; name: LocalizedString; slug: string; default_lang: string; supported_languages: string[]; };
 type SectionData = { id: string; key: LocalizedString; game_id: string; };
 type FieldOption = { id: string; field_id: string; value_key: LocalizedString; icon_path: string | null; color: string | null; };
-type FieldData = { id: string; key: LocalizedString; required: boolean; manual_fill: boolean; is_multi: boolean; has_icon: boolean; has_color: boolean; field_type: string; category: string | null; field_options: FieldOption[] | null; };
+type FieldData = { id: string; key: LocalizedString; required: boolean; manual_fill: boolean; is_multi: boolean; has_icon: boolean; has_color: boolean; category: string | null; field_options: FieldOption[] | null; };
 type FormState = { error?: string; };
 
 export default function NewEntityClient({ game, section, fields, currentLang: browserLang }: {

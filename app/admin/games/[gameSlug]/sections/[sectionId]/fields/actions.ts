@@ -19,7 +19,6 @@ export async function upsertFieldAction(
   const fieldId = formData.get("id") as string | undefined;
   const rawKey = JSON.parse(formData.get("key") as string) as LocalizedString;
   const category = (formData.get("category") as string)?.trim() || 'General';
-  const field_type = formData.get("field_type") as string;
   const required = formData.get("required") === 'on';
   const manual_fill = formData.get("manual_fill") === 'on';
   const has_icon = formData.get("has_icon") === 'on';
@@ -30,15 +29,11 @@ export async function upsertFieldAction(
   if (!rawKey[gameDefaultLang]) {
     return { error: `Key for default language (${gameDefaultLang.toUpperCase()}) is required.` };
   }
-  if (!field_type) {
-    return { error: "Field type is required." };
-  }
 
   const fieldData = {
     section_id: sectionId,
     key: rawKey,
     category,
-    field_type,
     required,
     manual_fill,
     has_icon,
@@ -75,7 +70,8 @@ export async function upsertFieldAction(
 }
 
 /**
- * Deletes a field and all its associated options and entity field values.
+ * Deletes a field.
+ * Database CASCADE handles field options and entity field values.
  */
 export async function deleteFieldAction(
   fieldId: string,
@@ -84,29 +80,7 @@ export async function deleteFieldAction(
 ) {
   const supabase = await createClient();
 
-  // 1. Delete associated field options
-  const { error: optionsError } = await supabase
-    .from("field_options")
-    .delete()
-    .eq("field_id", fieldId);
-
-  if (optionsError) {
-    console.error("Error deleting field options:", optionsError);
-    throw new Error(`Failed to delete field options: ${optionsError.message}`);
-  }
-
-  // 2. Delete associated entity field values
-  const { error: valuesError } = await supabase
-    .from("entity_field_values")
-    .delete()
-    .eq("field_id", fieldId);
-
-  if (valuesError) {
-    console.error("Error deleting entity field values:", valuesError);
-    throw new Error(`Failed to delete entity field values: ${valuesError.message}`);
-  }
-
-  // 3. Delete the field itself
+  // 1. Delete the field itself - CASCADE handles associated options and entity values
   const { error: fieldError } = await supabase
     .from("section_fields")
     .delete()

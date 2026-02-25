@@ -24,7 +24,6 @@ type Field = {
   section_id: string;
   key: LocalizedString; // Localized
   category: string | null;
-  field_type: string; // Assuming 'text', 'number', 'boolean', 'select' etc.
   order_index: number;
 }
 
@@ -57,7 +56,7 @@ export default async function FieldsPage({ params }: PageProps) {
 
   const { data: fields } = await supabase
     .from('section_fields')
-    .select('id, key, category, field_type, order_index') // Select key as LocalizedString
+    .select('id, key, category, order_index') // Select key as LocalizedString
     .eq('section_id', sectionId)
     .order('order_index', { ascending: true }) as { data: Field[] | null };
 
@@ -113,10 +112,7 @@ export default async function FieldsPage({ params }: PageProps) {
                       className="border p-3 rounded flex justify-between items-center bg-zinc-900/50 border-zinc-800"
                     >
                       <span>
-                        {getTranslatedField(f.key, currentLang, game.default_lang)}{' '}
-                        {/* <span className="text-sm text-gray-400">
-                          ({f.field_type})
-                        </span> */}
+                        {getTranslatedField(f.key, currentLang, game.default_lang)}
                       </span>
 
                       <Link

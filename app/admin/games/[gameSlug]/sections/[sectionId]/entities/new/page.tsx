@@ -29,7 +29,7 @@ export default async function NewEntityPage({ params: paramsPromise }: PageProps
   const { data: section } = await supabase.from('game_sections').select('id, key, game_id').eq('id', sectionId).single();
   if (!section) redirect(`/admin/games/${gameSlug}/sections`);
 
-  const { data: fields } = await supabase.from('section_fields').select('*, field_options(*)').eq('section_id', sectionId).order('order_index', { ascending: true });
+  const { data: fields } = await supabase.from('section_fields').select('id, key, required, manual_fill, is_multi, has_icon, has_color, category, order_index, field_options(*)').eq('section_id', sectionId).order('order_index', { ascending: true });
 
   return <NewEntityClient game={game} section={section} fields={fields || []} currentLang={currentLang} />;
 }

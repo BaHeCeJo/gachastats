@@ -157,92 +157,57 @@ export async function upsertGameAction(formData: FormData) {
 
 
 /**
- * Deletes a game and all its content by manually cascading through the hierarchy.
+ * Deletes a game and its associated storage assets.
+ * Child records are deleted automatically by the database CASCADE.
  */
 export async function deleteGameAction(gameId: string) {
   const supabase = await createClient();
 
-  // 1. Get all sections of this game
+  // 1. Fetch all asset paths for cleanup BEFORE deleting the records
+  // We need to clean up Section icons and Entity images from storage
   const { data: sections } = await supabase
     .from("game_sections")
-    .select("id, icon_path")
-    .eq("game_id", gameId);
+    .select("icon_path");
 
-  if (sections && sections.length > 0) {
-    const sectionIds = sections.map(s => s.id);
+  const { data: entities } = await supabase
+    .from("section_entities")
+    .select("id")
+    .in("section_id", (await supabase.from("game_sections").select("id").eq("game_id", gameId)).data?.map(s => s.id) || []);
 
-    // 2. Get all entities in these sections
-    const { data: entities } = await supabase
-      .from("section_entities")
-      .select("id")
-      .in("section_id", sectionIds);
+  const entityIds = entities?.map(e => e.id) || [];
+  
+  const { data: entityImages } = await supabase
+    .from("entity_images")
+    .select("image_path")
+    .in("entity_id", entityIds);
 
-    if (entities && entities.length > 0) {
-      const entityIds = entities.map(e => e.id);
-
-      // 3. Fetch all images for storage cleanup
-      const { data: images } = await supabase
-        .from("entity_images")
-        .select("image_path")
-        .in("entity_id", entityIds);
-
-      if (images && images.length > 0) {
-        const paths = images
-          .map((img) => extractPathFromUrl(img.image_path, "games"))
-          .filter(Boolean);
-        if (paths.length > 0) {
-          await supabase.storage.from("games").remove(paths);
-        }
-      }
-
-      // 4. Delete entity-related records
-      await supabase.from("entity_images").delete().in("entity_id", entityIds);
-      await supabase.from("entity_skins").delete().in("entity_id", entityIds);
-      await supabase.from("entity_field_values").delete().in("entity_id", entityIds);
-      await supabase.from("section_entities").delete().in("id", entityIds);
-    }
-
-    // 5. Cleanup section fields and options
-    const { data: fields } = await supabase
-      .from("section_fields")
-      .select("id")
-      .in("section_id", sectionIds);
-
-    if (fields && fields.length > 0) {
-      const fieldIds = fields.map(f => f.id);
-      await supabase.from("field_options").delete().in("field_id", fieldIds);
-      await supabase.from("entity_field_values").delete().in("field_id", fieldIds);
-      await supabase.from("section_fields").delete().in("id", fieldIds);
-    }
-
-    // 6. Delete section icons from storage
-    const iconPaths = sections
-      .map((s) => s.icon_path ? extractPathFromUrl(s.icon_path, "games") : null)
-      .filter(Boolean) as string[];
-
-    if (iconPaths.length > 0) {
-      await supabase.storage.from("games").remove(iconPaths);
-    }
-
-    // 7. Delete sections
-    await supabase.from("game_sections").delete().in("id", sectionIds);
-  }
-
-  // 8. Fetch and delete game cover
   const { data: game } = await supabase
     .from("games")
     .select("cover_url")
     .eq("id", gameId)
     .single();
 
-  if (game?.cover_url) {
-    const coverPath = extractPathFromUrl(game.cover_url, "games");
-    if (coverPath) {
-      await supabase.storage.from("games").remove([coverPath]);
-    }
+  // 2. Prepare paths for storage cleanup
+  const pathsToDelete: string[] = [];
+  
+  if (game?.cover_url) pathsToDelete.push(extractPathFromUrl(game.cover_url, "games"));
+  
+  sections?.forEach(s => {
+    if (s.icon_path) pathsToDelete.push(extractPathFromUrl(s.icon_path, "games"));
+  });
+
+  entityImages?.forEach(img => {
+    if (img.image_path) pathsToDelete.push(extractPathFromUrl(img.image_path, "games"));
+  });
+
+  const validPaths = pathsToDelete.filter(Boolean);
+
+  // 3. Delete from storage
+  if (validPaths.length > 0) {
+    await supabase.storage.from("games").remove(validPaths);
   }
 
-  // 9. Finally delete the game
+  // 4. Finally delete the game - database CASCADE handles the rest (sections, entities, fields, etc.)
   const { error } = await supabase
     .from("games")
     .delete()

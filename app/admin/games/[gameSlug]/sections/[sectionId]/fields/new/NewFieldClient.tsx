@@ -20,7 +20,6 @@ export default function NewFieldClient({ game, section, categories }: { game: Ga
   const [isMulti, setIsMulti] = useState<boolean>(false);
   const [hasIcon, setHasIcon] = useState<boolean>(false);
   const [hasColor, setHasColor] = useState<boolean>(false);
-  const [fieldType, setFieldType] = useState<string>('text');
 
   const [state, formAction] = useActionState(
     async (prevState: FormState, formData: FormData) => {
@@ -32,7 +31,6 @@ export default function NewFieldClient({ game, section, categories }: { game: Ga
       formData.set("is_multi", isMulti ? 'on' : 'off');
       formData.set("has_icon", hasIcon ? 'on' : 'off');
       formData.set("has_color", hasColor ? 'on' : 'off');
-      formData.set("field_type", fieldType);
       return await upsertFieldAction(game.slug, section.id, game.default_lang, formData);
     },
     {} as FormState
@@ -49,16 +47,6 @@ export default function NewFieldClient({ game, section, categories }: { game: Ga
             <label htmlFor="category" className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{t('category')}</label>
             <input id="category" name="category" placeholder="Category" className="block w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all" list="category-list" value={category} onChange={(e) => setCategory(e.target.value)} />
             <datalist id="category-list">{categories.map(cat => <option key={cat} value={cat} />)}</datalist>
-          </div>
-          <div className="space-y-1">
-            <label htmlFor="field_type" className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{t('fieldType')}</label>
-            <select id="field_type" name="field_type" value={fieldType} onChange={(e) => setFieldType(e.target.value)} className="block w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all">
-              <option value="text">Text</option>
-              <option value="number">Number</option>
-              <option value="boolean">Boolean</option>
-              <option value="select">Select</option>
-              <option value="multi-select">Multi-Select</option>
-            </select>
           </div>
           <div className="flex flex-col gap-2">
             <label className="flex items-center gap-2 text-zinc-300"><input type="checkbox" checked={manualFill} onChange={(e) => setManualFill(e.target.checked)} /> {t('manualInput')}</label>

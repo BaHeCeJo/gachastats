@@ -60,7 +60,7 @@ export default async function EntityPage({ params: paramsPromise }: PageProps) {
   // Fetch all fields for this section
   const { data: fields, error: fieldsError } = await supabase
     .from("section_fields")
-    .select('*, field_options(id, value_key, icon_path, color, order_index)')
+    .select('id, key, required, manual_fill, is_multi, has_icon, has_color, category, order_index, field_options(id, value_key, icon_path, color, order_index)')
     .eq('section_id', sectionId)
     .order('order_index', { ascending: true });
 
