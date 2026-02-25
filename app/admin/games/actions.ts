@@ -3,6 +3,18 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { LocalizedString } from "@/lib/localization";
+import { v4 as uuidv4 } from "uuid";
+import { slugify } from "@/lib/utils/slugify";
+
+type GameFormData = {
+  id?: string; // Optional for new games
+  name: LocalizedString;
+  description: LocalizedString;
+  cover_image?: File | string | null; // Can be a File object for new upload, string for existing path, or null/undefined
+  default_lang: string;
+  supported_languages: string[];
+};
 
 /**
  * Extracts the storage path from a public URL.
@@ -12,232 +24,190 @@ function extractPathFromUrl(url: string, bucket: string): string {
   if (!url) return "";
   // If it's already a relative path (doesn't start with http), return as is
   if (!url.startsWith("http")) return url;
-  
+
   const searchStr = `/${bucket}/`;
-  if (!url.includes(searchStr)) return ""; 
-  
+  if (!url.includes(searchStr)) return "";
+
   const parts = url.split(searchStr);
   return parts[parts.length - 1];
 }
 
 /**
- * Deletes an entity and all its associated records and images.
+ * Handles uploading an image file to Supabase storage.
+ * @param file The image file to upload.
+ * @param bucket The storage bucket name.
+ * @param folder The folder within the bucket.
+ * @returns The path to the uploaded file within the bucket/folder.
  */
-export async function deleteEntityAction(
-  entityId: string,
-  gameSlug: string,
-  sectionId: string
-) {
+async function uploadImage(file: File, bucket: string, folder: string): Promise<string> {
   const supabase = await createClient();
+  const fileExtension = file.name.split(".").pop();
+  const path = `${folder}/${uuidv4()}.${fileExtension}`;
 
-  // 1. Fetch all image paths for this entity
-  const { data: images } = await supabase
-    .from("entity_images")
-    .select("image_path")
-    .eq("entity_id", entityId);
-
-  if (images && images.length > 0) {
-    const paths = images
-      .map((img) => extractPathFromUrl(img.image_path, "games"))
-      .filter(Boolean);
-
-    if (paths.length > 0) {
-      await supabase.storage.from("games").remove(paths);
-    }
-  }
-
-  // 2. Delete related records manually to avoid FK constraint errors
-  await supabase.from("entity_images").delete().eq("entity_id", entityId);
-  await supabase.from("entity_skins").delete().eq("entity_id", entityId);
-  await supabase.from("entity_field_values").delete().eq("entity_id", entityId);
-
-  // 3. Delete the entity itself
-  const { error } = await supabase
-    .from("section_entities")
-    .delete()
-    .eq("id", entityId);
+  const { error } = await supabase.storage.from(bucket).upload(path, file, {
+    cacheControl: "3600",
+    upsert: false,
+  });
 
   if (error) {
-    console.error("Error deleting entity:", error);
-    throw new Error(error.message);
+    console.error("Error uploading image:", error);
+    throw new Error(`Failed to upload image: ${error.message}`);
   }
 
-  revalidatePath(`/admin/games/${gameSlug}/sections/${sectionId}`);
-  redirect(`/admin/games/${gameSlug}/sections/${sectionId}`);
+  return path;
 }
 
 /**
- * Deletes a section and all its associated records (entities, fields, options, images).
+ * Upserts (creates or updates) a game entry.
  */
-export async function deleteSectionAction(
-  sectionId: string,
-  gameSlug: string
-) {
+export async function upsertGameAction(formData: FormData) {
   const supabase = await createClient();
 
-  // 1. Get all entities in this section
-  const { data: entities } = await supabase
-    .from("section_entities")
-    .select("id")
-    .eq("section_id", sectionId);
+  const gameId = formData.get("id") as string | undefined;
+  const rawName = JSON.parse(formData.get("name") as string) as LocalizedString;
+  const rawDescription = JSON.parse(formData.get("description") as string) as LocalizedString;
+  const rawCoverImage = formData.get("cover_image"); // File, string path, or null
+  const defaultLang = formData.get("default_lang") as string;
+  const supportedLanguages = JSON.parse(formData.get("supported_languages") as string) as string[];
 
-  if (entities && entities.length > 0) {
-    const entityIds = entities.map(e => e.id);
-    
-    // Cleanup images in storage
-    const { data: images } = await supabase
-      .from("entity_images")
-      .select("image_path")
-      .in("entity_id", entityIds);
+  // Basic validation (more comprehensive validation would be needed)
+  if (!rawName[defaultLang]) {
+    return { error: `Name for default language (${defaultLang.toUpperCase()}) is required.` };
+  }
 
-    if (images && images.length > 0) {
-      const paths = images
-        .map((img) => extractPathFromUrl(img.image_path, "games"))
-        .filter(Boolean);
-      if (paths.length > 0) {
-        await supabase.storage.from("games").remove(paths);
-      }
+  let cover_url: string | null = null;
+  let oldCoverPath: string | null = null; // To track if an old image needs deletion
+
+  // Fetch existing game data if updating
+  if (gameId) {
+    const { data: existingGame, error: fetchError } = await supabase
+      .from("games")
+      .select("cover_url")
+      .eq("id", gameId)
+      .single();
+
+    if (fetchError) {
+      console.error("Error fetching existing game for update:", fetchError);
+      return { error: `Failed to fetch existing game: ${fetchError.message}` };
     }
-
-    // Cleanup entity records
-    await supabase.from("entity_images").delete().in("entity_id", entityIds);
-    await supabase.from("entity_skins").delete().in("entity_id", entityIds);
-    await supabase.from("entity_field_values").delete().in("entity_id", entityIds);
-    await supabase.from("section_entities").delete().in("id", entityIds);
+    oldCoverPath = existingGame?.cover_url || null;
   }
 
-  // 2. Get all fields in this section
-  const { data: fields } = await supabase
-    .from("section_fields")
-    .select("id")
-    .eq("section_id", sectionId);
-
-  if (fields && fields.length > 0) {
-    const fieldIds = fields.map(f => f.id);
-    // Cleanup field options
-    await supabase.from("field_options").delete().in("field_id", fieldIds);
-    // Cleanup field values linked to these fields (already partially done via entities, but just in case)
-    await supabase.from("entity_field_values").delete().in("field_id", fieldIds);
-    // Cleanup fields
-    await supabase.from("section_fields").delete().in("id", fieldIds);
-  }
-
-  // 3. Fetch section icon path and cleanup storage
-  const { data: section } = await supabase
-    .from("game_sections")
-    .select("icon_path")
-    .eq("id", sectionId)
-    .single();
-
-  if (section?.icon_path) {
-    const path = extractPathFromUrl(section.icon_path, "games");
-    if (path) {
-      await supabase.storage.from("games").remove([path]);
+  // Handle cover image upload/deletion
+  if (rawCoverImage instanceof File && rawCoverImage.size > 0) {
+    // New file uploaded
+    cover_url = await uploadImage(rawCoverImage, "games", "covers");
+    // If there was an old cover, delete it
+    if (oldCoverPath) {
+      await supabase.storage.from("games").remove([oldCoverPath]);
+    }
+  } else if (typeof rawCoverImage === "string" && rawCoverImage.length > 0) {
+    // Existing image path was retained, no new upload
+    cover_url = rawCoverImage;
+  } else {
+    // Image was removed or never existed
+    cover_url = null;
+    // If there was an old cover, delete it
+    if (oldCoverPath) {
+      await supabase.storage.from("games").remove([oldCoverPath]);
     }
   }
 
-  // 4. Finally delete the section
-  const { error } = await supabase
-    .from("game_sections")
-    .delete()
-    .eq("id", sectionId);
+  const gameData = {
+    name: rawName,
+    description: rawDescription,
+    cover_url: cover_url,
+    default_lang: defaultLang,
+    supported_languages: supportedLanguages,
+  };
 
-  if (error) {
-    console.error("Error deleting section:", error);
-    throw new Error(error.message);
+  if (gameId) {
+    // Update existing game
+    const { error } = await supabase
+      .from("games")
+      .update(gameData)
+      .eq("id", gameId);
+
+    if (error) {
+      console.error("Error updating game:", error);
+      return { error: `Failed to update game: ${error.message}` };
+    }
+  } else {
+    // Create new game
+    const { error } = await supabase
+      .from("games")
+      .insert({
+        ...gameData,
+        slug: slugify(rawName[defaultLang]), // Slug from default language name
+      });
+
+    if (error) {
+      console.error("Error creating game:", error);
+      return { error: `Failed to create game: ${error.message}` };
+    }
   }
 
-  revalidatePath(`/admin/games/${gameSlug}/sections`);
-  redirect(`/admin/games/${gameSlug}/sections`);
+  revalidatePath("/admin/games");
+  revalidatePath("/"); // Revalidate home page to show new/updated games
+  redirect("/admin/games");
 }
 
+
+
+
+
 /**
- * Deletes a game and all its content by manually cascading through the hierarchy.
+ * Deletes a game and its associated storage assets.
+ * Child records are deleted automatically by the database CASCADE.
  */
 export async function deleteGameAction(gameId: string) {
   const supabase = await createClient();
 
-  // 1. Get all sections of this game
+  // 1. Fetch all asset paths for cleanup BEFORE deleting the records
+  // We need to clean up Section icons and Entity images from storage
   const { data: sections } = await supabase
     .from("game_sections")
-    .select("id, icon_path")
-    .eq("game_id", gameId);
+    .select("icon_path");
 
-  if (sections && sections.length > 0) {
-    const sectionIds = sections.map(s => s.id);
-    
-    // 2. Get all entities in these sections
-    const { data: entities } = await supabase
-      .from("section_entities")
-      .select("id")
-      .in("section_id", sectionIds);
-      
-    if (entities && entities.length > 0) {
-      const entityIds = entities.map(e => e.id);
-      
-      // 3. Fetch all images for storage cleanup
-      const { data: images } = await supabase
-        .from("entity_images")
-        .select("image_path")
-        .in("entity_id", entityIds);
-        
-      if (images && images.length > 0) {
-        const paths = images
-          .map((img) => extractPathFromUrl(img.image_path, "games"))
-          .filter(Boolean);
-        if (paths.length > 0) {
-          await supabase.storage.from("games").remove(paths);
-        }
-      }
+  const { data: entities } = await supabase
+    .from("section_entities")
+    .select("id")
+    .in("section_id", (await supabase.from("game_sections").select("id").eq("game_id", gameId)).data?.map(s => s.id) || []);
 
-      // 4. Delete entity-related records
-      await supabase.from("entity_images").delete().in("entity_id", entityIds);
-      await supabase.from("entity_skins").delete().in("entity_id", entityIds);
-      await supabase.from("entity_field_values").delete().in("entity_id", entityIds);
-      await supabase.from("section_entities").delete().in("id", entityIds);
-    }
-    
-    // 5. Cleanup section fields and options
-    const { data: fields } = await supabase
-      .from("section_fields")
-      .select("id")
-      .in("section_id", sectionIds);
+  const entityIds = entities?.map(e => e.id) || [];
+  
+  const { data: entityImages } = await supabase
+    .from("entity_images")
+    .select("image_path")
+    .in("entity_id", entityIds);
 
-    if (fields && fields.length > 0) {
-      const fieldIds = fields.map(f => f.id);
-      await supabase.from("field_options").delete().in("field_id", fieldIds);
-      await supabase.from("entity_field_values").delete().in("field_id", fieldIds);
-      await supabase.from("section_fields").delete().in("id", fieldIds);
-    }
-
-    // 6. Delete section icons from storage
-    const iconPaths = sections
-      .map((s) => s.icon_path ? extractPathFromUrl(s.icon_path, "games") : null)
-      .filter(Boolean) as string[];
-
-    if (iconPaths.length > 0) {
-      await supabase.storage.from("games").remove(iconPaths);
-    }
-
-    // 7. Delete sections
-    await supabase.from("game_sections").delete().in("id", sectionIds);
-  }
-
-  // 8. Fetch and delete game cover
   const { data: game } = await supabase
     .from("games")
     .select("cover_url")
     .eq("id", gameId)
     .single();
 
-  if (game?.cover_url) {
-    const coverPath = extractPathFromUrl(game.cover_url, "games");
-    if (coverPath) {
-      await supabase.storage.from("games").remove([coverPath]);
-    }
+  // 2. Prepare paths for storage cleanup
+  const pathsToDelete: string[] = [];
+  
+  if (game?.cover_url) pathsToDelete.push(extractPathFromUrl(game.cover_url, "games"));
+  
+  sections?.forEach(s => {
+    if (s.icon_path) pathsToDelete.push(extractPathFromUrl(s.icon_path, "games"));
+  });
+
+  entityImages?.forEach(img => {
+    if (img.image_path) pathsToDelete.push(extractPathFromUrl(img.image_path, "games"));
+  });
+
+  const validPaths = pathsToDelete.filter(Boolean);
+
+  // 3. Delete from storage
+  if (validPaths.length > 0) {
+    await supabase.storage.from("games").remove(validPaths);
   }
 
-  // 9. Finally delete the game
+  // 4. Finally delete the game - database CASCADE handles the rest (sections, entities, fields, etc.)
   const { error } = await supabase
     .from("games")
     .delete()

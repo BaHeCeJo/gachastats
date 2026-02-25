@@ -15,7 +15,7 @@ export async function signIn(formData: FormData) {
   })
 
   if (error) {
-    throw new Error(error.message)
+    return { error: error.message }
   }
 
   redirect('/')

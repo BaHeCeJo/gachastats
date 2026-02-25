@@ -6,9 +6,10 @@ export default async function AdminLayout({
   params,
 }: {
   children: React.ReactNode;
-  params: any;
+  params: Promise<any>;
 }) {
-  const breadcrumbs = await generateBreadcrumbs(params);
+  const resolvedParams = await params;
+  const breadcrumbs = await generateBreadcrumbs(resolvedParams);
 
   return (
     <div>

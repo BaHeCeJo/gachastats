@@ -3,10 +3,11 @@ import Link from "next/link"
 import HeaderClient from "./HeaderClient"
 import { createClient } from "@/lib/supabase/server"
 import Breadcrumbs from "./Breadcrumbs"; // Import Breadcrumbs component
+import { LocalizedString } from "@/lib/localization-utils"; // Import LocalizedString
 
 type Crumb = {
   href: string;
-  label: string;
+  label: string | LocalizedString; // Label can now be a LocalizedString
 };
 
 export default async function Header({ breadcrumbs }: { breadcrumbs?: Crumb[] }) {
