@@ -6,6 +6,7 @@ import GSBackground from "@/app/components/GSBackground";
 import { getTranslatedField, LocalizedString, getTranslation } from "@/lib/localization-utils";
 import { headers, cookies } from "next/headers";
 import { GameLocalizationProvider } from "@/lib/localization";
+import CollectionToggle from "@/app/components/CollectionToggle";
 
 type PageProps = {
   params: Promise<{ gameSlug: string; sectionId: string; entityId: string }>;
@@ -46,6 +47,14 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
   const params = await paramsPromise;
   const { gameSlug, sectionId, entityId } = params;
   const supabase = await createClient();
+
+  // Fetch current user and their ownership status
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: userEntity } = user 
+    ? await supabase.from("user_entities").select("user_id").eq("user_id", user.id).eq("entity_id", entityId).single()
+    : { data: null };
+
+  const isOwned = !!userEntity;
 
   // Fetch game details first
   const { data: game, error: gameError } = await supabase
@@ -215,10 +224,18 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
                       ?
                     </div>
                   )}
-                  <div>
+                  <div className="space-y-4">
                     <h1 className="text-6xl font-black text-black dark:text-zinc-50 tracking-tighter uppercase italic">
                       {translatedEntityName}
                     </h1>
+                    
+                    {/* Collection Toggle */}
+                    {user && section.is_collectible && (
+                      <div className="pt-2">
+                        <CollectionToggle entityId={entityId} initialIsOwned={isOwned} />
+                      </div>
+                    )}
+
                     <div className="mt-4 flex flex-wrap gap-3">
                       {filterFields.map(field => (
                         <div 

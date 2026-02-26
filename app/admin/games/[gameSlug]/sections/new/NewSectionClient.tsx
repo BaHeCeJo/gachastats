@@ -7,7 +7,7 @@ import ImageInput from '@/app/components/ImageInput';
 import { upsertSectionAction } from '@/app/admin/games/[gameSlug]/sections/actions';
 
 type GameData = { id: string; name: LocalizedString; slug: string; default_lang: string; supported_languages: string[]; };
-type FormState = { error?: string; gameId: string; gameSlug: string; name: LocalizedString; color: string; order_index: number; icon_path: string | null; default_lang: string; supported_languages: string[]; };
+type FormState = { error?: string; };
 
 export default function NewSectionClient({ game }: { game: GameData }) {
   const { currentLang, displayLang, t } = useLocalizationParams() as any;
@@ -25,7 +25,7 @@ export default function NewSectionClient({ game }: { game: GameData }) {
       if (iconFile) formData.set("icon_file", iconFile);
       return await upsertSectionAction(game.id, game.slug, game.default_lang, formData);
     },
-    { gameId: game.id, gameSlug: game.slug, name: { [game.default_lang]: "" }, color: "#ffffff", order_index: 0, icon_path: null, default_lang: game.default_lang, supported_languages: game.supported_languages } as FormState
+    {} as FormState
   );
 
   return (

@@ -42,6 +42,7 @@ type FieldData = {
   is_multi: boolean;
   has_icon: boolean;
   has_color: boolean;
+  order_index: number;
   category: string | null;
   field_options: FieldOption[] | null;
 };
@@ -107,7 +108,9 @@ export default function EditEntityClient({ game, section, entity, fields, curren
           if (typeof valText === 'string') {
             values = valText.split(',').map(s => s.trim()).filter(Boolean);
           } else {
-            values = (getTranslatedField(valText, game.default_lang, game.default_lang) || '').split(',').map(s => s.trim()).filter(Boolean);
+            // Handle case where it might be a LocalizedString
+            const translated = getTranslatedField(valText as any, game.default_lang, game.default_lang) || '';
+            values = translated.split(',').map(s => s.trim()).filter(Boolean);
           }
         } else {
           if (firstVal.option_id) values = [firstVal.option_id];
@@ -116,10 +119,8 @@ export default function EditEntityClient({ game, section, entity, fields, curren
       }
     } else {
       if (field.is_multi) {
-        const firstVal = existingValues[0];
-        if (firstVal?.value_text && typeof firstVal.value_text === 'string') {
-          values = firstVal.value_text.split(',').map(s => s.trim()).filter(Boolean);
-        }
+        // For option-based multi-select, we have multiple rows in existingValues, each with one option_id
+        values = existingValues.map(v => v.option_id).filter(Boolean) as string[];
       } else {
         const firstVal = existingValues[0];
         if (firstVal?.option_id) values = [firstVal.option_id];

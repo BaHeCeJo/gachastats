@@ -2,39 +2,31 @@
 
 A powerful, flexible, and multi-language administration platform for managing databases of collectible-based games (Gacha games). Built with **Next.js (App Router)** and **Supabase**, it allows administrators to define custom data structures for any game without writing code.
 
-## 🚀 Tech Stack
+## Core Features
 
-- **Next.js 15** (App Router)
-- **TypeScript**
-- **Supabase**
-  - PostgreSQL Database
-  - Authentication (Admin access)
-  - Storage (Images, Icons, Full Art)
-  - Row Level Security (RLS)
-- **Tailwind CSS**
-- **Lucide React** (Icons)
+-   **Dynamic Schema Builder:** Define games, sections (Characters, Weapons, etc.), and custom fields (Rarity, Element, Path) on the fly.
+-   **First-Class Localization:** Built-in support for multiple languages with automatic fallbacks and specialized admin translation tools.
+-   **Advanced Skin Management:** Support for multiple skins per entity, with dedicated slots for Icons and Full (Splash) Art.
+-   **Visual Filtering:** Public-facing section pages include a powerful, visually-driven filtering system based on dynamic fields.
+-   **Modern, Immersive UI:** A high-performance, responsive interface with a dark, gamer-centric aesthetic and dynamic background effects.
+-   **Secure Admin Panel:** Protected by Supabase Auth and Row-Level Security (RLS).
 
-## 🏗️ Core Architecture
+## Tech Stack
 
-The platform uses a hierarchical, generic data model to support any type of game:
+- **Framework:** Next.js 15 (App Router)
+- **Language:** TypeScript
+- **Database & Auth:** Supabase (PostgreSQL)
+- **Storage:** Supabase Storage for high-quality assets.
+- **Styling:** Tailwind CSS + Lucide React.
 
-1.  **Games:** The top-level container (e.g., "Zenless Zone Zero", "Honkai: Star Rail"). Each game has its own set of supported languages and a default language.
-2.  **Sections:** Custom categories within a game (e.g., "Characters", "Weapons", "Bangboos").
-3.  **Fields:** Dynamic attributes defined per section. 
-    - Supports multiple input types: Dropdowns (Single/Multi), Text (Single), and Tag Inputs (Multi).
-    - Supports Predetermined options (e.g., Rarity, Element) or Manual entry.
-4.  **Entities:** The actual items within a section (e.g., "Ellen Joe"). 
-    - Entities inherit the field structure of their section.
-    - Entities support **Skins**, allowing for multiple visual representations (Icons and Full Art).
+## Architecture Overview
 
-## 🌍 Multi-language Support
+1.  **Games:** Top-level containers defining supported languages.
+2.  **Sections:** Categories within games (e.g., "Bangboos").
+3.  **Fields:** Dynamic attributes with flexible input methods (Dropdowns, Multi-select, Tags, Text).
+4.  **Entities:** Items with inherited field structures and multiple visual **Skins**.
 
-Localization is a first-class citizen in GachaStats. 
-- Most text data (Names, Descriptions, Field Values) is stored as `LocalizedString` objects.
-- Each game defines its `default_lang` and `supported_languages`.
-- The UI adapts based on the available translations, falling back to the game's default language when necessary.
-
-## 🛠️ Getting Started
+## Getting Started
 
 ### 1. Prerequisites
 - Node.js 18+ 
@@ -57,5 +49,5 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 npm run dev
 ```
 
-## 📖 Documentation
-For a detailed breakdown of the application logic and admin workflows, refer to [gemini.md](./gemini.md).
+## Detailed Documentation
+For a deep dive into the system's logic, database schema, and future roadmap, please refer to [gemini.md](./gemini.md).

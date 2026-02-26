@@ -142,10 +142,18 @@ export default function HeaderClient({
             </>
           )}
           
+          <Link
+            href="/profile"
+            className="text-sm font-bold uppercase tracking-widest text-zinc-600 dark:text-zinc-400 hover:text-[#22c55e] transition flex items-center gap-2"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            {t('profile')}
+          </Link>
+          
           <form action={signOut}>
             <button
               type="submit"
-              className="text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 transition"
+              className="text-sm font-bold uppercase tracking-widest text-zinc-600 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 transition"
             >
               {t('signOut')}
             </button>

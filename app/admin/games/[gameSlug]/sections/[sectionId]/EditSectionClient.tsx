@@ -12,7 +12,7 @@ import Link from "next/link";
 import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
 
 type Game = { id: string; name: LocalizedString; slug: string; default_lang: string; supported_languages: string[]; };
-type Section = { id: string; key: LocalizedString; game_id: string; icon_path: string | null; color: string | null; order_index: number; };
+type Section = { id: string; key: LocalizedString; game_id: string; icon_path: string | null; color: string | null; order_index: number; is_collectible: boolean; };
 type FieldOption = { id: string; field_id: string; value_key: LocalizedString; icon_path: string | null; color: string | null; order_index: number; };
 type Field = { id: string; section_id: string; key: LocalizedString; required: boolean; manual_fill: boolean; has_icon: boolean; has_color: boolean; order_index: number; is_multi: boolean; category: string | null; field_options: FieldOption[] | null; };
 type ProcessedEntity = any;
@@ -31,6 +31,7 @@ export default function EditSectionClient({
   const [localizedKey, setLocalizedKey] = useState<LocalizedString>(section.key);
   const [color, setColor] = useState<string>(section.color || "#ffffff");
   const [orderIndex, setOrderIndex] = useState<number>(section.order_index);
+  const [isCollectible, setIsCollectible] = useState<boolean>(section.is_collectible);
   const [iconFile, setIconFile] = useState<File | null>(null);
   const [existingIconPath, setExistingIconPath] = useState<string | null>(section.icon_path);
 
@@ -40,6 +41,7 @@ export default function EditSectionClient({
       formData.set("key", JSON.stringify(localizedKey));
       formData.set("color", color);
       formData.set("order_index", orderIndex.toString());
+      formData.set("is_collectible", isCollectible.toString());
       if (iconFile) formData.set("icon_file", iconFile);
       formData.set("existing_icon_path", existingIconPath || "null");
       return await upsertSectionAction(game.id, game.slug, game.default_lang, formData);
@@ -89,9 +91,21 @@ export default function EditSectionClient({
               <h2 className="text-xl font-semibold">{t('generalInfo')}</h2>
               <form action={sectionFormAction} className="space-y-4">
                 <LocalizedTextInput id="key" label={t('sectionName')} value={localizedKey} onChange={setLocalizedKey} placeholder="Characters" />
-                <div className="flex gap-4 items-center">
+                <div className="flex gap-8 items-center">
                   <div><label htmlFor="color" className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{t('color')}</label><input id="color" name="color" type="color" value={color} onChange={(e) => setColor(e.target.value)} className="w-16 h-10 border-0 rounded-md overflow-hidden bg-zinc-900" /></div>
                   <div><label htmlFor="order_index" className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{t('orderIndex')}</label><input id="order_index" name="order_index" type="number" value={orderIndex} onChange={(e) => setOrderIndex(Number(e.target.value))} className="block w-24 px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all" /></div>
+                  <div className="flex items-center gap-3 pt-6">
+                    <input 
+                      id="is_collectible" 
+                      type="checkbox" 
+                      checked={isCollectible} 
+                      onChange={(e) => setIsCollectible(e.target.checked)}
+                      className="w-5 h-5 rounded border-zinc-800 bg-zinc-900 text-[#22c55e] focus:ring-[#22c55e]"
+                    />
+                    <label htmlFor="is_collectible" className="text-xs font-bold text-zinc-500 uppercase tracking-widest cursor-pointer">
+                      {t('isCollectible')}
+                    </label>
+                  </div>
                 </div>
                 <div><label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{t('icon')}</label><ImageInput name="icon_file" onFileChange={setIconFile} existingImageUrl={sectionIconPublicUrl} onRemoveExisting={() => setExistingIconPath(null)} /><input type="hidden" name="existing_icon_path" value={existingIconPath || ""} /></div>
                 <button type="submit" className="w-full bg-[#22c55e] text-black font-bold px-4 py-3 rounded-xl hover:bg-[#1da34a] transition">{t('save')} {t('section')}</button>
