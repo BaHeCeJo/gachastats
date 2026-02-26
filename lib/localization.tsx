@@ -1,13 +1,13 @@
 "use client";
 
 import { createContext, useContext, ReactNode, useState, useEffect, useCallback } from "react";
-import { LocalizedString } from "./localization-utils";
+import { LocalizedString, formatNumber, formatDate } from "./localization-utils";
 import { uiTranslations, TranslationKey } from "./i18n/translations";
 
 import { languages } from "./constants/languages";
 
 // Re-export type for convenience
-export type { LocalizedString };
+export type { LocalizedString, TranslationKey };
 
 type LocalizationContextType = {
   currentLang: string;
@@ -145,11 +145,11 @@ export function useLocalizationParams() {
   const isRtl = languages.find(l => l.code === displayLang)?.isRtl || false;
 
   const fn = useCallback((value: number, options?: Intl.NumberFormatOptions) => {
-    return formatNumber(value, displayLang, options);
+    return formatNumber(value, displayLang || 'en', options);
   }, [displayLang]);
 
   const fd = useCallback((date: Date | string | number, options?: Intl.DateTimeFormatOptions) => {
-    return formatDate(date, displayLang, options);
+    return formatDate(date, displayLang || 'en', options);
   }, [displayLang]);
 
   return { 

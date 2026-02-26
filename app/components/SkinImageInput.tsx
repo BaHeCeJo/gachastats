@@ -15,7 +15,7 @@ type Props = {
   imageType: "icon" | "splashart";
   existingImageUrl: string | null; // Public URL of existing image
   gameDefaultLang: string;
-  currentLang: string;
+  activeLang: string;
 };
 
 type FormState = {
@@ -30,10 +30,10 @@ export default function SkinImageInput({
   imageType,
   existingImageUrl,
   gameDefaultLang,
-  currentLang: browserLang,
+  activeLang,
 }: Props) {
   const { displayLang, t } = useLocalizationParams() as any;
-  const activeLang = displayLang || browserLang;
+  const currentActiveLang = displayLang || activeLang;
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(existingImageUrl);
   const fileInputRef = useRef<HTMLInputElement>(null);

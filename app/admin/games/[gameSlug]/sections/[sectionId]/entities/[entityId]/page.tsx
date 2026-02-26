@@ -48,7 +48,7 @@ export default async function EntityPage({ params: paramsPromise }: PageProps) {
   for (const skin of entity.entity_skins) {
     for (const image of skin.entity_images) {
       if (image.image_path) {
-        image.publicUrl = image.image_path.startsWith("http") ? image.image_path : supabase.storage.from("games").getPublicUrl(image.image_path).data.publicUrl;
+        (image as any).publicUrl = image.image_path.startsWith("http") ? image.image_path : supabase.storage.from("games").getPublicUrl(image.image_path).data.publicUrl;
       }
     }
   }
@@ -60,7 +60,7 @@ export default async function EntityPage({ params: paramsPromise }: PageProps) {
   // Fetch all fields for this section
   const { data: fields, error: fieldsError } = await supabase
     .from("section_fields")
-    .select('id, key, required, manual_fill, is_multi, has_icon, has_color, category, order_index, field_options(id, value_key, icon_path, color, order_index)')
+    .select('id, key, required, manual_fill, is_multi, has_icon, has_color, category, order_index, field_options(id, field_id, value_key, icon_path, color, order_index)')
     .eq('section_id', sectionId)
     .order('order_index', { ascending: true });
 
@@ -74,5 +74,5 @@ export default async function EntityPage({ params: paramsPromise }: PageProps) {
     console.error("Error fetching entity values:", valuesError);
   }
 
-  return <EditEntityClient game={game} section={section} entity={{ ...entity, entity_field_values: entityFieldValuesData || [] } as any} fields={fields || []} currentLang={currentLang} />;
+  return <EditEntityClient game={game} section={section} entity={{ ...entity, entity_field_values: entityFieldValuesData || [] } as any} fields={(fields || []) as any} currentLang={currentLang} />;
 }

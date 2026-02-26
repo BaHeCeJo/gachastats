@@ -12,7 +12,18 @@ import Link from "next/link";
 type GameData = { id: string; name: LocalizedString; slug: string; default_lang: string; supported_languages: string[]; };
 type SectionData = { id: string; key: LocalizedString; game_id: string; };
 type FieldOption = { id: string; field_id: string; value_key: LocalizedString; icon_path: string | null; color: string | null; };
-type FieldData = { id: string; key: LocalizedString; required: boolean; manual_fill: boolean; is_multi: boolean; has_icon: boolean; has_color: boolean; category: string | null; field_options: FieldOption[] | null; };
+type FieldData = {
+  id: string;
+  key: LocalizedString;
+  required: boolean;
+  manual_fill: boolean;
+  is_multi: boolean;
+  has_icon: boolean;
+  has_color: boolean;
+  order_index: number;
+  category: string | null;
+  field_options: FieldOption[] | null;
+};
 type FormState = { error?: string; };
 
 export default function NewEntityClient({ game, section, fields, currentLang: browserLang }: {

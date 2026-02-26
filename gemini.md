@@ -49,13 +49,14 @@ For each **Section**, an admin defines the data fields that describe the items.
 
 The following core features are implemented and functional:
 
--   **Admin Panel:** Full CRUD capabilities for Games, Sections, Fields, Options, and Entities.
--   **Public-Facing Views:** A read-only, aesthetically polished localized website for end-users to browse game data.
--   **Localized Dynamic Fields:** Support for multi-language names, descriptions, and custom field values with automatic fallbacks.
--   **Advanced Filtering:** A visual filtering system for sections that allows users to drill down by dynamic attributes (e.g., Element, Rarity, Path).
--   **Skin Management:** Support for multiple skins per entity, including dedicated Icon and Full Art (Splash Art) image management via Supabase Storage.
--   **Admin Translation Tools:** A manual language selector in the admin header combined with visual "missing translation" indicators to help admins ensure full coverage across all supported languages.
--   **Responsive Design:** A modern, "gamer-centric" UI that works across various screen sizes.
+-   **Admin Panel:** Full CRUD capabilities for Games, Sections, Fields, Options, and Entities, providing a "No-Code" experience for managing complex data.
+-   **Public-Facing Views:** A read-only, aesthetically polished localized website for end-users. Includes a dynamic background system that adapts to the game's theme.
+-   **Localized Dynamic Fields:** Support for multi-language names, descriptions, and custom field values with automatic fallbacks to the game's default language.
+-   **Advanced Filtering:** A visual filtering system for sections that allows users to drill down by dynamic attributes (e.g., Element, Rarity, Path) with visual indicators.
+-   **Skin Management:** Support for multiple skins per entity. Each skin has its own name, Icon (for lists), and Full Art (for detail pages) managed via Supabase Storage.
+-   **Admin Translation Tools:** A manual language selector in the admin header combined with visual "missing translation" indicators to help admins identify content gaps.
+-   **Role-Based Access:** Integrated with Supabase Auth to ensure only authorized admins can modify the database.
+-   **Responsive & Immersive UI:** A modern "gamer-centric" design featuring blurred backdrops, high-quality image rendering, and smooth transitions.
 
 ## 3. Admin Workflow Example
 
@@ -80,6 +81,18 @@ The following core features are implemented and functional:
 
 This section outlines potential features and enhancements for the future development of GachaStats.
 
--   **User Collections:** Personal tracking for owned items/characters.
--   **Team Builder:** A tool that would allow users to create and save teams or loadouts using the entities from the database.
--   **Public API:** Expose the application's data via a read-only API for use in third-party apps or websites.
+### Phase 1: User Engagement & Social
+-   **User Collections:** Personal tracking for owned items/characters ("My Box").
+-   **Team Builder:** Allow users to create, save, and share teams or loadouts using database entities.
+-   **Comments & Ratings:** Integrated discussion system for each entity and user-submitted ratings (e.g., 1-5 stars).
+
+### Phase 2: Enhanced Content & Visualization
+-   **Skill/Ability Breakdown:** A dedicated, structured way to define complex character skills with level scaling and icons.
+-   **Tier List Creator:** A tool for admins or users to build and publish visual tier lists for different sections.
+-   **Entity Comparison Tool:** Side-by-side comparison of stats and fields between two or more entities.
+
+### Phase 3: Platform & Performance
+-   **Global Search:** A fast, fuzzy-search bar to find any entity or game across the entire platform.
+-   **Theme Customization:** Allow admins to define primary colors and custom fonts per game to better match the game's brand.
+-   **Public API & Webhooks:** Expose data via a read-only API and trigger webhooks when data is updated.
+-   **Bulk Data Import/Export:** Support for CSV/JSON to simplify large-scale data migrations or updates.

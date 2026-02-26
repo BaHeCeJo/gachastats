@@ -63,6 +63,7 @@ export async function upsertSectionAction(
   const rawKey = JSON.parse(formData.get("key") as string) as LocalizedString;
   const color = (formData.get("color") as string);
   const order_index = Number(formData.get("order_index"));
+  const is_collectible = formData.get("is_collectible") !== "false";
   const iconFile = formData.get("icon_file"); // File or null
   const existingIconPath = formData.get("existing_icon_path") as string | null;
 
@@ -117,6 +118,7 @@ export async function upsertSectionAction(
     key: rawKey,
     color,
     order_index,
+    is_collectible,
     icon_path: icon_path,
     game_id: gameId,
   };

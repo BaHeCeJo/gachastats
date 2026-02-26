@@ -77,12 +77,12 @@ export default function ImageInput({
       <div className="mt-1 flex items-center space-x-4">
         {(previewUrl && !file) && ( // Display existing image or previous file preview
           <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-zinc-700 bg-zinc-800 flex-shrink-0">
-            <Image src={previewUrl} alt="Preview" layout="fill" objectFit="cover" />
+            <Image src={previewUrl} alt={t('imagePreview')} layout="fill" objectFit="cover" />
             <button
               type="button"
               onClick={handleRemoveClick}
               className="absolute top-1 right-1 bg-black/60 hover:bg-red-600 text-white rounded-full p-1 transition-colors z-10"
-              title="Remove existing image"
+              title={t('removeImage')}
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -92,12 +92,12 @@ export default function ImageInput({
         )}
         {(file && previewUrl && existingImageUrl !== previewUrl) && ( // Display new file preview
           <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-zinc-700 bg-zinc-800 flex-shrink-0">
-            <Image src={previewUrl} alt="New Preview" layout="fill" objectFit="cover" />
+            <Image src={previewUrl} alt={t('imagePreview')} layout="fill" objectFit="cover" />
             <button
               type="button"
               onClick={handleRemoveClick}
               className="absolute top-1 right-1 bg-black/60 hover:bg-red-600 text-white rounded-full p-1 transition-colors z-10"
-              title="Remove new image"
+              title={t('removeImage')}
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />

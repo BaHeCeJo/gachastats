@@ -7,7 +7,7 @@ import ImageInput from "@/app/components/ImageInput";
 import { LocalizedString, useLocalizationParams } from "@/lib/localization";
 import { languages } from "@/lib/constants/languages";
 
-type FormState = { error?: string; id?: string; name: LocalizedString; description: LocalizedString; cover_url: string | null; default_lang: string; supported_languages: string[]; };
+type FormState = { error?: string; };
 
 export default function NewGameClient() {
   const { currentLang, displayLang, t } = useLocalizationParams() as any;
@@ -28,7 +28,7 @@ export default function NewGameClient() {
       if (coverImage) formData.set("cover_image", coverImage); else formData.delete("cover_image");
       return await upsertGameAction(formData);
     },
-    { name: { [initialSupportedLanguages[0]]: "" }, description: { [initialSupportedLanguages[0]]: "" }, cover_url: null, default_lang: initialSupportedLanguages[0], supported_languages: initialSupportedLanguages } as FormState
+    {} as FormState
   );
 
   const handleLanguageToggle = (langCode: string) => {
