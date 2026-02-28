@@ -29,7 +29,33 @@ export default async function NewEntityPage({ params: paramsPromise }: PageProps
   const { data: section } = await supabase.from('game_sections').select('id, key, game_id').eq('id', sectionId).single();
   if (!section) redirect(`/admin/games/${gameSlug}/sections`);
 
-  const { data: fields } = await supabase.from('section_fields').select('id, key, required, manual_fill, is_multi, has_icon, has_color, category, order_index, field_options(*)').eq('section_id', sectionId).order('order_index', { ascending: true });
+  const { data: fieldsRaw } = await supabase
+    .from('section_fields')
+    .select(`
+      id, key, required, is_multi, category, order_index, game_field_id,
+      game_fields (
+        manual_fill, has_icon, has_color
+      )
+    `)
+    .eq('section_id', sectionId)
+    .order('order_index', { ascending: true });
+
+  const gameFieldIds = (fieldsRaw || []).map(f => f.game_field_id).filter(Boolean);
+  const { data: allOptions } = gameFieldIds.length > 0
+    ? await supabase.from('field_options').select('id, game_field_id, value_key, icon_path, color, order_index').in('game_field_id', gameFieldIds)
+    : { data: [] };
+
+  const fields = (fieldsRaw || []).map(f => {
+    const gf = Array.isArray(f.game_fields) ? f.game_fields[0] : f.game_fields;
+    const options = (allOptions || []).filter((opt: any) => opt.game_field_id === f.game_field_id);
+    return {
+      ...f,
+      manual_fill: gf?.manual_fill,
+      has_icon: gf?.has_icon,
+      has_color: gf?.has_color,
+      field_options: options || []
+    };
+  });
 
   return <NewEntityClient game={game} section={section} fields={fields || []} currentLang={currentLang} />;
 }

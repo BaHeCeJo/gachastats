@@ -16,7 +16,17 @@ export async function upsertFieldAction(
 ) {
   const supabase = await createClient();
 
+  // Get Game ID first
+  const { data: game } = await supabase
+    .from("games")
+    .select("id")
+    .eq("slug", gameSlug)
+    .single();
+
+  if (!game) return { error: "Game not found." };
+
   const fieldId = formData.get("id") as string | undefined;
+  const gameFieldIdFromForm = formData.get("game_field_id") as string | undefined;
   const rawKey = JSON.parse(formData.get("key") as string) as LocalizedString;
   const category = (formData.get("category") as string)?.trim() || 'General';
   const required = formData.get("required") === 'on';
@@ -30,42 +40,95 @@ export async function upsertFieldAction(
     return { error: `Key for default language (${gameDefaultLang.toUpperCase()}) is required.` };
   }
 
-  const fieldData = {
+  const internalName = rawKey['en'] || rawKey[gameDefaultLang];
+
+  let gameFieldId = gameFieldIdFromForm;
+
+  // 1. Handle Game Field (The Concept)
+  if (gameFieldId) {
+    // Update existing game field core settings
+    const { error: gfError } = await supabase
+      .from("game_fields")
+      .update({
+        internal_name: internalName,
+        manual_fill,
+        has_icon,
+        has_color
+      })
+      .eq("id", gameFieldId);
+
+    if (gfError) {
+      console.error("Error updating game field:", gfError);
+      return { error: `Failed to update game field: ${gfError.message}` };
+    }
+  } else {
+    // Check if a game field with this internal name already exists for this game
+    const { data: existingGf } = await supabase
+      .from("game_fields")
+      .select("id")
+      .eq("game_id", game.id)
+      .eq("internal_name", internalName)
+      .single();
+
+    if (existingGf) {
+      gameFieldId = existingGf.id;
+    } else {
+      // Create new game field
+      const { data: newGf, error: gfError } = await supabase
+        .from("game_fields")
+        .insert({
+          game_id: game.id,
+          internal_name: internalName,
+          manual_fill,
+          has_icon,
+          has_color
+        })
+        .select("id")
+        .single();
+
+      if (gfError) {
+        console.error("Error creating game field:", gfError);
+        return { error: `Failed to create game field: ${gfError.message}` };
+      }
+      gameFieldId = newGf.id;
+    }
+  }
+
+  // 2. Handle Section Field (The Link/Config)
+  const sectionFieldData = {
     section_id: sectionId,
+    game_field_id: gameFieldId,
     key: rawKey,
     category,
     required,
-    manual_fill,
-    has_icon,
-    has_color,
     is_multi,
     order_index,
   };
 
   if (fieldId) {
-    // Update existing field
-    const { error } = await supabase
+    // Update existing section field
+    const { error: sfError } = await supabase
       .from("section_fields")
-      .update(fieldData)
+      .update(sectionFieldData)
       .eq("id", fieldId);
 
-    if (error) {
-      console.error("Error updating field:", error);
-      return { error: `Failed to update field: ${error.message}` };
+    if (sfError) {
+      console.error("Error updating section field:", sfError);
+      return { error: `Failed to update section field: ${sfError.message}` };
     }
   } else {
-    // Create new field
-    const { error } = await supabase
+    // Create new section field
+    const { error: sfError } = await supabase
       .from("section_fields")
-      .insert(fieldData);
+      .insert(sectionFieldData);
 
-    if (error) {
-      console.error("Error creating field:", error);
-      return { error: `Failed to create field: ${error.message}` };
+    if (sfError) {
+      console.error("Error creating section field:", sfError);
+      return { error: `Failed to create section field: ${sfError.message}` };
     }
   }
 
-  revalidatePath(`/admin/games/${gameSlug}/sections/${sectionId}/fields`);
+  revalidatePath(`/admin/games/${gameSlug}`, 'layout');
   redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields`);
 }
 
@@ -91,6 +154,6 @@ export async function deleteFieldAction(
     throw new Error(`Failed to delete field: ${fieldError.message}`);
   }
 
-  revalidatePath(`/admin/games/${gameSlug}/sections/${sectionId}/fields`);
+  revalidatePath(`/admin/games/${gameSlug}`, 'layout');
   redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields`);
 }

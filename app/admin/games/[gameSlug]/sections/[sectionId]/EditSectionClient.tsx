@@ -20,9 +20,9 @@ type DisplaySettings = { section_id: string; max_columns: number; bg_color_field
 type FormState = { error?: string; };
 
 export default function EditSectionClient({
-  game, section, fields, displaySettings, entities, filterFieldsData, currentLang: browserLang, updateDisplaySettingsAction
+  game, section, fields, gameFields, displaySettings, entities, filterFieldsData, currentLang: browserLang, updateDisplaySettingsAction
 }: {
-  game: Game; section: Section; fields: Field[]; displaySettings: DisplaySettings | null; entities: ProcessedEntity[]; filterFieldsData: any[]; currentLang: string; updateDisplaySettingsAction: (gameSlug: string, sectionId: string, formData: FormData) => Promise<{ error?: string }>;
+  game: Game; section: Section; fields: Field[]; gameFields: any[]; displaySettings: DisplaySettings | null; entities: ProcessedEntity[]; filterFieldsData: any[]; currentLang: string; updateDisplaySettingsAction: (gameSlug: string, sectionId: string, formData: FormData) => Promise<{ error?: string }>;
 }) {
   const supabase = createClient();
   const { displayLang, t } = useLocalizationParams() as any;
@@ -34,6 +34,13 @@ export default function EditSectionClient({
   const [isCollectible, setIsCollectible] = useState<boolean>(section.is_collectible);
   const [iconFile, setIconFile] = useState<File | null>(null);
   const [existingIconPath, setExistingIconPath] = useState<string | null>(section.icon_path);
+  const [filterFieldIds, setFilterFieldIds] = useState<string[]>(displaySettings?.filter_field_ids || []);
+
+  const [bgColorFieldId, setBgColorFieldId] = useState<string>(displaySettings?.bg_color_field_id || "");
+  const [topLeftIconFieldId, setTopLeftIconFieldId] = useState<string>(displaySettings?.top_left_icon_field_id || "");
+  const [topRightIconFieldId, setTopRightIconFieldId] = useState<string>(displaySettings?.top_right_icon_field_id || "");
+  const [overlayIconFieldId, setOverlayIconFieldId] = useState<string>(displaySettings?.overlay_icon_field_id || "");
+  const [maxColumns, setMaxColumns] = useState<number>(displaySettings?.max_columns ?? 6);
 
   const [sectionState, sectionFormAction] = useActionState(
     async (prevState: FormState, formData: FormData) => {
@@ -51,10 +58,25 @@ export default function EditSectionClient({
 
   const [displaySettingsState, displaySettingsFormAction] = useActionState(
     async (prevState: FormState, formData: FormData) => {
+      // Ensure all state-managed values are in the FormData
+      formData.set("max_columns", maxColumns.toString());
+      formData.set("bg_color_field_id", bgColorFieldId);
+      formData.set("top_left_icon_field_id", topLeftIconFieldId);
+      formData.set("top_right_icon_field_id", topRightIconFieldId);
+      formData.set("overlay_icon_field_id", overlayIconFieldId);
+
+      formData.delete("filter_field_ids");
+      filterFieldIds.forEach(id => formData.append("filter_field_ids", id));
       return await updateDisplaySettingsAction(game.slug, section.id, formData);
     },
     {} as FormState
   );
+
+  const toggleFilterField = (id: string) => {
+    setFilterFieldIds(prev => 
+      prev.includes(id) ? prev.filter(fid => fid !== id) : [...prev, id]
+    );
+  };
 
   const groupedFields: Record<string, Field[]> = {};
   fields.forEach(field => {
@@ -70,8 +92,15 @@ export default function EditSectionClient({
     return a.localeCompare(b);
   });
 
-  const colorFields = fields?.filter(f => f.has_color) || [];
-  const iconFields = fields?.filter(f => f.has_icon) || [];
+  const colorFields = fields || []; // Show all fields to avoid hiding saved values
+  const iconFields = fields || [];
+
+  // Client-side debug logging
+  console.log("--- CLIENT DEBUG: FIELDS ---");
+  console.log("Current Section Fields:", fields);
+  console.log("All Game Fields (Shared Pool):", gameFields);
+  console.log("----------------------------");
+
   const sectionIconPublicUrl = section.icon_path ? supabase.storage.from('games').getPublicUrl(section.icon_path).data.publicUrl : null;
 
   return (
@@ -114,12 +143,92 @@ export default function EditSectionClient({
             <section className="space-y-6 border-b pb-10">
               <h2 className="text-xl font-semibold">{t('displaySettings')}</h2>
               <form action={displaySettingsFormAction} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2"><label className="block text-sm font-medium">{t('maxColumns')}</label><input name="max_columns" type="number" defaultValue={displaySettings?.max_columns ?? 6} className="border p-2 w-full bg-zinc-900 text-white border-zinc-800 rounded" /></div>
-                <div className="space-y-2"><label className="block text-sm font-medium">{t('backgroundColorField')}</label><select name="bg_color_field_id" defaultValue={displaySettings?.bg_color_field_id ?? ''} className="border p-2 w-full bg-zinc-900 text-white border-zinc-800 rounded"><option value="">{t('none')}</option>{colorFields.map(f => <option key={f.id} value={f.id}>{getTranslatedField(f.key, activeLang, game.default_lang)}</option>)}</select></div>
-                <div className="space-y-2"><label className="block text-sm font-medium">{t('topLeftIconField')}</label><select name="top_left_icon_field_id" defaultValue={displaySettings?.top_left_icon_field_id ?? ''} className="border p-2 w-full bg-zinc-900 text-white border-zinc-800 rounded"><option value="">{t('none')}</option>{iconFields.map(f => <option key={f.id} value={f.id}>{getTranslatedField(f.key, activeLang, game.default_lang)}</option>)}</select></div>
-                <div className="space-y-2"><label className="block text-sm font-medium">{t('topRightIconField')}</label><select name="top_right_icon_field_id" defaultValue={displaySettings?.top_right_icon_field_id ?? ''} className="border p-2 w-full bg-zinc-900 text-white border-zinc-800 rounded"><option value="">{t('none')}</option>{iconFields.map(f => <option key={f.id} value={f.id}>{getTranslatedField(f.key, activeLang, game.default_lang)}</option>)}</select></div>
-                <div className="space-y-2"><label className="block text-sm font-medium">{t('overlayIconField')}</label><select name="overlay_icon_field_id" defaultValue={displaySettings?.overlay_icon_field_id ?? ''} className="border p-2 w-full bg-zinc-900 text-white border-zinc-800 rounded"><option value="">{t('none')}</option>{iconFields.map(f => <option key={f.id} value={f.id}>{getTranslatedField(f.key, activeLang, game.default_lang)}</option>)}</select></div>
-                <div className="space-y-2 md:col-span-2"><label className="block text-sm font-medium">{t('fieldsToFilterBy')}</label><div className="flex flex-wrap gap-4 mt-2">{fields?.map(f => (<label key={f.id} className="flex items-center gap-2"><input type="checkbox" name="filter_field_ids" value={f.id} defaultChecked={displaySettings?.filter_field_ids?.includes(f.id)} />{getTranslatedField(f.key, activeLang, game.default_lang)}</label>))}</div></div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium">{t('maxColumns')}</label>
+                  <input 
+                    name="max_columns" 
+                    type="number" 
+                    value={maxColumns} 
+                    onChange={(e) => setMaxColumns(Number(e.target.value))}
+                    className="border p-2 w-full bg-zinc-900 text-white border-zinc-800 rounded" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium">{t('backgroundColorField')}</label>
+                  <select 
+                    name="bg_color_field_id" 
+                    value={bgColorFieldId} 
+                    onChange={(e) => setBgColorFieldId(e.target.value)}
+                    className="border p-2 w-full bg-zinc-900 text-white border-zinc-800 rounded"
+                  >
+                    <option value="">{t('none')}</option>
+                    {colorFields.map(f => (
+                      <option key={f.id} value={f.id}>{getTranslatedField(f.key, activeLang, game.default_lang)}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium">{t('topLeftIconField')}</label>
+                  <select 
+                    name="top_left_icon_field_id" 
+                    value={topLeftIconFieldId} 
+                    onChange={(e) => setTopLeftIconFieldId(e.target.value)}
+                    className="border p-2 w-full bg-zinc-900 text-white border-zinc-800 rounded"
+                  >
+                    <option value="">{t('none')}</option>
+                    {iconFields.map(f => (
+                      <option key={f.id} value={f.id}>{getTranslatedField(f.key, activeLang, game.default_lang)}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium">{t('topRightIconField')}</label>
+                  <select 
+                    name="top_right_icon_field_id" 
+                    value={topRightIconFieldId} 
+                    onChange={(e) => setTopRightIconFieldId(e.target.value)}
+                    className="border p-2 w-full bg-zinc-900 text-white border-zinc-800 rounded"
+                  >
+                    <option value="">{t('none')}</option>
+                    {iconFields.map(f => (
+                      <option key={f.id} value={f.id}>{getTranslatedField(f.key, activeLang, game.default_lang)}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium">{t('overlayIconField')}</label>
+                  <select 
+                    name="overlay_icon_field_id" 
+                    value={overlayIconFieldId} 
+                    onChange={(e) => setOverlayIconFieldId(e.target.value)}
+                    className="border p-2 w-full bg-zinc-900 text-white border-zinc-800 rounded"
+                  >
+                    <option value="">{t('none')}</option>
+                    {iconFields.map(f => (
+                      <option key={f.id} value={f.id}>{getTranslatedField(f.key, activeLang, game.default_lang)}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <label className="block text-sm font-medium">{t('fieldsToFilterBy')}</label>
+                  <div className="flex flex-wrap gap-4 mt-2">
+                    {fields?.map(f => (
+                      <label key={f.id} className="flex items-center gap-2 cursor-pointer group">
+                        <input 
+                          type="checkbox" 
+                          name="filter_field_ids" 
+                          value={f.id} 
+                          checked={filterFieldIds.includes(f.id)} 
+                          onChange={() => toggleFilterField(f.id)}
+                          className="w-4 h-4 rounded border-zinc-800 bg-zinc-900 text-[#22c55e] focus:ring-[#22c55e]"
+                        />
+                        <span className="text-sm text-zinc-400 group-hover:text-zinc-200 transition-colors">
+                          {getTranslatedField(f.key, activeLang, game.default_lang)}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
                 <div className="md:col-span-2"><button type="submit" className="w-full bg-[#22c55e] text-black font-bold px-4 py-3 rounded-xl hover:bg-[#1da34a] transition">{t('saveDisplaySettings')}</button></div>
               </form>
             </section>

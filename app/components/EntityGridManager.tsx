@@ -269,8 +269,8 @@ export default function EntityGridManager({
                   </div>
 
                   {/* Name Label (Attached to the bottom) */}
-                  <div className="bg-black/90 p-2 text-center border-t border-gray-800 group-hover:bg-[#22c55e] transition-colors">
-                    <span className="text-[11px] font-bold truncate px-1 text-gray-200 group-hover:text-black uppercase tracking-tight flex items-center justify-center gap-1">
+                  <div className="bg-black/90 p-2 min-h-[44px] flex items-center justify-center border-t border-gray-800 group-hover:bg-[#22c55e] transition-colors">
+                    <span className="text-[11px] font-bold px-1 text-gray-200 group-hover:text-black uppercase tracking-tight flex flex-wrap items-center justify-center gap-1 leading-tight text-center">
                       {getTranslatedField(entity.name, activeLang, gameDefaultLang)}
                       {isAdmin && <MissingTranslationIndicator value={entity.name} />}
                     </span>

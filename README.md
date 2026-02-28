@@ -1,53 +1,55 @@
-# GachaStats Admin Platform
+# GachaStats Admin & Collection Platform
 
-A powerful, flexible, and multi-language administration platform for managing databases of collectible-based games (Gacha games). Built with **Next.js (App Router)** and **Supabase**, it allows administrators to define custom data structures for any game without writing code.
+A powerful, immersive, and multi-language platform for managing gacha game databases and tracking personal user collections. Built with **Next.js 15 (App Router)**, **Supabase**, and **Tailwind CSS**.
 
-## Core Features
+## ✨ Core Features
 
--   **Dynamic Schema Builder:** Define games, sections (Characters, Weapons, etc.), and custom fields (Rarity, Element, Path) on the fly.
--   **First-Class Localization:** Built-in support for multiple languages with automatic fallbacks and specialized admin translation tools.
--   **Advanced Skin Management:** Support for multiple skins per entity, with dedicated slots for Icons and Full (Splash) Art.
--   **Visual Filtering:** Public-facing section pages include a powerful, visually-driven filtering system based on dynamic fields.
--   **Modern, Immersive UI:** A high-performance, responsive interface with a dark, gamer-centric aesthetic and dynamic background effects.
--   **Secure Admin Panel:** Protected by Supabase Auth and Row-Level Security (RLS).
+-   **🎮 Collection Tracking:** Interactive "My Box" experience. Users can toggle ownership of characters and items with one tap in a beautiful, visual grid.
+-   **👤 User Profiles:** Customizable nicknames and profile picture uploads to secure, isolated storage folders.
+-   **🛠️ Dynamic Schema Builder:** Admins can define games, sections, and custom fields (Rarity, Element, etc.) without code.
+-   **🌍 Pro-Grade Localization:** Full support for English and French, with dynamic fallbacks and localized filtering.
+-   **🔒 Rock-Solid Security:** 
+    -   **Database Triggers:** Prevent unauthorized role escalations (users cannot make themselves admins).
+    -   **Isolated Storage:** Users only have access to their specific `users/[user_id]/` folder.
+    -   **Strict RLS:** Row-level security ensures private collections stay private.
 
-## Tech Stack
+## 🚀 Quick Start
 
-- **Framework:** Next.js 15 (App Router)
-- **Language:** TypeScript
-- **Database & Auth:** Supabase (PostgreSQL)
-- **Storage:** Supabase Storage for high-quality assets.
-- **Styling:** Tailwind CSS + Lucide React.
+### 1. Install Dependencies
+Run the following command to install the framework and all UI components (`lucide-react`, `@heroicons/react`, etc.):
 
-## Architecture Overview
-
-1.  **Games:** Top-level containers defining supported languages.
-2.  **Sections:** Categories within games (e.g., "Bangboos").
-3.  **Fields:** Dynamic attributes with flexible input methods (Dropdowns, Multi-select, Tags, Text).
-4.  **Entities:** Items with inherited field structures and multiple visual **Skins**.
-
-## Getting Started
-
-### 1. Prerequisites
-- Node.js 18+ 
-- A Supabase project
-
-### 2. Installation
 ```bash
 npm install
 ```
 
-### 3. Environment Variables
-Create a `.env.local` file with your Supabase credentials:
+### 2. Environment Setup
+Create a `.env.local` file in the root directory:
+
 ```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+NEXT_PUBLIC_SUPABASE_URL=your_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
 ```
 
-### 4. Development
+### 3. Database Initialization
+Ensure your Supabase project has the required tables and security triggers. 
+1.  Run the schema setup (refer to `gemini.md` for logic).
+2.  Create two Public buckets: `games` and `users`.
+3.  Apply the storage RLS policies provided during development.
+
+### 4. Run Development Server
 ```bash
 npm run dev
 ```
+Visit `http://localhost:3000` to see the site in action.
 
-## Detailed Documentation
-For a deep dive into the system's logic, database schema, and future roadmap, please refer to [gemini.md](./gemini.md).
+## 🛠️ Tech Stack
+
+- **Framework:** Next.js 15 (App Router / Turbopack)
+- **Database:** Supabase (PostgreSQL)
+- **Authentication:** Supabase Auth
+- **Storage:** Supabase Storage (Buckets: `games`, `users`)
+- **Icons:** Lucide React & Heroicons
+- **Styling:** Tailwind CSS 4
+
+## 📖 Documentation
+For detailed architecture, schema breakdowns, and the development roadmap, see [gemini.md](./gemini.md).

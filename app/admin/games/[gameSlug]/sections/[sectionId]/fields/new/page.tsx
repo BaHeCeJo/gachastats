@@ -26,8 +26,24 @@ export default async function NewFieldPage({ params: paramsPromise }: PageProps)
   const { data: section } = await supabase.from('game_sections').select('id, key, game_id').eq('id', sectionId).single();
   if (!section) redirect(`/admin/games/${gameSlug}/sections`);
 
-  const { data: existingFields } = await supabase.from('section_fields').select('category').eq('section_id', sectionId);
+  const { data: existingFields } = await supabase.from('section_fields').select('category, game_field_id').eq('section_id', sectionId);
   const categories = Array.from(new Set(existingFields?.map(f => f.category).filter(Boolean) || [])) as string[];
+  const usedGameFieldIds = existingFields?.map(f => f.game_field_id).filter(Boolean) || [];
 
-  return <NewFieldClient game={game as any} section={section as any} categories={categories} />;
+  let query = supabase
+    .from('game_fields')
+    .select('*')
+    .eq('game_id', game.id);
+  
+  if (usedGameFieldIds.length > 0) {
+    query = query.not('id', 'in', `(${usedGameFieldIds.join(',')})`);
+  }
+
+  const { data: gameFields, error: gfError } = await query.order('internal_name', { ascending: true });
+  
+  if (gfError) {
+    console.error("Error fetching game fields:", gfError);
+  }
+
+  return <NewFieldClient game={game as any} section={section as any} categories={categories} gameFields={gameFields || []} />;
 }

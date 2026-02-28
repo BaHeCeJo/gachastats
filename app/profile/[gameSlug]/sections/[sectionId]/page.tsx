@@ -30,23 +30,42 @@ export default async function SectionCollectionPage({ params: paramsPromise }: P
 
   const [sectionRes, fieldsRes, settingsRes, entitiesRes, ownedRes] = await Promise.all([
     supabase.from("game_sections").select("*").eq("id", sectionId).single(),
-    supabase.from("section_fields").select("id, key, required, manual_fill, has_icon, has_color, order_index, is_multi, category, field_options(*)").eq("section_id", sectionId).order("order_index", { ascending: true }),
+    supabase.from("section_fields").select(`
+      id, key, required, is_multi, category, order_index, game_field_id,
+      game_fields (
+        manual_fill, has_icon, has_color,
+        field_options ( id, value_key, icon_path, color, order_index )
+      )
+    `).eq("section_id", sectionId).order("order_index", { ascending: true }),
     supabase.from("section_display_settings").select("*").eq("section_id", sectionId).single(),
     supabase.from("section_entities").select(`
       id, section_id, name, icon_path,
       entity_skins ( is_default, entity_images ( image_path, type ) ),
-      entity_field_values ( id, field_id, value_text, option_id, field_options ( color, icon_path, value_key ) )
+      entity_field_values ( id, game_field_id, value_text, option_id, field_options ( color, icon_path, value_key ) )
     `).eq("section_id", sectionId).eq("entity_skins.is_default", true).order(`name->>${game.default_lang}`, { ascending: true }),
     supabase.from("user_entities").select("entity_id").eq("user_id", user.id)
   ]);
 
   const section = sectionRes.data;
-  const fields = fieldsRes.data;
+  const fieldsRaw = fieldsRes.data;
   const displaySettings = settingsRes.data;
   const entities = entitiesRes.data;
   const ownedIds = (ownedRes.data || []).map((o: any) => o.entity_id);
 
   if (!section || section.game_id !== game.id || !section.is_collectible) redirect(`/profile/${gameSlug}`);
+
+  // Flatten fields structure for compatibility
+  const fields = (fieldsRaw || []).map((f: any) => {
+    // Handle cases where game_fields might be returned as an array or a single object
+    const gf = Array.isArray(f.game_fields) ? f.game_fields[0] : f.game_fields;
+    return {
+      ...f,
+      manual_fill: gf?.manual_fill,
+      has_icon: gf?.has_icon,
+      has_color: gf?.has_color,
+      field_options: gf?.field_options || []
+    };
+  });
 
   // --- Language Detection ---
   const headersList = await headers();
@@ -56,7 +75,8 @@ export default async function SectionCollectionPage({ params: paramsPromise }: P
   const browserLang = acceptLanguage ? acceptLanguage.split(',')[0].split('-')[0].toLowerCase() : 'en';
   const currentLang = game.supported_languages.includes(userLang || browserLang) ? (userLang || browserLang) : game.default_lang;
 
-  const fieldsMap = new Map((fields || [])?.map(f => [f.id, f]));
+  // Create map by game_field_id for entity values processing
+  const gameFieldsMap = new Map((fields || [])?.map(f => [f.game_field_id, f]));
 
   const processedEntities = (entities || []).map((entity: any) => {
     const defaultSkin = entity.entity_skins?.[0];
@@ -72,18 +92,21 @@ export default async function SectionCollectionPage({ params: paramsPromise }: P
     const allValues: Record<string, string[]> = {};
 
     entity.entity_field_values?.forEach((val: any) => {
-      const field = fieldsMap.get(val.field_id);
-      if (!allValues[val.field_id]) allValues[val.field_id] = [];
-      if (val.option_id) allValues[val.field_id].push(val.option_id);
+      const field = gameFieldsMap.get(val.game_field_id);
+      if (!field) return;
+      const fieldId = field.id;
+
+      if (!allValues[fieldId]) allValues[fieldId] = [];
+      if (val.option_id) allValues[fieldId].push(val.option_id);
       else {
         const translated = getTranslatedField(val.value_text, currentLang, game.default_lang);
         if (translated) {
-          if (field?.is_multi) allValues[val.field_id].push(...translated.split(',').filter(Boolean).map(p => p.trim()));
-          else allValues[val.field_id].push(translated);
+          if (field?.is_multi) allValues[fieldId].push(...translated.split(',').filter(Boolean).map(p => p.trim()));
+          else allValues[fieldId].push(translated);
         }
       }
       if (val.field_options) {
-        fieldValuesMap[val.field_id] = {
+        fieldValuesMap[fieldId] = {
           color: val.field_options.color || undefined,
           iconUrl: val.field_options.icon_path ? supabase.storage.from("games").getPublicUrl(val.field_options.icon_path).data.publicUrl : undefined,
         };

@@ -164,14 +164,23 @@ export async function upsertEntityAction(
     const { field_id, values } = fVal;
     if (!values || values.length === 0) continue;
 
-    // Fetch field definition to check rules
+    // Fetch field definition to check rules (Join with game_fields)
     const { data: fieldDef } = await supabase
       .from("section_fields")
-      .select("manual_fill, is_multi")
+      .select(`
+        is_multi,
+        game_field_id,
+        game_fields (
+          manual_fill
+        )
+      `)
       .eq("id", field_id)
       .single();
 
     if (!fieldDef) continue;
+
+    const gameFieldId = fieldDef.game_field_id;
+    const manualFill = (fieldDef.game_fields as any)?.manual_fill;
 
     const processedOptionIds: string[] = [];
 
@@ -183,12 +192,12 @@ export async function upsertEntityAction(
 
       if (isUuid) {
         processedOptionIds.push(val);
-      } else if (fieldDef.manual_fill) {
+      } else if (manualFill) {
         // Create new option
         const { data: newOpt, error: optError } = await supabase
           .from("field_options")
           .insert({
-            field_id: field_id,
+            game_field_id: gameFieldId,
             value_key: { [gameDefaultLang]: val } as LocalizedString,
             order_index: 0
           })
@@ -209,7 +218,7 @@ export async function upsertEntityAction(
       // Store as comma-separated IDs in value_text
       valuesToInsert.push({
         entity_id: currentEntityId,
-        field_id: field_id,
+        game_field_id: gameFieldId,
         value_text: processedOptionIds.join(","),
         option_id: null
       });
@@ -217,7 +226,7 @@ export async function upsertEntityAction(
       // Store single ID in option_id
       valuesToInsert.push({
         entity_id: currentEntityId,
-        field_id: field_id,
+        game_field_id: gameFieldId,
         value_text: null,
         option_id: processedOptionIds[0]
       });

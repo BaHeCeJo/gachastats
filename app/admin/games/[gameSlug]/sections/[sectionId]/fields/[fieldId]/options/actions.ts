@@ -53,6 +53,16 @@ export async function upsertOptionAction(
 ) {
   const supabase = await createClient();
 
+  // Fetch the game_field_id from the section_fields
+  const { data: sectionField } = await supabase
+    .from("section_fields")
+    .select("game_field_id")
+    .eq("id", fieldId)
+    .single();
+
+  if (!sectionField) return { error: "Field not found." };
+  const gameFieldId = sectionField.game_field_id;
+
   const optionId = formData.get("id") as string | undefined;
   const rawValueKey = JSON.parse(formData.get("value_key") as string) as LocalizedString;
   const color = (formData.get("color") as string);
@@ -88,7 +98,7 @@ export async function upsertOptionAction(
   // Handle icon file upload/deletion
   if (iconFile instanceof File && iconFile.size > 0) {
     // New file uploaded
-    icon_path = await uploadImage(iconFile, "games", `${gameSlug}/sections/fields/${fieldId}/options`);
+    icon_path = await uploadImage(iconFile, "games", `${gameSlug}/fields/${gameFieldId}/options`);
     // If there was an old icon, delete it
     if (oldIconPath && oldIconPath !== icon_path) {
       await supabase.storage.from("games").remove([oldIconPath]);
@@ -106,7 +116,7 @@ export async function upsertOptionAction(
   }
 
   const optionData = {
-    field_id: fieldId,
+    game_field_id: gameFieldId,
     value_key: rawValueKey,
     color,
     order_index,
