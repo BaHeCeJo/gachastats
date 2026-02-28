@@ -51,20 +51,34 @@ export default async function FieldOptionsPage({ params }: PageProps) {
 
   if (!game) redirect('/admin/games')
 
-  const { data: field } = await supabase
+  const { data: fieldData } = await supabase
     .from('section_fields')
-    .select('id, key, manual_fill')
+    .select(`
+      id, 
+      key, 
+      game_field_id,
+      game_fields (
+        manual_fill
+      )
+    `)
     .eq('id', fieldId)
-    .single<Field>();
+    .single();
 
-  if (!field) {
+  if (!fieldData) {
     redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields`);
   }
+
+  const gameFieldId = fieldData.game_field_id;
+  const field = {
+    id: fieldData.id,
+    key: fieldData.key,
+    manual_fill: (fieldData.game_fields as any)?.manual_fill
+  };
 
   const { data: options } = await supabase
     .from('field_options')
     .select('id, value_key, icon_path, color, order_index')
-    .eq('field_id', fieldId)
+    .eq('game_field_id', gameFieldId)
     .order('order_index', { ascending: true }) as { data: Option[] | null };
 
   const headersList = await headers();

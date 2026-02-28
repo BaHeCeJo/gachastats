@@ -36,6 +36,7 @@ type FieldOption = {
 
 type FieldData = {
   id: string;
+  game_field_id: string; // New
   key: LocalizedString;
   required: boolean;
   manual_fill: boolean;
@@ -50,7 +51,7 @@ type FieldData = {
 type EntityFieldValueData = {
   id?: string;
   entity_id: string;
-  field_id: string;
+  game_field_id: string; // Updated
   value_text: LocalizedString | null;
   option_id: string | null;
 };
@@ -96,42 +97,52 @@ export default function EditEntityClient({ game, section, entity, fields, curren
   const [iconFile, setIconFile] = useState<File | null>(null);
   const [existingIconPath, setExistingIconPath] = useState<string | null>(entity.icon_path);
 
-  const initialFieldValues = useMemo(() => fields.map(field => {
-    const existingValues = entity.entity_field_values?.filter(v => v.field_id === field.id) || [];
-    let values: string[] = [];
+  const initialFieldValues = useMemo(() => {
+    return fields.map(field => {
+      // Map by game_field_id instead of field_id
+      const existingValues = entity.entity_field_values?.filter(v => v.game_field_id === field.game_field_id) || [];
+      
+      let values: string[] = [];
 
-    if (field.manual_fill) {
-      const firstVal = existingValues[0];
-      if (firstVal) {
-        if (field.is_multi) {
-          const valText = firstVal.value_text as any;
-          if (typeof valText === 'string') {
-            values = valText.split(',').map(s => s.trim()).filter(Boolean);
+      if (field.manual_fill) {
+        const firstVal = existingValues[0];
+        if (firstVal) {
+          if (field.is_multi) {
+            const valText = firstVal.value_text as any;
+            if (typeof valText === 'string') {
+              values = valText.split(',').map(s => s.trim()).filter(Boolean);
+            } else {
+              // Handle case where it might be a LocalizedString
+              const translated = getTranslatedField(valText as any, game.default_lang, game.default_lang) || '';
+              values = translated.split(',').map(s => s.trim()).filter(Boolean);
+            }
           } else {
-            // Handle case where it might be a LocalizedString
-            const translated = getTranslatedField(valText as any, game.default_lang, game.default_lang) || '';
-            values = translated.split(',').map(s => s.trim()).filter(Boolean);
+            if (firstVal.option_id) values = [firstVal.option_id];
+            else if (firstVal.value_text) values = [getTranslatedField(firstVal.value_text as any, game.default_lang, game.default_lang)];
+          }
+        }
+      } else {
+        if (field.is_multi) {
+          // For multi-select, value_text might contain comma-separated IDs if is_multi was true when saved
+          const firstVal = existingValues[0];
+          if (firstVal?.value_text) {
+            values = (firstVal.value_text as string).split(',').map(s => s.trim()).filter(Boolean);
+          } else {
+            // Fallback to separate rows if that was used
+            values = existingValues.map(v => v.option_id).filter(Boolean) as string[];
           }
         } else {
-          if (firstVal.option_id) values = [firstVal.option_id];
-          else if (firstVal.value_text) values = [getTranslatedField(firstVal.value_text as any, game.default_lang, game.default_lang)];
+          const firstVal = existingValues[0];
+          if (firstVal?.option_id) values = [firstVal.option_id];
         }
       }
-    } else {
-      if (field.is_multi) {
-        // For option-based multi-select, we have multiple rows in existingValues, each with one option_id
-        values = existingValues.map(v => v.option_id).filter(Boolean) as string[];
-      } else {
-        const firstVal = existingValues[0];
-        if (firstVal?.option_id) values = [firstVal.option_id];
-      }
-    }
 
-    return {
-      field_id: field.id,
-      values: values
-    };
-  }), [fields, entity.entity_field_values, game.default_lang]);
+      return {
+        field_id: field.id, // We still use section field_id for the form logic to keep configurations separate
+        values: values
+      };
+    });
+  }, [fields, entity.entity_field_values, game.default_lang]);
 
   const [entityFieldValues, setEntityFieldValues] = useState<any[]>(initialFieldValues);
 
@@ -206,13 +217,6 @@ export default function EditEntityClient({ game, section, entity, fields, curren
     const minB = Math.min(...groupedFields[b]!.map((f) => f.order_index || 0));
     if (minA !== minB) return minA - minB;
     return a.localeCompare(b);
-  });
-
-  // Debug logging
-  console.log("EditEntityClient Render:", { 
-    fieldsCount: fields.length, 
-    categories: sortedCategories,
-    entityFieldValues: entityFieldValues 
   });
 
   return (

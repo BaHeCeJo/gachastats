@@ -7,11 +7,18 @@ import { upsertFieldAction } from '../actions';
 
 type GameData = { id: string; name: LocalizedString; slug: string; default_lang: string; supported_languages: string[]; };
 type SectionData = { id: string; key: LocalizedString; game_id: string; };
+type GameField = { id: string; internal_name: string; manual_fill: boolean; has_icon: boolean; has_color: boolean; };
 type FormState = { error?: string; };
 
-export default function NewFieldClient({ game, section, categories }: { game: GameData, section: SectionData, categories: string[] }) {
+export default function NewFieldClient({ game, section, categories, gameFields }: { 
+  game: GameData, 
+  section: SectionData, 
+  categories: string[],
+  gameFields: GameField[]
+}) {
   const { currentLang, displayLang, t } = useLocalizationParams() as any;
   const activeLang = displayLang || currentLang;
+  const [selectedGameFieldId, setSelectedGameFieldId] = useState<string>("");
   const [localizedKey, setLocalizedKey] = useState<LocalizedString>({ [game.default_lang]: "" });
   const [category, setCategory] = useState<string>('General');
   const [orderIndex, setOrderIndex] = useState<number>(0);
@@ -21,8 +28,26 @@ export default function NewFieldClient({ game, section, categories }: { game: Ga
   const [hasIcon, setHasIcon] = useState<boolean>(false);
   const [hasColor, setHasColor] = useState<boolean>(false);
 
+  const handleGameFieldSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    setSelectedGameFieldId(val);
+    if (val) {
+      const gf = gameFields.find(f => f.id === val);
+      if (gf) {
+        setManualFill(gf.manual_fill);
+        setHasIcon(gf.has_icon);
+        setHasColor(gf.has_color);
+        // Also set a default key if none exists
+        if (!localizedKey[game.default_lang]) {
+          setLocalizedKey({ [game.default_lang]: gf.internal_name });
+        }
+      }
+    }
+  };
+
   const [state, formAction] = useActionState(
     async (prevState: FormState, formData: FormData) => {
+      formData.set("game_field_id", selectedGameFieldId);
       formData.set("key", JSON.stringify(localizedKey));
       formData.set("category", category);
       formData.set("order_index", orderIndex.toString());
@@ -42,6 +67,24 @@ export default function NewFieldClient({ game, section, categories }: { game: Ga
         <h1 className="text-2xl font-bold text-white">{getTranslatedField(section.key, activeLang, game.default_lang)} — {t('newField')}</h1>
         {state?.error && <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-sm p-4 rounded-lg">{state.error}</div>}
         <form action={formAction} className="space-y-4">
+          <div className="space-y-1">
+            <label htmlFor="game_field_select" className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">
+              {t('reuseExistingField') || 'Reuse Existing Field'} ({gameFields.length})
+            </label>
+            <select
+              id="game_field_select"
+              value={selectedGameFieldId}
+              onChange={handleGameFieldSelect}
+              disabled={gameFields.length === 0}
+              className="block w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <option value="">-- {t('createNewField') || 'Create New Field'} --</option>
+              {gameFields.map(gf => (
+                <option key={gf.id} value={gf.id}>{gf.internal_name}</option>
+              ))}
+            </select>
+          </div>
+
           <LocalizedTextInput id="key" label={t('fieldName')} value={localizedKey} onChange={setLocalizedKey} placeholder="e.g., Element" />
           <div className="space-y-1">
             <label htmlFor="category" className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{t('category')}</label>

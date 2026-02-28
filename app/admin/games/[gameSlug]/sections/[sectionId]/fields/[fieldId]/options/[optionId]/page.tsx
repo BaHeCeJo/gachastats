@@ -30,8 +30,27 @@ export default async function EditFieldOptionPage({ params: paramsPromise }: Pag
   const { data: game } = await supabase.from('games').select('id, name, slug, default_lang, supported_languages').eq('slug', gameSlug).single();
   if (!game) redirect('/admin/games');
 
-  const { data: field } = await supabase.from('section_fields').select('id, key, manual_fill, has_icon, has_color').eq('id', fieldId).single();
-  if (!field) redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields`);
+  const { data: fieldRaw } = await supabase
+    .from('section_fields')
+    .select(`
+      id, 
+      key, 
+      game_fields (
+        manual_fill, has_icon, has_color
+      )
+    `)
+    .eq('id', fieldId)
+    .single();
+
+  if (!fieldRaw) redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields`);
+
+  const field = {
+    id: fieldRaw.id,
+    key: fieldRaw.key,
+    manual_fill: (fieldRaw.game_fields as any)?.manual_fill,
+    has_icon: (fieldRaw.game_fields as any)?.has_icon,
+    has_color: (fieldRaw.game_fields as any)?.has_color,
+  };
 
   const { data: option } = await supabase.from('field_options').select('*').eq('id', optionId).single();
   if (!option) redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields/${fieldId}/options`);

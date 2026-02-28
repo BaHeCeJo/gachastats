@@ -4,95 +4,56 @@ This document outlines the core features, objectives, and architectural details 
 
 ## 1. Core Concepts
 
-The application is a flexible platform for an **Admin** to build and manage a localized database of information for various "gacha" or collectible-based games.
+The application is a flexible platform for an **Admin** to build and manage a localized database of information for various "gacha" or collectible-based games, and for **Users** to track their personal collections.
 
 ### 1.1. Game & Section Management
--   **Games:** The top-level container (e.g., "Zenless Zone Zero"). Each game defines:
-    -   `default_lang`: The primary language for the game.
-    -   `supported_languages`: A list of languages the admin intends to provide data for.
--   **Sections:** Custom categories within a game (e.g., `Characters`, `Weapons`, `Echoes`). Each section can have a unique key, color, and icon.
+-   **Games:** Top-level containers (e.g., "Zenless Zone Zero").
+-   **Sections:** Custom categories (e.g., `Characters`, `Weapons`). 
+-   **Collectibility:** Each section has an `is_collectible` toggle. If true, users can track ownership of items within that section.
 
 ### 1.2. Multi-language Support (Localization)
-Localization is integrated into the core data model. Fields that require translation (Names, Descriptions, Field Labels, Field Values) use a `LocalizedString` structure:
+Localization is integrated into the core data model. Fields use a `LocalizedString` structure:
 ```typescript
 type LocalizedString = {
   [langCode: string]: string; // e.g., { "en": "Name", "fr": "Nom" }
 };
 ```
-The application handles fallbacks to the game's `default_lang` if a translation is missing for the user's preferred language.
+The system handles fallbacks to the game's `default_lang` and respects user-selected browser/cookie languages.
 
-### 1.3. Customizable Fields
-For each **Section**, an admin defines the data fields that describe the items.
-**Field Properties:**
--   `key`: Unique identifier (and default label).
--   `required`: Mandatory field check.
--   `order_index`: Controls display order.
--   `manual_fill` & `is_multi`: Determines the input method.
--   `has_icon` / `has_color`: Allows predetermined options (like "Elements") to have associated visual markers.
+### 1.3. User Collections & Identity
+-   **Profiles:** Users can customize their `nickname` and upload a `profile picture` to a secure `users` bucket.
+-   **My Box:** A visual dashboard of games the user plays and entities they own.
+-   **Interactive Grid:** A specialized management view where users can toggle ownership of entities with a single click (Grayed out = Not Owned, Full Color = Owned).
 
-### 1.4. Field Input Methods
-| `manual_fill` | `is_multi` | Input Experience | Example |
-| :--- | :--- | :--- | :--- |
-| `false` | `false` | **Dropdown** | `Rarity` (5-Star) |
-| `false` | `true` | **Multi-Select/Checkboxes** | `Factions` |
-| `true` | `false` | **Text Input** | `Name` |
-| `true` | `true` | **Tag Input** | `Synergies` (DPS, Debuffer) |
+## 2. Key Features (Implemented)
 
-### 1.5. Entity & Skin Management
--   **Entities:** Items within a section (e.g., "Acheron").
--   **Skins:** Multiple visual/thematic representations. One is marked as **Default**.
--   **Images:** Each skin supports two image types uploaded to Supabase Storage:
-    -   **Icon:** Square image for lists/avatars.
-    -   **Full Art:** High-resolution representative artwork.
+-   **Admin Panel:** Full CRUD for Games, Sections, Fields, Options, and Entities.
+-   **Public-Facing Views:** Immersive, localized browse experience with dynamic backgrounds.
+-   **Interactive Collection Tracker:** 
+    -   Secure `user_games` and `user_entities` tracking.
+    -   One-tap "owned" toggling with optimistic UI updates.
+    -   Visual filtering within the collection management view.
+-   **Secure Profile Management:**
+    -   Custom nickname and PP upload to Supabase Storage.
+    -   **Security Trigger:** Database-level protection preventing users from promoting themselves to 'admin'.
+-   **Storage Security:** Advanced RLS policies ensuring users can only manage files in their own `users/[user_id]/` folder.
+-   **Responsive & Immersive UI:** High-impact visual design using `lucide-react` icons, blurred backdrops, and massive game icons.
 
-## 2. Key Features
+## 3. Database Schema Highlights
 
-The following core features are implemented and functional:
-
--   **Admin Panel:** Full CRUD capabilities for Games, Sections, Fields, Options, and Entities, providing a "No-Code" experience for managing complex data.
--   **Public-Facing Views:** A read-only, aesthetically polished localized website for end-users. Includes a dynamic background system that adapts to the game's theme.
--   **Localized Dynamic Fields:** Support for multi-language names, descriptions, and custom field values with automatic fallbacks to the game's default language.
--   **Advanced Filtering:** A visual filtering system for sections that allows users to drill down by dynamic attributes (e.g., Element, Rarity, Path) with visual indicators.
--   **Skin Management:** Support for multiple skins per entity. Each skin has its own name, Icon (for lists), and Full Art (for detail pages) managed via Supabase Storage.
--   **Admin Translation Tools:** A manual language selector in the admin header combined with visual "missing translation" indicators to help admins identify content gaps.
--   **Role-Based Access:** Integrated with Supabase Auth to ensure only authorized admins can modify the database.
--   **Responsive & Immersive UI:** A modern "gamer-centric" design featuring blurred backdrops, high-quality image rendering, and smooth transitions.
-
-## 3. Admin Workflow Example
-
-1.  **Create Game:** Admin creates "Honkai: Star Rail", sets `default_lang` to "en" and adds "zh-CN" and "ja" to `supported_languages`.
-2.  **Create Section:** Creates "Characters" section.
-3.  **Define Fields:**
-    -   `Name`: Manual, single (Localized).
-    -   `Path`: Predetermined, single (with icons).
-    -   `Tags`: Manual, multi (Localized).
-4.  **Populate Options:** For `Path`, adds "Nihility" (with its icon), providing translations for all supported languages.
-5.  **Create Entity:** Creates "Acheron".
-6.  **Edit Values:**
-    -   Enters names in English, Chinese, and Japanese.
-    -   Selects "Nihility" from the dropdown.
-    -   Adds tags like "DPS" and "Debuffer" in multiple languages.
-7.  **Manage Skins:**
-    -   Creates "Base Outfit" skin.
-    -   Uploads Icon and Full Art images.
-8.  **View Result:** Acheron appears in the list with her icon. Her detail page shows all localized data and the full art.
+-   **profiles:** Extends auth.users with `nickname`, `avatar_url`, and `role`. Protected by `tr_protect_user_role` trigger.
+-   **user_games:** Many-to-many join table for users and games played.
+-   **user_entities:** Many-to-many join table for users and specific collectibles owned.
+-   **game_sections:** Includes `is_collectible` boolean to drive UI logic.
 
 ## 4. Future Roadmap
 
-This section outlines potential features and enhancements for the future development of GachaStats.
-
-### Phase 1: User Engagement & Social
--   **User Collections:** Personal tracking for owned items/characters ("My Box").
--   **Team Builder:** Allow users to create, save, and share teams or loadouts using database entities.
--   **Comments & Ratings:** Integrated discussion system for each entity and user-submitted ratings (e.g., 1-5 stars).
-
 ### Phase 2: Enhanced Content & Visualization
--   **Skill/Ability Breakdown:** A dedicated, structured way to define complex character skills with level scaling and icons.
--   **Tier List Creator:** A tool for admins or users to build and publish visual tier lists for different sections.
--   **Entity Comparison Tool:** Side-by-side comparison of stats and fields between two or more entities.
+-   **Skill/Ability Breakdown:** Structured scaling tables for character abilities.
+-   **Tier List Creator:** Visual drag-and-drop tool for ranking entities.
+-   **Entity Comparison Tool:** Side-by-side stat comparisons.
 
 ### Phase 3: Platform & Performance
--   **Global Search:** A fast, fuzzy-search bar to find any entity or game across the entire platform.
--   **Theme Customization:** Allow admins to define primary colors and custom fonts per game to better match the game's brand.
--   **Public API & Webhooks:** Expose data via a read-only API and trigger webhooks when data is updated.
--   **Bulk Data Import/Export:** Support for CSV/JSON to simplify large-scale data migrations or updates.
+-   **Global Search:** Fast fuzzy-search for games and entities.
+-   **Public API:** Read-only access for third-party integrations.
+-   **Bulk Import:** CSV/JSON tools for mass data entry.

@@ -35,6 +35,7 @@ export default function EditFieldClient({ game, section, field, categories, curr
   const [state, formAction] = useActionState(
     async (prevState: FormState, formData: FormData) => {
       formData.set("id", field.id);
+      formData.set("game_field_id", (field as any).game_field_id);
       formData.set("key", JSON.stringify(localizedKey));
       formData.set("category", category);
       formData.set("order_index", orderIndex.toString());

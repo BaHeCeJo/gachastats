@@ -170,11 +170,19 @@ export default function EditGameClient({ game, currentLang: browserLang }: Admin
           </form>
         </section>
 
-        <section className="border rounded p-4 space-y-3">
-          <h2 className="text-xl font-semibold">{t('sections')}</h2>
-          <p className="text-sm text-gray-400">{t('gameSectionsDesc')}</p>
-          <Link href={`/admin/games/${game.slug}/sections`} className="inline-block bg-indigo-600 text-white px-4 py-2 rounded">{t('manageSections')} →</Link>
-        </section>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <section className="border rounded p-4 space-y-3">
+            <h2 className="text-xl font-semibold">{t('sections')}</h2>
+            <p className="text-sm text-gray-400">{t('gameSectionsDesc')}</p>
+            <Link href={`/admin/games/${game.slug}/sections`} className="inline-block bg-indigo-600 text-white px-4 py-2 rounded">{t('manageSections')} →</Link>
+          </section>
+
+          <section className="border rounded p-4 space-y-3">
+            <h2 className="text-xl font-semibold">{t('sharedFields') || 'Shared Fields'}</h2>
+            <p className="text-sm text-gray-400">{t('sharedFieldsDesc') || 'Manage fields that can be reused across different sections of this game.'}</p>
+            <Link href={`/admin/games/${game.slug}/fields`} className="inline-block bg-blue-600 text-white px-4 py-2 rounded">{t('manageSharedFields') || 'Manage Shared Fields'} →</Link>
+          </section>
+        </div>
       </main>
     </GameLocalizationProvider>
   );

@@ -72,17 +72,32 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
     supabase.from("game_sections").select("*").eq("id", sectionId).single(),
     supabase.from("section_display_settings").select("*").eq("section_id", sectionId).single(),
     supabase.from("section_entities").select(`*, entity_skins (id, is_default, name, entity_images (image_path, type))`).eq("id", entityId).single(),
-    supabase.from("section_fields").select(`*, field_options (id, value_key, icon_path, color)`).eq("section_id", sectionId).order("order_index", { ascending: true }),
+    supabase.from("section_fields").select(`
+      id, key, required, is_multi, category, order_index, game_field_id,
+      game_fields (
+        manual_fill, has_icon, has_color,
+        field_options ( id, value_key, icon_path, color, order_index )
+      )
+    `).eq("section_id", sectionId).order("order_index", { ascending: true }),
     supabase.from("entity_field_values").select("*").eq("entity_id", entityId)
   ]);
 
   const { data: section } = sectionRes;
   const { data: displaySettings } = settingsRes;
   const { data: entity } = entityRes;
-  const { data: fields } = fieldsRes;
+  const { data: fieldsRaw } = fieldsRes;
   const { data: entityValues } = valuesRes;
 
   if (!section || !entity) redirect(`/${gameSlug}`);
+
+  // Flatten fields structure for compatibility
+  const fields = (fieldsRaw || []).map((f: any) => ({
+    ...f,
+    manual_fill: f.game_fields?.manual_fill,
+    has_icon: f.game_fields?.has_icon,
+    has_color: f.game_fields?.has_color,
+    field_options: f.game_fields?.field_options || []
+  }));
 
   // --- Language Detection ---
   const headersList = await headers();
@@ -98,10 +113,14 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
 
   const filterFieldIds = displaySettings?.filter_field_ids || [];
 
-  // Map values to fields
-  const valuesByField = (entityValues || []).reduce((acc: any, val) => {
-    if (!acc[val.field_id]) acc[val.field_id] = [];
-    acc[val.field_id].push(val);
+  // Map values to fields using game_field_id
+  const gameFieldsMap = new Map((fields || [])?.map(f => [f.game_field_id, f]));
+  const valuesByFieldId = (entityValues || []).reduce((acc: any, val) => {
+    const field = gameFieldsMap.get(val.game_field_id);
+    if (field) {
+      if (!acc[field.id]) acc[field.id] = [];
+      acc[field.id].push(val);
+    }
     return acc;
   }, {});
 
@@ -122,7 +141,7 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
 
   // Process Fields
   const processedFields = (fields || []).map(field => {
-    const values = valuesByField[field.id] || [];
+    const values = valuesByFieldId[field.id] || [];
     let displayValue = "";
     let iconUrl = "";
     let color = "";
