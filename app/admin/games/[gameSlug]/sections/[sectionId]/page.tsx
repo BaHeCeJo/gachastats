@@ -43,7 +43,7 @@ export default async function EditSectionPage({ params: paramsPromise }: PagePro
   const { data: game } = await supabase.from("games").select("id, name, slug, default_lang, supported_languages").eq("slug", gameSlug).single();
   if (!game) redirect("/admin/games");
 
-  const { data: section } = await supabase.from("game_sections").select("id, key, game_id, icon_path, color, order_index").eq("id", sectionId).eq("game_id", game.id).single();
+  const { data: section } = await supabase.from("game_sections").select("id, key, game_id, icon_path, color, order_index, is_collectible, is_unique, min_dupes, max_dupes, dupe_name").eq("id", sectionId).eq("game_id", game.id).single();
   if (!section) redirect(`/admin/games/${gameSlug}/sections`);
 
   const { data: fieldsRaw } = await supabase

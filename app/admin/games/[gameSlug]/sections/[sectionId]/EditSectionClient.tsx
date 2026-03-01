@@ -12,7 +12,7 @@ import Link from "next/link";
 import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
 
 type Game = { id: string; name: LocalizedString; slug: string; default_lang: string; supported_languages: string[]; };
-type Section = { id: string; key: LocalizedString; game_id: string; icon_path: string | null; color: string | null; order_index: number; is_collectible: boolean; };
+type Section = { id: string; key: LocalizedString; game_id: string; icon_path: string | null; color: string | null; order_index: number; is_collectible: boolean; is_unique: boolean; max_dupes: number; dupe_name: LocalizedString; };
 type FieldOption = { id: string; field_id: string; value_key: LocalizedString; icon_path: string | null; color: string | null; order_index: number; };
 type Field = { id: string; section_id: string; key: LocalizedString; required: boolean; manual_fill: boolean; has_icon: boolean; has_color: boolean; order_index: number; is_multi: boolean; category: string | null; field_options: FieldOption[] | null; };
 type ProcessedEntity = any;
@@ -32,6 +32,10 @@ export default function EditSectionClient({
   const [color, setColor] = useState<string>(section.color || "#ffffff");
   const [orderIndex, setOrderIndex] = useState<number>(section.order_index);
   const [isCollectible, setIsCollectible] = useState<boolean>(section.is_collectible);
+  const [isUnique, setIsUnique] = useState<boolean>(section.is_unique ?? true);
+  const [minDupes, setMinDupes] = useState<number>(section.min_dupes ?? 0);
+  const [maxDupes, setMaxDupes] = useState<number>(section.max_dupes ?? 0);
+  const [localizedDupeName, setLocalizedDupeName] = useState<LocalizedString>(section.dupe_name || { [game.default_lang]: "Duplicate" });
   const [iconFile, setIconFile] = useState<File | null>(null);
   const [existingIconPath, setExistingIconPath] = useState<string | null>(section.icon_path);
   const [filterFieldIds, setFilterFieldIds] = useState<string[]>(displaySettings?.filter_field_ids || []);
@@ -49,6 +53,10 @@ export default function EditSectionClient({
       formData.set("color", color);
       formData.set("order_index", orderIndex.toString());
       formData.set("is_collectible", isCollectible.toString());
+      formData.set("is_unique", isUnique.toString());
+      formData.set("min_dupes", minDupes.toString());
+      formData.set("max_dupes", maxDupes.toString());
+      formData.set("dupe_name", JSON.stringify(localizedDupeName));
       if (iconFile) formData.set("icon_file", iconFile);
       formData.set("existing_icon_path", existingIconPath || "null");
       return await upsertSectionAction(game.id, game.slug, game.default_lang, formData);
@@ -136,6 +144,62 @@ export default function EditSectionClient({
                     </label>
                   </div>
                 </div>
+
+                {isCollectible && (
+                  <div className="p-4 bg-zinc-900/50 rounded-xl border border-zinc-800 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <input 
+                          id="is_unique" 
+                          type="checkbox" 
+                          checked={isUnique} 
+                          onChange={(e) => setIsUnique(e.target.checked)}
+                          className="w-5 h-5 rounded border-zinc-800 bg-zinc-900 text-[#22c55e] focus:ring-[#22c55e]"
+                        />
+                        <label htmlFor="is_unique" className="text-xs font-bold text-zinc-500 uppercase tracking-widest cursor-pointer">
+                          {t('isUnique')}
+                        </label>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <label htmlFor="min_dupes" className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
+                          {t('minDupes')}
+                        </label>
+                        <input 
+                          id="min_dupes" 
+                          type="number" 
+                          value={minDupes ?? 0} 
+                          onChange={(e) => setMinDupes(Number(e.target.value))}
+                          className="w-20 px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-white text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
+                        />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <label htmlFor="max_dupes" className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
+                          {t('maxDupes')}
+                        </label>
+                        <input 
+                          id="max_dupes" 
+                          type="number" 
+                          value={maxDupes ?? 0} 
+                          onChange={(e) => setMaxDupes(Number(e.target.value))}
+                          className="w-20 px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-white text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
+                        />
+                      </div>
+                    </div>
+                    <LocalizedTextInput 
+                      id="dupe_name" 
+                      label={t('dupeLabelName')} 
+                      value={localizedDupeName} 
+                      onChange={setLocalizedDupeName} 
+                      placeholder="Constellation, Refinement..." 
+                    />
+                    <p className="text-[10px] text-zinc-500 leading-relaxed italic">
+                      {isUnique 
+                        ? t('uniqueDescription') 
+                        : t('notUniqueDescription')}
+                    </p>
+                  </div>
+                )}
+
                 <div><label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{t('icon')}</label><ImageInput name="icon_file" onFileChange={setIconFile} existingImageUrl={sectionIconPublicUrl} onRemoveExisting={() => setExistingIconPath(null)} /><input type="hidden" name="existing_icon_path" value={existingIconPath || ""} /></div>
                 <button type="submit" className="w-full bg-[#22c55e] text-black font-bold px-4 py-3 rounded-xl hover:bg-[#1da34a] transition">{t('save')} {t('section')}</button>
               </form>
