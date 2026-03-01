@@ -155,6 +155,12 @@ export const uiTranslations: Record<string, Record<string, string>> = {
     addGames: "Add Games",
     manageCollection: "Manage Items",
     tapToCollect: "Tap items to add to collection",
+    isUnique: "Is Unique?",
+    minDupes: "Min Duplicates",
+    maxDupes: "Max Duplicates",
+    dupeLabelName: "Duplicate Label Name",
+    uniqueDescription: "Unique: Users can only own one instance. Getting it again increments the duplicate count.",
+    notUniqueDescription: "Not Unique: Users can own multiple separate instances of this entity.",
   },
   fr: {
     home: "Accueil",
@@ -312,6 +318,12 @@ export const uiTranslations: Record<string, Record<string, string>> = {
     addGames: "Ajouter des jeux",
     manageCollection: "Gérer la collection",
     tapToCollect: "Appuyez sur les éléments pour les ajouter à votre collection",
+    isUnique: "Unique ?",
+    minDupes: "Doublons Min",
+    maxDupes: "Doublons Max",
+    dupeLabelName: "Nom de l'étiquette de doublon",
+    uniqueDescription: "Unique : Les utilisateurs ne peuvent posséder qu'un seul exemplaire. L'obtenir à nouveau augmente le nombre de doublons.",
+    notUniqueDescription: "Non Unique : Les utilisateurs peuvent posséder plusieurs exemplaires distincts de cette entité.",
   },
   // Adding placeholders for other languages, they will fallback to 'en' if not provided
   ja: {

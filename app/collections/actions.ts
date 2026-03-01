@@ -13,7 +13,8 @@ export async function toggleCollectionEntityAction(entityId: string, isOwned: bo
   if (!user) return { error: "User not authenticated" };
 
   if (isOwned) {
-    // Remove from collection
+    // For now, removing still deletes all instances or the specific one. 
+    // Usually, in a toggle UI, we delete the unique instance.
     const { error } = await supabase
       .from("user_entities")
       .delete()
@@ -22,14 +23,56 @@ export async function toggleCollectionEntityAction(entityId: string, isOwned: bo
       
     if (error) return { error: error.message };
   } else {
-    // Add to collection
+    // Add to collection using the smart RPC function
     const { error } = await supabase
-      .from("user_entities")
-      .insert({ user_id: user.id, entity_id: entityId });
+      .rpc("add_entity_to_user", { 
+        p_user_id: user.id, 
+        p_entity_id: entityId 
+      });
       
     if (error) return { error: error.message };
   }
 
+  revalidatePath("/", "layout");
+  return { success: true };
+}
+
+/**
+ * Updates the dupes count for a specific user_entity instance.
+ */
+export async function updateEntityDupesAction(instanceId: string, dupes: number) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "User not authenticated" };
+
+  const { error } = await supabase
+    .from("user_entities")
+    .update({ dupes })
+    .eq("id", instanceId)
+    .eq("user_id", user.id);
+
+  if (error) return { error: error.message };
+  
+  revalidatePath("/", "layout");
+  return { success: true };
+}
+
+/**
+ * Removes a specific user_entity instance.
+ */
+export async function removeUserEntityAction(instanceId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "User not authenticated" };
+
+  const { error } = await supabase
+    .from("user_entities")
+    .delete()
+    .eq("id", instanceId)
+    .eq("user_id", user.id);
+
+  if (error) return { error: error.message };
+  
   revalidatePath("/", "layout");
   return { success: true };
 }

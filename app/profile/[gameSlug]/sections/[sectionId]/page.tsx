@@ -43,14 +43,14 @@ export default async function SectionCollectionPage({ params: paramsPromise }: P
       entity_skins ( is_default, entity_images ( image_path, type ) ),
       entity_field_values ( id, game_field_id, value_text, option_id, field_options ( color, icon_path, value_key ) )
     `).eq("section_id", sectionId).eq("entity_skins.is_default", true).order(`name->>${game.default_lang}`, { ascending: true }),
-    supabase.from("user_entities").select("entity_id").eq("user_id", user.id)
+    supabase.from("user_entities").select("id, entity_id, dupes").eq("user_id", user.id)
   ]);
 
   const section = sectionRes.data;
   const fieldsRaw = fieldsRes.data;
   const displaySettings = settingsRes.data;
   const entities = entitiesRes.data;
-  const ownedIds = (ownedRes.data || []).map((o: any) => o.entity_id);
+  const ownedEntities = ownedRes.data || [];
 
   if (!section || section.game_id !== game.id || !section.is_collectible) redirect(`/profile/${gameSlug}`);
 
@@ -171,7 +171,8 @@ export default async function SectionCollectionPage({ params: paramsPromise }: P
 
             <CollectionGridManager
               entities={processedEntities}
-              initialOwnedIds={ownedIds}
+              initialOwnedEntities={ownedEntities}
+              section={section}
               displaySettings={displaySettings}
               filterFields={filterFields}
               gameDefaultLang={game.default_lang}
