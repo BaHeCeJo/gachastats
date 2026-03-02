@@ -65,6 +65,8 @@ export async function upsertSectionAction(
   const order_index = Number(formData.get("order_index"));
   const is_collectible = formData.get("is_collectible") !== "false";
   const is_unique = formData.get("is_unique") !== "false";
+  const has_teams = formData.get("has_teams") === "true";
+  const max_team_size = Number(formData.get("max_team_size") || 0);
   const max_dupes = Number(formData.get("max_dupes") || 0);
   const min_dupes = Number(formData.get("min_dupes") || 0);
   const dupe_name = JSON.parse(formData.get("dupe_name") as string || '{"en": "Duplicate"}') as LocalizedString;
@@ -124,6 +126,8 @@ export async function upsertSectionAction(
     order_index,
     is_collectible,
     is_unique,
+    has_teams,
+    max_team_size,
     max_dupes,
     min_dupes,
     dupe_name,

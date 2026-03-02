@@ -32,7 +32,7 @@ export default async function EntityPage({ params: paramsPromise }: PageProps) {
   const { data: game } = await supabase.from('games').select('id, name, slug, default_lang, supported_languages').eq('slug', gameSlug).single();
   if (!game) redirect('/admin/games');
 
-  const { data: section } = await supabase.from('game_sections').select('id, key, game_id').eq('id', sectionId).single();
+  const { data: section } = await supabase.from('game_sections').select('id, key, game_id, has_teams, max_team_size').eq('id', sectionId).single();
   if (!section) redirect(`/admin/games/${gameSlug}/sections`);
 
   const { data: entity, error: entityError } = await supabase.from("section_entities").select(`
@@ -45,11 +45,37 @@ export default async function EntityPage({ params: paramsPromise }: PageProps) {
 
   if (entityError || !entity) redirect(`/admin/games/${gameSlug}/sections/${sectionId}/entities`);
 
+  // --- Process Skin Images ---
   for (const skin of entity.entity_skins) {
     for (const image of skin.entity_images) {
       if (image.image_path) {
-        (image as any).publicUrl = image.image_path.startsWith("http") ? image.image_path : supabase.storage.from("games").getPublicUrl(image.image_path).data.publicUrl;
+        (image as any).publicUrl = image.image_path.startsWith("http") 
+          ? image.image_path 
+          : supabase.storage.from("games").getPublicUrl(image.image_path).data.publicUrl;
       }
+    }
+  }
+
+  // --- Teams Feature Data Fetch ---
+  let sectionEntities: any[] = [];
+  let relevantTeams: any[] = [];
+
+  if (section.has_teams) {
+    const [entRes, teamIdsRes] = await Promise.all([
+      supabase.from("section_entities").select(`id, name, icon_path, entity_skins (is_default, entity_images (image_path, type))`).eq("section_id", sectionId),
+      supabase.from("section_team_members").select("team_id").eq("entity_id", entityId)
+    ]);
+
+    sectionEntities = (entRes.data || []).map((ent: any) => {
+      const dSkin = ent.entity_skins?.find((s: any) => s.is_default) || ent.entity_skins?.[0];
+      const iImg = dSkin?.entity_images?.find((img: any) => img.type === 'icon');
+      return { ...ent, icon_path: iImg?.image_path || ent.icon_path };
+    });
+
+    const teamIds = (teamIdsRes.data || []).map(t => t.team_id);
+    if (teamIds.length > 0) {
+      const { data: teams } = await supabase.from("section_teams").select(`*, section_team_members(*)`).in("id", teamIds).order('created_at', { ascending: false });
+      relevantTeams = teams || [];
     }
   }
 
@@ -70,28 +96,25 @@ export default async function EntityPage({ params: paramsPromise }: PageProps) {
     ? await supabase.from('field_options').select('id, game_field_id, value_key, icon_path, color, order_index').in('game_field_id', gameFieldIds)
     : { data: [] };
 
-  if (fieldsError) {
-    console.error("Error fetching section fields:", fieldsError);
-  }
-
-  // Flatten fields structure for compatibility
   const fields = (fieldsRaw || []).map(f => {
     const gf = Array.isArray(f.game_fields) ? f.game_fields[0] : f.game_fields;
     const options = (allOptions || []).filter((opt: any) => opt.game_field_id === f.game_field_id);
-    return {
-      ...f,
-      manual_fill: gf?.manual_fill,
-      has_icon: gf?.has_icon,
-      has_color: gf?.has_color,
-      field_options: options || []
-    };
+    return { ...f, manual_fill: gf?.manual_fill, has_icon: gf?.has_icon, has_color: gf?.has_color, field_options: options || [] };
   });
 
   const { data: entityFieldValuesData, error: valuesError } = await supabase.from('entity_field_values').select('game_field_id, value_text, option_id').eq('entity_id', entityId);
-  
-  if (valuesError) {
-    console.error("Error fetching entity values:", valuesError);
-  }
 
-  return <EditEntityClient game={game} section={section} entity={{ ...entity, entity_field_values: entityFieldValuesData || [] } as any} fields={(fields || []) as any} currentLang={currentLang} />;
+  return (
+    <EditEntityClient 
+      game={game} 
+      section={section} 
+      entity={{ ...entity, entity_field_values: entityFieldValuesData || [] } as any} 
+      fields={(fields || []) as any} 
+      currentLang={currentLang}
+      hasTeams={section.has_teams}
+      maxTeamSize={section.max_team_size}
+      sectionTeams={relevantTeams}
+      sectionEntities={sectionEntities}
+    />
+  );
 }
