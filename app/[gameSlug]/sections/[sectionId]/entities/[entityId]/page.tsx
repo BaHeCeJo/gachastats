@@ -7,6 +7,7 @@ import { getTranslatedField, LocalizedString, getTranslation } from "@/lib/local
 import { headers, cookies } from "next/headers";
 import { GameLocalizationProvider } from "@/lib/localization";
 import CollectionToggle from "@/app/components/CollectionToggle";
+import TeamBuilder from "@/app/components/TeamBuilder";
 
 type PageProps = {
   params: Promise<{ gameSlug: string; sectionId: string; entityId: string }>;
@@ -15,15 +16,11 @@ type PageProps = {
 export async function generateMetadata({ params: paramsPromise }: PageProps) {
   const { gameSlug, sectionId, entityId } = await paramsPromise;
   const supabase = await createClient();
-  
-  // Get current language from cookie or header
   const headersList = await headers();
   const cookieStore = await cookies();
   const userLang = cookieStore.get('user_lang')?.value;
-  
   const acceptLanguage = headersList.get('Accept-Language');
   const browserLang = acceptLanguage ? acceptLanguage.split(',')[0].split('-')[0].toLowerCase() : 'en';
-
   const preferredLang = userLang || browserLang;
 
   const { data: game } = await supabase.from("games").select("name, default_lang, supported_languages").eq("slug", gameSlug).single();
@@ -31,7 +28,6 @@ export async function generateMetadata({ params: paramsPromise }: PageProps) {
 
   if (!game || !entity) return { title: 'Entity Not Found' };
 
-  // Note: We don't have readyLanguages here, so we just use the raw currentLang
   const title = getTranslatedField(entity.name, preferredLang, game.default_lang || 'en');
   const gameTitle = getTranslatedField(game.name, preferredLang, game.default_lang || 'en');
 
@@ -48,7 +44,6 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
   const { gameSlug, sectionId, entityId } = params;
   const supabase = await createClient();
 
-  // Fetch current user and their ownership status
   const { data: { user } } = await supabase.auth.getUser();
   const { data: userEntity } = user 
     ? await supabase.from("user_entities").select("user_id").eq("user_id", user.id).eq("entity_id", entityId).single()
@@ -56,7 +51,6 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
 
   const isOwned = !!userEntity;
 
-  // Fetch game details first
   const { data: game, error: gameError } = await supabase
     .from("games")
     .select("id, name, slug, cover_url, default_lang, supported_languages")
@@ -67,7 +61,6 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
 
   const defaultLang = game.default_lang || 'en';
 
-  // 1. Initiate remaining requests in parallel
   const [sectionRes, settingsRes, entityRes, fieldsRes, valuesRes] = await Promise.all([
     supabase.from("game_sections").select("*").eq("id", sectionId).single(),
     supabase.from("section_display_settings").select("*").eq("section_id", sectionId).single(),
@@ -90,7 +83,6 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
 
   if (!section || !entity) redirect(`/${gameSlug}`);
 
-  // Flatten fields structure for compatibility
   const fields = (fieldsRaw || []).map((f: any) => ({
     ...f,
     manual_fill: f.game_fields?.manual_fill,
@@ -99,21 +91,15 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
     field_options: f.game_fields?.field_options || []
   }));
 
-  // --- Language Detection ---
   const headersList = await headers();
   const cookieStore = await cookies();
   const userLang = cookieStore.get('user_lang')?.value;
-  
   const acceptLanguage = headersList.get('Accept-Language');
   const browserLang = acceptLanguage ? acceptLanguage.split(',')[0].split('-')[0].toLowerCase() : 'en';
-
   const preferredLang = userLang || browserLang;
-
   const currentLang = game.supported_languages.includes(preferredLang) ? preferredLang : defaultLang;
 
   const filterFieldIds = displaySettings?.filter_field_ids || [];
-
-  // Map values to fields using game_field_id
   const gameFieldsMap = new Map((fields || [])?.map(f => [f.game_field_id, f]));
   const valuesByFieldId = (entityValues || []).reduce((acc: any, val) => {
     const field = gameFieldsMap.get(val.game_field_id);
@@ -124,7 +110,6 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
     return acc;
   }, {});
 
-  // Process Images - Find default skin or fallback to first
   const defaultSkin = entity.entity_skins?.find((skin: any) => skin.is_default) || entity.entity_skins?.[0];
   const iconImage = defaultSkin?.entity_images?.find((img: any) => img.type === 'icon');
   const fullArtImage = defaultSkin?.entity_images?.find((img: any) => img.type === 'splashart');
@@ -139,14 +124,12 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
   const fullArtUrl = fullArtImage ? getPublicUrl(fullArtImage.image_path) : "";
   const gameCoverUrl = game.cover_url ? getPublicUrl(game.cover_url) : null;
 
-  // Process Fields
   const processedFields = (fields || []).map(field => {
     const values = valuesByFieldId[field.id] || [];
     let displayValue = "";
     let iconUrl = "";
     let color = "";
 
-    // Helper to get labels from IDs
     const getLabelsFromIds = (ids: string[]) => {
       const uniqueIds = Array.from(new Set(ids));
       return (field.field_options || [])
@@ -194,14 +177,45 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
   });
 
   const filterFields = processedFields.filter(f => f.isFilter && f.displayValue);
-
   const translatedEntityName = getTranslatedField(entity.name as any, currentLang, defaultLang);
   const translatedGameName = getTranslatedField(game.name as any, currentLang, defaultLang);
   const translatedSectionKey = getTranslatedField(section.key as any, currentLang, defaultLang);
 
+  let sectionEntities: any[] = [];
+  let fieldOptions: any[] = [];
+  let relevantTeams: any[] = [];
+
+  if (section.has_teams) {
+    const [entRes, teamIdsRes] = await Promise.all([
+      supabase.from("section_entities").select(`id, name, icon_path, entity_skins (is_default, entity_images (image_path, type))`).eq("section_id", sectionId),
+      supabase.from("section_team_members").select("team_id").eq("entity_id", entityId)
+    ]);
+
+    sectionEntities = (entRes.data || []).map((ent: any) => {
+      const dSkin = ent.entity_skins?.find((s: any) => s.is_default) || ent.entity_skins?.[0];
+      const iImg = dSkin?.entity_images?.find((img: any) => img.type === 'icon');
+      return { ...ent, icon_path: iImg?.image_path || ent.icon_path };
+    });
+
+    const teamIds = (teamIdsRes.data || []).map(t => t.team_id);
+
+    if (teamIds.length > 0) {
+      const { data: teams } = await supabase
+        .from("section_teams")
+        .select(`*, section_team_members(*)`)
+        .in("id", teamIds)
+        .order('created_at', { ascending: false });
+      relevantTeams = teams || [];
+    }
+    
+    fieldOptions = fields.flatMap(f => (f.field_options || []).map((o: any) => ({
+      ...o,
+      field_name: getTranslatedField(f.key, currentLang, defaultLang)
+    })));
+  }
+
   return (
     <div className="relative flex flex-col min-h-screen bg-zinc-50 dark:bg-black font-sans overflow-x-hidden">
-      {/* Dynamic Background Cover */}
       <div className="fixed inset-0 pointer-events-none z-[1] overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-center grayscale blur-md opacity-25 scale-105 transition-all duration-1000 ease-out"
@@ -210,12 +224,8 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
         <div className="absolute inset-0 bg-zinc-50/60 dark:bg-black/80" />
       </div>
 
-      <GameLocalizationProvider 
-        gameDefaultLang={defaultLang} 
-        gameSupportedLanguages={game.supported_languages}
-      >
+      <GameLocalizationProvider gameDefaultLang={defaultLang} gameSupportedLanguages={game.supported_languages}>
         <GSBackground isHidden={!!gameCoverUrl} />
-        
         <Header
           breadcrumbs={[
             { href: "/", label: getTranslation('home', currentLang) },
@@ -227,11 +237,7 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
 
         <main className="flex-1 px-8 py-24 z-10 relative">
           <div className="max-w-7xl mx-auto space-y-12">
-            
-            {/* Top Section: Icon, Name, Filters (Left) and Full Art (Right) */}
             <div className="flex flex-col lg:flex-row gap-12 items-start justify-between">
-              
-              {/* Left Side: Identity & Filters */}
               <div className="flex-1 space-y-8">
                 <div className="flex items-center gap-8">
                   {iconUrl ? (
@@ -239,91 +245,70 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
                       <img src={iconUrl} alt={translatedEntityName} className="w-full h-full object-cover" />
                     </div>
                   ) : (
-                    <div className="w-32 h-32 flex items-center justify-center text-zinc-400 text-4xl border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-2xl bg-zinc-900/10">
-                      ?
-                    </div>
+                    <div className="w-32 h-32 flex items-center justify-center text-zinc-400 text-4xl border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-2xl bg-zinc-900/10">?</div>
                   )}
                   <div className="space-y-4">
-                    <h1 className="text-6xl font-black text-black dark:text-zinc-50 tracking-tighter uppercase italic">
-                      {translatedEntityName}
-                    </h1>
-                    
-                    {/* Collection Toggle */}
+                    <h1 className="text-6xl font-black text-black dark:text-zinc-50 tracking-tighter uppercase italic">{translatedEntityName}</h1>
                     {user && section.is_collectible && (
-                      <div className="pt-2">
-                        <CollectionToggle entityId={entityId} initialIsOwned={isOwned} />
-                      </div>
+                      <div className="pt-2"><CollectionToggle entityId={entityId} initialIsOwned={isOwned} /></div>
                     )}
-
                     <div className="mt-4 flex flex-wrap gap-3">
                       {filterFields.map(field => (
-                        <div 
-                          key={field.id}
-                          className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-zinc-900/80 dark:bg-zinc-100/10 backdrop-blur-md border border-zinc-200/20 dark:border-white/5 shadow-xl transition-all hover:scale-105"
-                        >
-                          {field.iconUrl && (
-                            <img src={field.iconUrl} alt="" className="w-5 h-5 object-contain" />
-                          )}
-                          <span className="text-xs font-bold tracking-widest uppercase text-zinc-500 dark:text-zinc-400">
-                            {getTranslatedField(field.key as any, currentLang, defaultLang)}:
-                          </span>
-                          <span className="text-sm font-black text-black dark:text-white uppercase italic">
-                            {field.displayValue}
-                          </span>
+                        <div key={field.id} className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-zinc-900/80 dark:bg-zinc-100/10 backdrop-blur-md border border-zinc-200/20 dark:border-white/5 shadow-xl transition-all hover:scale-105">
+                          {field.iconUrl && <img src={field.iconUrl} alt="" className="w-5 h-5 object-contain" />}
+                          <span className="text-xs font-bold tracking-widest uppercase text-zinc-500 dark:text-zinc-400">{getTranslatedField(field.key as any, currentLang, defaultLang)}:</span>
+                          <span className="text-sm font-black text-black dark:text-white uppercase italic">{field.displayValue}</span>
                         </div>
                       ))}
                     </div>
                   </div>
                 </div>
               </div>
-
-              {/* Right Side: Full Art */}
               {fullArtUrl && (
                 <div className="lg:w-1/2 flex justify-end">
                   <div className="relative group">
                     <div className="absolute -inset-4 bg-gradient-to-tr from-[#22c55e]/20 to-transparent blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-                    <img 
-                      src={fullArtUrl} 
-                      alt={`${translatedEntityName} ${getTranslation('fullArt', currentLang)}`} 
-                      className="relative max-w-full h-auto max-h-[70vh] object-contain drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)] transition-transform duration-700 group-hover:scale-[1.02]"
-                    />
+                    <img src={fullArtUrl} alt={translatedEntityName} className="relative max-w-full h-auto max-h-[70vh] object-contain drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)] transition-transform duration-700 group-hover:scale-[1.02]" />
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Details Block: Two Columns */}
+            {section.has_teams && relevantTeams.length > 0 && (
+              <TeamBuilder 
+                sectionId={sectionId}
+                gameSlug={gameSlug}
+                sectionEntities={sectionEntities}
+                fieldOptions={fieldOptions}
+                maxTeamSize={section.max_team_size || 4}
+                existingTeams={relevantTeams}
+                gameDefaultLang={defaultLang}
+                isAdmin={false}
+                currentEntityId={entityId}
+              />
+            )}
+
             <div className="mt-20 pt-12 border-t border-zinc-200/20 dark:border-white/5">
               <h2 className="text-2xl font-black uppercase tracking-widest mb-10 italic flex items-center gap-4">
                 <span className="w-8 h-1 bg-[#22c55e]" />
                 {getTranslation('technicalData', currentLang)}
               </h2>
-              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-zinc-200 dark:bg-zinc-800/50 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 shadow-2xl">
-                {/* Name field as requested */}
                 <div className="bg-white dark:bg-zinc-900/40 p-6 flex flex-col gap-1">
                   <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">{getTranslation('name', currentLang)}</span>
                   <span className="text-xl font-bold uppercase italic text-black dark:text-white">{translatedEntityName}</span>
                 </div>
-
                 {processedFields.map(field => (
                   <div key={field.id} className="bg-white dark:bg-zinc-900/40 p-6 flex flex-col gap-1 group hover:bg-zinc-50 dark:hover:bg-zinc-800/60 transition-colors">
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 group-hover:text-[#22c55e] transition-colors">
-                      {getTranslatedField(field.key as any, currentLang, defaultLang)}
-                    </span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 group-hover:text-[#22c55e] transition-colors">{getTranslatedField(field.key as any, currentLang, defaultLang)}</span>
                     <div className="flex items-center gap-4">
-                      {field.iconUrl && (
-                        <img src={field.iconUrl} alt="" className="w-12 h-12 object-contain" />
-                      )}
-                      <span className="text-xl font-bold uppercase italic text-black dark:text-white">
-                        {field.displayValue || "—"}
-                      </span>
+                      {field.iconUrl && <img src={field.iconUrl} alt="" className="w-12 h-12 object-contain" />}
+                      <span className="text-xl font-bold uppercase italic text-black dark:text-white">{field.displayValue || "—"}</span>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-
           </div>
         </main>
       </GameLocalizationProvider>

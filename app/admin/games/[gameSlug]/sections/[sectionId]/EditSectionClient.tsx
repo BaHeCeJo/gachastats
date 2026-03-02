@@ -1,18 +1,19 @@
 "use client";
 
-import { useState, useActionState } from 'react';
+import { useState, useActionState, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { deleteSectionAction, upsertSectionAction } from '@/app/admin/games/[gameSlug]/sections/actions';
 import ConfirmButton from '@/app/components/ConfirmButton';
 import LocalizedTextInput from '@/app/components/fields/LocalizedTextInput';
 import ImageInput from '@/app/components/ImageInput';
 import EntityGridManager from '@/app/components/EntityGridManager';
+import TeamBuilder from '@/app/components/TeamBuilder';
 import { LocalizedString, getTranslatedField, GameLocalizationProvider, useLocalizationParams } from "@/lib/localization";
 import Link from "next/link";
 import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
 
 type Game = { id: string; name: LocalizedString; slug: string; default_lang: string; supported_languages: string[]; };
-type Section = { id: string; key: LocalizedString; game_id: string; icon_path: string | null; color: string | null; order_index: number; is_collectible: boolean; is_unique: boolean; max_dupes: number; dupe_name: LocalizedString; };
+type Section = { id: string; key: LocalizedString; game_id: string; icon_path: string | null; color: string | null; order_index: number; is_collectible: boolean; is_unique: boolean; max_dupes: number; dupe_name: LocalizedString; min_dupes: number; has_teams: boolean; max_team_size: number; };
 type FieldOption = { id: string; field_id: string; value_key: LocalizedString; icon_path: string | null; color: string | null; order_index: number; };
 type Field = { id: string; section_id: string; key: LocalizedString; required: boolean; manual_fill: boolean; has_icon: boolean; has_color: boolean; order_index: number; is_multi: boolean; category: string | null; field_options: FieldOption[] | null; };
 type ProcessedEntity = any;
@@ -20,9 +21,10 @@ type DisplaySettings = { section_id: string; max_columns: number; bg_color_field
 type FormState = { error?: string; };
 
 export default function EditSectionClient({
-  game, section, fields, gameFields, displaySettings, entities, filterFieldsData, currentLang: browserLang, updateDisplaySettingsAction
+  game, section, fields, gameFields, displaySettings, entities, filterFieldsData, currentLang: browserLang, updateDisplaySettingsAction, sectionTeams = []
 }: {
   game: Game; section: Section; fields: Field[]; gameFields: any[]; displaySettings: DisplaySettings | null; entities: ProcessedEntity[]; filterFieldsData: any[]; currentLang: string; updateDisplaySettingsAction: (gameSlug: string, sectionId: string, formData: FormData) => Promise<{ error?: string }>;
+  sectionTeams: any[];
 }) {
   const supabase = createClient();
   const { displayLang, t } = useLocalizationParams() as any;
@@ -33,6 +35,8 @@ export default function EditSectionClient({
   const [orderIndex, setOrderIndex] = useState<number>(section.order_index);
   const [isCollectible, setIsCollectible] = useState<boolean>(section.is_collectible);
   const [isUnique, setIsUnique] = useState<boolean>(section.is_unique ?? true);
+  const [hasTeams, setHasTeams] = useState<boolean>(section.has_teams ?? false);
+  const [maxTeamSize, setMaxTeamSize] = useState<number>(section.max_team_size ?? 0);
   const [minDupes, setMinDupes] = useState<number>(section.min_dupes ?? 0);
   const [maxDupes, setMaxDupes] = useState<number>(section.max_dupes ?? 0);
   const [localizedDupeName, setLocalizedDupeName] = useState<LocalizedString>(section.dupe_name || { [game.default_lang]: "Duplicate" });
@@ -54,6 +58,8 @@ export default function EditSectionClient({
       formData.set("order_index", orderIndex.toString());
       formData.set("is_collectible", isCollectible.toString());
       formData.set("is_unique", isUnique.toString());
+      formData.set("has_teams", hasTeams.toString());
+      formData.set("max_team_size", maxTeamSize.toString());
       formData.set("min_dupes", minDupes.toString());
       formData.set("max_dupes", maxDupes.toString());
       formData.set("dupe_name", JSON.stringify(localizedDupeName));
@@ -66,7 +72,6 @@ export default function EditSectionClient({
 
   const [displaySettingsState, displaySettingsFormAction] = useActionState(
     async (prevState: FormState, formData: FormData) => {
-      // Ensure all state-managed values are in the FormData
       formData.set("max_columns", maxColumns.toString());
       formData.set("bg_color_field_id", bgColorFieldId);
       formData.set("top_left_icon_field_id", topLeftIconFieldId);
@@ -100,14 +105,20 @@ export default function EditSectionClient({
     return a.localeCompare(b);
   });
 
-  const colorFields = fields || []; // Show all fields to avoid hiding saved values
-  const iconFields = fields || [];
+  const fieldOptions = useMemo(() => {
+    return fields.flatMap(f => (f.field_options || []).map((o: any) => ({
+      ...o,
+      field_name: getTranslatedField(f.key, activeLang, game.default_lang)
+    })));
+  }, [fields, activeLang, game.default_lang]);
 
-  // Client-side debug logging
-  console.log("--- CLIENT DEBUG: FIELDS ---");
-  console.log("Current Section Fields:", fields);
-  console.log("All Game Fields (Shared Pool):", gameFields);
-  console.log("----------------------------");
+  const sectionEntities = useMemo(() => {
+    return entities.map((ent: any) => ({
+      id: ent.id,
+      name: ent.name,
+      icon_path: ent.icon_path
+    }));
+  }, [entities]);
 
   const sectionIconPublicUrl = section.icon_path ? supabase.storage.from('games').getPublicUrl(section.icon_path).data.publicUrl : null;
 
@@ -128,7 +139,7 @@ export default function EditSectionClient({
               <h2 className="text-xl font-semibold">{t('generalInfo')}</h2>
               <form action={sectionFormAction} className="space-y-4">
                 <LocalizedTextInput id="key" label={t('sectionName')} value={localizedKey} onChange={setLocalizedKey} placeholder="Characters" />
-                <div className="flex gap-8 items-center">
+                <div className="flex flex-wrap gap-8 items-center">
                   <div><label htmlFor="color" className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{t('color')}</label><input id="color" name="color" type="color" value={color} onChange={(e) => setColor(e.target.value)} className="w-16 h-10 border-0 rounded-md overflow-hidden bg-zinc-900" /></div>
                   <div><label htmlFor="order_index" className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{t('orderIndex')}</label><input id="order_index" name="order_index" type="number" value={orderIndex} onChange={(e) => setOrderIndex(Number(e.target.value))} className="block w-24 px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all" /></div>
                   <div className="flex items-center gap-3 pt-6">
@@ -143,6 +154,32 @@ export default function EditSectionClient({
                       {t('isCollectible')}
                     </label>
                   </div>
+                  <div className="flex items-center gap-3 pt-6">
+                    <input 
+                      id="has_teams" 
+                      type="checkbox" 
+                      checked={hasTeams} 
+                      onChange={(e) => setHasTeams(e.target.checked)}
+                      className="w-5 h-5 rounded border-zinc-800 bg-zinc-900 text-[#22c55e] focus:ring-[#22c55e]"
+                    />
+                    <label htmlFor="has_teams" className="text-xs font-bold text-zinc-500 uppercase tracking-widest cursor-pointer">
+                      Build Teams
+                    </label>
+                  </div>
+                  {hasTeams && (
+                    <div className="flex items-center gap-3 pt-6">
+                      <label htmlFor="max_team_size" className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
+                        Max Team Size
+                      </label>
+                      <input 
+                        id="max_team_size" 
+                        type="number" 
+                        value={maxTeamSize} 
+                        onChange={(e) => setMaxTeamSize(Number(e.target.value))}
+                        className="w-20 px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-white text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {isCollectible && (
@@ -192,11 +229,6 @@ export default function EditSectionClient({
                       onChange={setLocalizedDupeName} 
                       placeholder="Constellation, Refinement..." 
                     />
-                    <p className="text-[10px] text-zinc-500 leading-relaxed italic">
-                      {isUnique 
-                        ? t('uniqueDescription') 
-                        : t('notUniqueDescription')}
-                    </p>
                   </div>
                 )}
 
@@ -209,66 +241,40 @@ export default function EditSectionClient({
               <form action={displaySettingsFormAction} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="block text-sm font-medium">{t('maxColumns')}</label>
-                  <input 
-                    name="max_columns" 
-                    type="number" 
-                    value={maxColumns} 
-                    onChange={(e) => setMaxColumns(Number(e.target.value))}
-                    className="border p-2 w-full bg-zinc-900 text-white border-zinc-800 rounded" 
-                  />
+                  <input name="max_columns" type="number" value={maxColumns} onChange={(e) => setMaxColumns(Number(e.target.value))} className="border p-2 w-full bg-zinc-900 text-white border-zinc-800 rounded" />
                 </div>
                 <div className="space-y-2">
                   <label className="block text-sm font-medium">{t('backgroundColorField')}</label>
-                  <select 
-                    name="bg_color_field_id" 
-                    value={bgColorFieldId} 
-                    onChange={(e) => setBgColorFieldId(e.target.value)}
-                    className="border p-2 w-full bg-zinc-900 text-white border-zinc-800 rounded"
-                  >
+                  <select name="bg_color_field_id" value={bgColorFieldId} onChange={(e) => setBgColorFieldId(e.target.value)} className="border p-2 w-full bg-zinc-900 text-white border-zinc-800 rounded">
                     <option value="">{t('none')}</option>
-                    {colorFields.map(f => (
+                    {fields.map(f => (
                       <option key={f.id} value={f.id}>{getTranslatedField(f.key, activeLang, game.default_lang)}</option>
                     ))}
                   </select>
                 </div>
                 <div className="space-y-2">
                   <label className="block text-sm font-medium">{t('topLeftIconField')}</label>
-                  <select 
-                    name="top_left_icon_field_id" 
-                    value={topLeftIconFieldId} 
-                    onChange={(e) => setTopLeftIconFieldId(e.target.value)}
-                    className="border p-2 w-full bg-zinc-900 text-white border-zinc-800 rounded"
-                  >
+                  <select name="top_left_icon_field_id" value={topLeftIconFieldId} onChange={(e) => setTopLeftIconFieldId(e.target.value)} className="border p-2 w-full bg-zinc-900 text-white border-zinc-800 rounded">
                     <option value="">{t('none')}</option>
-                    {iconFields.map(f => (
+                    {fields.map(f => (
                       <option key={f.id} value={f.id}>{getTranslatedField(f.key, activeLang, game.default_lang)}</option>
                     ))}
                   </select>
                 </div>
                 <div className="space-y-2">
                   <label className="block text-sm font-medium">{t('topRightIconField')}</label>
-                  <select 
-                    name="top_right_icon_field_id" 
-                    value={topRightIconFieldId} 
-                    onChange={(e) => setTopRightIconFieldId(e.target.value)}
-                    className="border p-2 w-full bg-zinc-900 text-white border-zinc-800 rounded"
-                  >
+                  <select name="top_right_icon_field_id" value={topRightIconFieldId} onChange={(e) => setTopRightIconFieldId(e.target.value)} className="border p-2 w-full bg-zinc-900 text-white border-zinc-800 rounded">
                     <option value="">{t('none')}</option>
-                    {iconFields.map(f => (
+                    {fields.map(f => (
                       <option key={f.id} value={f.id}>{getTranslatedField(f.key, activeLang, game.default_lang)}</option>
                     ))}
                   </select>
                 </div>
                 <div className="space-y-2">
                   <label className="block text-sm font-medium">{t('overlayIconField')}</label>
-                  <select 
-                    name="overlay_icon_field_id" 
-                    value={overlayIconFieldId} 
-                    onChange={(e) => setOverlayIconFieldId(e.target.value)}
-                    className="border p-2 w-full bg-zinc-900 text-white border-zinc-800 rounded"
-                  >
+                  <select name="overlay_icon_field_id" value={overlayIconFieldId} onChange={(e) => setOverlayIconFieldId(e.target.value)} className="border p-2 w-full bg-zinc-900 text-white border-zinc-800 rounded">
                     <option value="">{t('none')}</option>
-                    {iconFields.map(f => (
+                    {fields.map(f => (
                       <option key={f.id} value={f.id}>{getTranslatedField(f.key, activeLang, game.default_lang)}</option>
                     ))}
                   </select>
@@ -278,17 +284,8 @@ export default function EditSectionClient({
                   <div className="flex flex-wrap gap-4 mt-2">
                     {fields?.map(f => (
                       <label key={f.id} className="flex items-center gap-2 cursor-pointer group">
-                        <input 
-                          type="checkbox" 
-                          name="filter_field_ids" 
-                          value={f.id} 
-                          checked={filterFieldIds.includes(f.id)} 
-                          onChange={() => toggleFilterField(f.id)}
-                          className="w-4 h-4 rounded border-zinc-800 bg-zinc-900 text-[#22c55e] focus:ring-[#22c55e]"
-                        />
-                        <span className="text-sm text-zinc-400 group-hover:text-zinc-200 transition-colors">
-                          {getTranslatedField(f.key, activeLang, game.default_lang)}
-                        </span>
+                        <input type="checkbox" name="filter_field_ids" value={f.id} checked={filterFieldIds.includes(f.id)} onChange={() => toggleFilterField(f.id)} className="w-4 h-4 rounded border-zinc-800 bg-zinc-900 text-[#22c55e] focus:ring-[#22c55e]" />
+                        <span className="text-sm text-zinc-400 group-hover:text-zinc-200 transition-colors">{getTranslatedField(f.key, activeLang, game.default_lang)}</span>
                       </label>
                     ))}
                   </div>
@@ -320,6 +317,25 @@ export default function EditSectionClient({
           </aside>
         </div>
         <EntityGridManager entities={entities} displaySettings={displaySettings} filterFields={filterFieldsData} gameSlug={game.slug} sectionId={section.id} sectionName={getTranslatedField(section.key, activeLang, game.default_lang)} isAdmin={true} gameDefaultLang={game.default_lang} currentLang={browserLang} />
+
+        {hasTeams && (
+          <div className="mt-20 pt-10 border-t border-zinc-800">
+            <h2 className="text-2xl font-black uppercase italic text-white mb-10 flex items-center gap-4">
+              <span className="w-12 h-1 bg-green-500" />
+              Section Teams Management
+            </h2>
+            <TeamBuilder 
+              sectionId={section.id}
+              gameSlug={game.slug}
+              sectionEntities={sectionEntities}
+              fieldOptions={fieldOptions}
+              maxTeamSize={maxTeamSize || 4}
+              existingTeams={sectionTeams}
+              gameDefaultLang={game.default_lang}
+              isAdmin={true}
+            />
+          </div>
+        )}
       </main>
     </GameLocalizationProvider>
   );

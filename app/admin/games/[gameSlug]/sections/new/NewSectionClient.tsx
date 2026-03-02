@@ -17,6 +17,8 @@ export default function NewSectionClient({ game }: { game: GameData }) {
   const [orderIndex, setOrderIndex] = useState<number>(0);
   const [isCollectible, setIsCollectible] = useState<boolean>(true);
   const [isUnique, setIsUnique] = useState<boolean>(true);
+  const [hasTeams, setHasTeams] = useState<boolean>(false);
+  const [maxTeamSize, setMaxTeamSize] = useState<number>(0);
   const [maxDupes, setMaxDupes] = useState<number>(0);
   const [localizedDupeName, setLocalizedDupeName] = useState<LocalizedString>({ [game.default_lang]: "Duplicate" });
   const [iconFile, setIconFile] = useState<File | null>(null);
@@ -28,6 +30,8 @@ export default function NewSectionClient({ game }: { game: GameData }) {
       formData.set("order_index", orderIndex.toString());
       formData.set("is_collectible", isCollectible.toString());
       formData.set("is_unique", isUnique.toString());
+      formData.set("has_teams", hasTeams.toString());
+      formData.set("max_team_size", maxTeamSize.toString());
       formData.set("max_dupes", maxDupes.toString());
       formData.set("dupe_name", JSON.stringify(localizedDupeName));
       if (iconFile) formData.set("icon_file", iconFile);
@@ -43,7 +47,7 @@ export default function NewSectionClient({ game }: { game: GameData }) {
         {state?.error && <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-sm p-4 rounded-lg">{state.error}</div>}
         <form action={formAction} className="space-y-4">
           <LocalizedTextInput id="key" label={t('sectionName')} value={localizedKey} onChange={setLocalizedKey} placeholder="Characters" />
-          <div className="flex gap-4 items-center">
+          <div className="flex flex-wrap gap-4 items-center">
             <div><label htmlFor="color" className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{t('color')}</label><input id="color" name="color" type="color" value={color} onChange={(e) => setColor(e.target.value)} className="w-16 h-10 border-0 rounded-md overflow-hidden bg-zinc-900" /></div>
             <div><label htmlFor="order_index" className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{t('orderIndex')}</label><input id="order_index" name="order_index" type="number" value={orderIndex} onChange={(e) => setOrderIndex(Number(e.target.value))} className="block w-24 px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all" /></div>
             <div className="flex items-center gap-3 pt-6">
@@ -58,6 +62,32 @@ export default function NewSectionClient({ game }: { game: GameData }) {
                 {t('isCollectible')}
               </label>
             </div>
+            <div className="flex items-center gap-3 pt-6">
+              <input 
+                id="has_teams" 
+                type="checkbox" 
+                checked={hasTeams} 
+                onChange={(e) => setHasTeams(e.target.checked)}
+                className="w-5 h-5 rounded border-zinc-800 bg-zinc-900 text-[#22c55e] focus:ring-[#22c55e]"
+              />
+              <label htmlFor="has_teams" className="text-xs font-bold text-zinc-500 uppercase tracking-widest cursor-pointer">
+                Build Teams
+              </label>
+            </div>
+            {hasTeams && (
+              <div className="flex items-center gap-3 pt-6">
+                <label htmlFor="max_team_size" className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
+                  Max Team Size
+                </label>
+                <input 
+                  id="max_team_size" 
+                  type="number" 
+                  value={maxTeamSize} 
+                  onChange={(e) => setMaxTeamSize(Number(e.target.value))}
+                  className="w-20 px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-white text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+              </div>
+            )}
           </div>
 
           {isCollectible && (
