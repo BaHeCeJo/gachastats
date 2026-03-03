@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getPublicUrl } from "@/lib/supabase/queries";
 import { redirect } from "next/navigation";
 import Header from "@/app/components/Header";
 import ProfileForm from "./ProfileForm";
@@ -11,14 +12,19 @@ import GameCollectionManager from "@/app/components/GameCollectionManager";
 export default async function ProfilePage() {
   const supabase = await createClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
+  // 1. Parallelize Auth and Initial Data
+  const [userRes, allGamesRes] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase.from("games").select("id, name, slug, cover_url")
+  ]);
+
+  const user = userRes.data.user;
   if (!user) redirect("/auth/signin");
 
-  // Fetch Profile and Games (No need for entities anymore)
-  const [profileRes, userGamesRes, allGamesRes] = await Promise.all([
+  // 2. Fetch User Specific Data
+  const [profileRes, userGamesRes] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", user.id).single(),
     supabase.from("user_games").select("game_id").eq("user_id", user.id),
-    supabase.from("games").select("id, name, slug, cover_url")
   ]);
 
   const profile = profileRes.data;

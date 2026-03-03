@@ -35,31 +35,30 @@ type PageProps = {
 /* ===========================
    Server Component — List Fields
 =========================== */
-export default async function FieldsPage({ params }: PageProps) {
-  const { gameSlug, sectionId } = await params
-  const supabase = await createClient()
+export default async function FieldsPage({ params: paramsPromise }: PageProps) {
+  const { gameSlug, sectionId } = await paramsPromise;
+  const supabase = await createClient();
 
-  const { data: game } = await supabase
-    .from('games')
-    .select('id, name, slug, default_lang, supported_languages')
-    .eq('slug', gameSlug)
-    .single<Game>();
-
+  // 1. Fetch game (cached)
+  const { data: game } = await getGameBySlug(gameSlug);
   if (!game) redirect('/admin/games')
 
-  const { data: section } = await supabase
-    .from('game_sections')
-    .select('id, key, game_id')
-    .eq('id', sectionId)
-    .single<Section>()
+  // 2. Parallelize everything else
+  const [sectionRes, fieldsRes, headersList] = await Promise.all([
+    getSectionById(sectionId),
+    supabase
+      .from('section_fields')
+      .select('id, key, category, order_index')
+      .eq('section_id', sectionId)
+      .order('order_index', { ascending: true }),
+    headers()
+  ]);
+
+  const section = sectionRes.data;
+  const fields = fieldsRes.data as Field[] | null;
+  const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
   if (!section) redirect(`/admin/games/${gameSlug}/sections`)
-
-  const { data: fields } = await supabase
-    .from('section_fields')
-    .select('id, key, category, order_index') // Select key as LocalizedString
-    .eq('section_id', sectionId)
-    .order('order_index', { ascending: true }) as { data: Field[] | null };
 
   // Group fields by category and sort them
   const groupedFields: Record<string, Field[]> = {}

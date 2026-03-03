@@ -1,17 +1,21 @@
 import { createClient as createServerClient } from '@/lib/supabase/server';
+import { getGameBySlug, getSectionById, getPublicUrl, getSectionFields, getSectionDisplaySettings, getSectionEntities } from "@/lib/supabase/queries";
 import { redirect } from 'next/navigation';
-import { headers } from 'next/headers';
+import { headers, cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { getTranslatedField, LocalizedString } from "@/lib/localization-utils";
 import EditSectionClient from './EditSectionClient';
 
 type PageProps = { params: Promise<{ gameSlug: string; sectionId: string }>; };
 
-export async function generateMetadata({ params }: PageProps) {
-  const { gameSlug, sectionId } = await params;
-  const supabase = await createServerClient();
-  const { data: game } = await supabase.from('games').select('name').eq('slug', gameSlug).single();
-  const { data: section } = await supabase.from('game_sections').select('key').eq('id', sectionId).single();
+export async function generateMetadata({ params: paramsPromise }: PageProps) {
+  const { gameSlug, sectionId } = await paramsPromise;
+  const [gameRes, sectionRes] = await Promise.all([
+    getGameBySlug(gameSlug),
+    getSectionById(sectionId)
+  ]);
+  const game = gameRes.data;
+  const section = sectionRes.data;
   const gameName = game?.name ? getTranslatedField(game.name, 'en', 'en') : 'Game';
   const sectionName = section?.key ? getTranslatedField(section.key, 'en', 'en') : 'Section';
   return { title: `Edit ${sectionName} in ${gameName} - Admin` };
@@ -32,7 +36,11 @@ async function updateDisplaySettingsAction(gameSlug: string, sectionId: string, 
   }, { onConflict: 'section_id' })
 
   if (error) { console.error("Error updating display settings:", error); return { error: error.message }; }
+  
+  // Revalidate both admin and public views
   revalidatePath(`/admin/games/${gameSlug}/sections/${sectionId}`);
+  revalidatePath(`/[gameSlug]/sections/[sectionId]`, "page");
+  
   return { error: undefined };
 }
 
@@ -40,87 +48,67 @@ export default async function EditSectionPage({ params: paramsPromise }: PagePro
   const params = await paramsPromise;
   const { gameSlug, sectionId } = params;
   const supabase = await createServerClient();
-  const { data: game } = await supabase.from("games").select("id, name, slug, default_lang, supported_languages").eq("slug", gameSlug).single();
-  if (!game) redirect("/admin/games");
 
-  const { data: section } = await supabase.from("game_sections").select("id, key, game_id, icon_path, color, order_index, is_collectible, is_unique, min_dupes, max_dupes, dupe_name, has_teams, max_team_size").eq("id", sectionId).eq("game_id", game.id).single();
-  if (!section) redirect(`/admin/games/${gameSlug}/sections`);
+  // 1. Fetch basic game details (cached)
+  const { data: game, error: gameError } = await getGameBySlug(gameSlug);
+  if (!game || gameError) redirect("/admin/games");
 
-  // --- Teams Feature Data Fetch ---
-  let sectionTeams: any[] = [];
-  if (section.has_teams) {
-    const { data: teams } = await supabase
-      .from("section_teams")
-      .select(`*, section_team_members(*)`)
-      .eq("section_id", sectionId)
-      .order('created_at', { ascending: false });
-    sectionTeams = teams || [];
-  }
+  // 2. Parallelize ALL other queries
+  const [
+    sectionRes,
+    teamsRes,
+    fieldsRes,
+    allGameFieldsRes,
+    displaySettingsRes,
+    entitiesRes,
+    headersList,
+    cookieStore
+  ] = await Promise.all([
+    getSectionById(sectionId),
+    supabase.from("section_teams").select(`*, section_team_members(*)`).eq("section_id", sectionId).order('created_at', { ascending: false }),
+    getSectionFields(sectionId),
+    supabase.from('game_fields').select('*, field_options(id, value_key)').eq("game_id", game.id).order('internal_name', { ascending: true }),
+    getSectionDisplaySettings(sectionId),
+    getSectionEntities(sectionId, game.default_lang),
+    headers(),
+    cookies()
+  ]);
 
-  const { data: fieldsRaw } = await supabase
-    .from("section_fields")
-    .select(`
-      id, key, required, is_multi, category, order_index, game_field_id,
-      game_fields (
-        id, game_id, internal_name, manual_fill, has_icon, has_color
-      )
-    `)
-    .eq("section_id", sectionId)
-    .order("order_index", { ascending: true });
+  const section = sectionRes.data;
+  const sectionTeams = teamsRes.data || [];
+  const fieldsRaw = fieldsRes.data;
+  const allGameFields = allGameFieldsRes.data;
+  const displaySettings = displaySettingsRes.data;
+  const entities = entitiesRes.data;
 
-  // Fetch all game-level fields for this game (Shared Fields) + their options
-  const { data: allGameFields } = await supabase
-    .from('game_fields')
-    .select('*, field_options(id, value_key)')
-    .eq('game_id', game.id)
-    .order('internal_name', { ascending: true });
+  if (!section || section.game_id !== game.id) redirect(`/admin/games/${gameSlug}/sections`);
 
-  const gameFieldIds = (fieldsRaw || []).map(f => f.game_field_id).filter(Boolean);
-  const { data: allOptions } = gameFieldIds.length > 0 
-    ? await supabase.from('field_options').select('id, game_field_id, value_key, icon_path, color, order_index').in('game_field_id', gameFieldIds)
-    : { data: [] };
-
+  // Process fields
   const fields = (fieldsRaw || []).map((f: any) => {
-    // Robust extraction of the shared game_field definition
     const gf = Array.isArray(f.game_fields) ? f.game_fields[0] : f.game_fields;
-    const options = (allOptions || []).filter((opt: any) => opt.game_field_id === f.game_field_id);
     return {
       ...f,
       manual_fill: gf?.manual_fill,
       has_icon: gf?.has_icon,
       has_color: gf?.has_color,
-      field_options: options || []
+      field_options: gf?.field_options || []
     };
   });
 
-  const { data: displaySettings } = await supabase.from("section_display_settings").select("*").eq("section_id", sectionId).single();
-  
-  const { data: entities } = await supabase
-    .from("section_entities")
-    .select(`
-      id, section_id, name, icon_path, 
-      entity_skins (is_default, entity_images (image_path)), 
-      entity_field_values (id, game_field_id, value_text, option_id, field_options (color, icon_path, value_key))
-    `)
-    .eq("section_id", sectionId)
-    .eq("entity_skins.is_default", true)
-    .order(`name->>${game.default_lang}`, { ascending: true });
-
-  const headersList = await headers();
-  const cookiesList = headersList.get('cookie') || '';
-  const userLang = cookiesList.split('; ').find(row => row.startsWith('user_lang='))?.split('=')[1];
+  const userLang = cookieStore.get('user_lang')?.value;
   const acceptLanguage = headersList.get('Accept-Language');
   const browserLang = acceptLanguage ? acceptLanguage.split(',')[0].split('-')[0].toLowerCase() : 'en';
-  
   const currentLang = userLang || browserLang;
   
-  // Create map by game_field_id for entity values processing
   const gameFieldsMap = new Map((fields || [])?.map(f => [f.game_field_id, f]));
 
   const processedEntities = (entities || []).map((entity: any) => {
-    const skin = entity.entity_skins?.[0];
-    const iconPath = skin?.entity_images?.[0]?.image_path;
-    let publicIconUrl = iconPath ? (iconPath.startsWith("http") ? iconPath : supabase.storage.from("games").getPublicUrl(iconPath).data.publicUrl) : "";
+    const defaultSkin = entity.entity_skins?.[0];
+    const skinIconPath = defaultSkin?.entity_images?.find((img: any) => img.type === 'icon')?.image_path;
+    const iconPath = entity.icon_path || skinIconPath;
+    
+    const publicIconUrl = getPublicUrl('games', iconPath) || "";
+
     const fieldValuesMap: Record<string, { color?: string; iconUrl?: string }> = {};
     const allValues: Record<string, string[]> = {};
     
@@ -132,10 +120,8 @@ export default async function EditSectionPage({ params: paramsPromise }: PagePro
       if (!allValues[fieldId]) allValues[fieldId] = [];
       
       if (val.option_id) {
-        // If it's an option, we use the option_id for filtering
         allValues[fieldId].push(String(val.option_id));
       } else {
-        // For manual fill fields, we use the translated text value(s)
         const translatedValue = getTranslatedField(val.value_text, currentLang, game.default_lang);
         if (translatedValue) {
           if (field?.is_multi) {
@@ -151,7 +137,7 @@ export default async function EditSectionPage({ params: paramsPromise }: PagePro
       if (opt) { 
         fieldValuesMap[fieldId] = { 
           color: opt.color || undefined, 
-          iconUrl: opt.icon_path ? (opt.icon_path.startsWith("http") ? opt.icon_path : supabase.storage.from("games").getPublicUrl(opt.icon_path).data.publicUrl) : undefined 
+          iconUrl: getPublicUrl('games', opt.icon_path) || undefined 
         }; 
       } 
     });
@@ -170,7 +156,7 @@ export default async function EditSectionPage({ params: paramsPromise }: PagePro
         .map((opt: any) => ({ 
           id: String(opt.id), 
           value_key: opt.value_key, 
-          iconUrl: opt.icon_path ? (opt.icon_path.startsWith("http") ? opt.icon_path : supabase.storage.from("games").getPublicUrl(opt.icon_path).data.publicUrl) : undefined, 
+          iconUrl: getPublicUrl('games', opt.icon_path) || undefined, 
           color: opt.color 
         })) 
     })) || [];

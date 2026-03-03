@@ -1,68 +1,44 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getGameBySlug } from "@/lib/supabase/queries";
 import { LocalizedString, getTranslatedField, getTranslation } from "@/lib/localization-utils";
 import { GameLocalizationProvider } from "@/lib/localization";
 import { headers } from "next/headers";
 import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
 import AdminOptionList from './AdminOptionList';
 
-type Game = {
-  id: string;
-  name: LocalizedString;
-  slug: string;
-  default_lang: string;
-  supported_languages: string[];
-}
+// ... (types)
 
-type Field = {
-  id: string;
-  key: LocalizedString; // Localized
-  manual_fill: boolean;
-}
-
-type Option = {
-  id: string;
-  value_key: LocalizedString; // Localized
-  icon_path: string | null;
-  color: string | null;
-  order_index: number;
-}
-
-type PageProps = {
-  params: Promise<{
-    gameSlug: string
-    sectionId: string
-    fieldId: string
-  }>
-}
-
-export default async function FieldOptionsPage({ params }: PageProps) {
-  const { gameSlug, sectionId, fieldId } = await params
+export default async function FieldOptionsPage({ params: paramsPromise }: PageProps) {
+  const { gameSlug, sectionId, fieldId } = await paramsPromise
   if (!gameSlug || !sectionId || !fieldId) redirect('/admin/games')
 
   const supabase = await createClient()
 
-  const { data: game } = await supabase
-    .from('games')
-    .select('id, name, slug, default_lang, supported_languages')
-    .eq('slug', gameSlug)
-    .single<Game>();
-
+  // 1. Fetch game (cached)
+  const { data: game } = await getGameBySlug(gameSlug);
   if (!game) redirect('/admin/games')
 
-  const { data: fieldData } = await supabase
-    .from('section_fields')
-    .select(`
-      id, 
-      key, 
-      game_field_id,
-      game_fields (
-        manual_fill
-      )
-    `)
-    .eq('id', fieldId)
-    .single();
+  // 2. Parallelize everything else
+  const [fieldRes, headersList] = await Promise.all([
+    supabase
+      .from('section_fields')
+      .select(`
+        id, 
+        key, 
+        game_field_id,
+        game_fields (
+          manual_fill
+        )
+      `)
+      .eq('id', fieldId)
+      .single(),
+    headers()
+  ]);
+
+  const fieldData = fieldRes.data;
+  const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
   if (!fieldData) {
     redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields`);
@@ -80,9 +56,6 @@ export default async function FieldOptionsPage({ params }: PageProps) {
     .select('id, value_key, icon_path, color, order_index')
     .eq('game_field_id', gameFieldId)
     .order('order_index', { ascending: true }) as { data: Option[] | null };
-
-  const headersList = await headers();
-  const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
   return (
     <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>

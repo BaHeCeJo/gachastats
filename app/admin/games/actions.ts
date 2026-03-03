@@ -163,16 +163,21 @@ export async function upsertGameAction(formData: FormData) {
 export async function deleteGameAction(gameId: string) {
   const supabase = await createClient();
 
-  // 1. Fetch all asset paths for cleanup BEFORE deleting the records
-  // We need to clean up Section icons and Entity images from storage
-  const { data: sections } = await supabase
-    .from("game_sections")
-    .select("icon_path");
+  // 1. Fetch all asset paths for cleanup in parallel BEFORE deleting the records
+  const [sectionsRes, gameRes] = await Promise.all([
+    supabase.from("game_sections").select("id, icon_path").eq("game_id", gameId),
+    supabase.from("games").select("cover_url").eq("id", gameId).single()
+  ]);
 
+  const sections = sectionsRes.data || [];
+  const sectionIds = sections.map(s => s.id);
+  const game = gameRes.data;
+
+  // 2. Fetch entities and then their images
   const { data: entities } = await supabase
     .from("section_entities")
     .select("id")
-    .in("section_id", (await supabase.from("game_sections").select("id").eq("game_id", gameId)).data?.map(s => s.id) || []);
+    .in("section_id", sectionIds);
 
   const entityIds = entities?.map(e => e.id) || [];
   
@@ -181,18 +186,12 @@ export async function deleteGameAction(gameId: string) {
     .select("image_path")
     .in("entity_id", entityIds);
 
-  const { data: game } = await supabase
-    .from("games")
-    .select("cover_url")
-    .eq("id", gameId)
-    .single();
-
-  // 2. Prepare paths for storage cleanup
+  // 3. Prepare paths for storage cleanup
   const pathsToDelete: string[] = [];
   
   if (game?.cover_url) pathsToDelete.push(extractPathFromUrl(game.cover_url, "games"));
   
-  sections?.forEach(s => {
+  sections.forEach(s => {
     if (s.icon_path) pathsToDelete.push(extractPathFromUrl(s.icon_path, "games"));
   });
 
@@ -202,12 +201,11 @@ export async function deleteGameAction(gameId: string) {
 
   const validPaths = pathsToDelete.filter(Boolean);
 
-  // 3. Delete from storage
+  // 4. Delete from storage and DB in parallel (storage first to be safe, or both)
   if (validPaths.length > 0) {
     await supabase.storage.from("games").remove(validPaths);
   }
 
-  // 4. Finally delete the game - database CASCADE handles the rest (sections, entities, fields, etc.)
   const { error } = await supabase
     .from("games")
     .delete()
@@ -219,5 +217,6 @@ export async function deleteGameAction(gameId: string) {
   }
 
   revalidatePath("/admin/games");
+  revalidatePath("/");
   redirect("/admin/games");
 }

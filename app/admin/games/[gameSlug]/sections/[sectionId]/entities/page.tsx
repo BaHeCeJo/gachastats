@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { getGameBySlug, getSectionById, getPublicUrl } from "@/lib/supabase/queries";
 import { redirect } from 'next/navigation'
 import { LocalizedString, getTranslatedField, getTranslation } from "@/lib/localization-utils";
 import { GameLocalizationProvider } from "@/lib/localization";
@@ -34,44 +35,40 @@ type PageProps = {
   params: Promise<{ gameSlug: string; sectionId: string }>
 }
 
-export default async function EntitiesPage({ params }: PageProps) {
-  const { gameSlug, sectionId } = await params
+export default async function EntitiesPage({ params: paramsPromise }: PageProps) {
+  const { gameSlug, sectionId } = await paramsPromise
   if (!gameSlug || !sectionId) redirect('/admin/games')
 
   const supabase = await createClient()
 
-  const { data: game } = await supabase
-    .from('games')
-    .select('id, name, slug, default_lang, supported_languages')
-    .eq('slug', gameSlug)
-    .single<Game>();
-
+  // 1. Fetch game (cached)
+  const { data: game } = await getGameBySlug(gameSlug);
   if (!game) redirect('/admin/games')
 
-  const { data: section } = await supabase
-    .from('game_sections')
-    .select('id, key, game_id')
-    .eq('id', sectionId)
-    .single<Section>()
+  // 2. Parallelize everything else
+  const [sectionRes, entitiesRes, headersList] = await Promise.all([
+    getSectionById(sectionId),
+    supabase
+      .from('section_entities')
+      .select(`
+        id,
+        name,
+        entity_images (
+          id,
+          type,
+          image_path
+        )
+      `)
+      .eq('section_id', sectionId)
+      .order(`name->>${game.default_lang}`, { ascending: true }),
+    headers()
+  ]);
+
+  const section = sectionRes.data;
+  const entities = entitiesRes.data as Entity[] | null;
+  const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
   if (!section) redirect(`/admin/games/${gameSlug}/sections`)
-
-  const { data: entities } = await supabase
-    .from('section_entities')
-    .select(`
-      id,
-      name,
-      entity_images (
-        id,
-        type,
-        image_path
-      )
-    `)
-    .eq('section_id', sectionId)
-    .order('name->>${game.default_lang}', { ascending: true }) as { data: Entity[] | null }; // Order by localized name
-
-  const headersList = await headers();
-  const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
   return (
     <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
@@ -94,12 +91,7 @@ export default async function EntitiesPage({ params }: PageProps) {
           {entities?.length ? (
             entities.map(entity => {
               const icon = entity.entity_images?.find(i => i.type === 'icon')
-
-              const iconUrl = icon
-                ? supabase.storage
-                    .from('games')
-                    .getPublicUrl(icon.image_path).data.publicUrl
-                : null
+              const iconUrl = icon ? getPublicUrl('games', icon.image_path) : null;
 
               return (
                 <Link

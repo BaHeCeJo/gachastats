@@ -2,25 +2,26 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { LocalizedString, getTranslatedField, useLocalizationParams } from "@/lib/localization";
 import MissingTranslationIndicator from "./MissingTranslationIndicator";
 
 type Option = {
   id: string;
-  value_key: LocalizedString; // Localized
+  value_key: LocalizedString;
   iconUrl?: string;
   color?: string;
 };
 
 type FilterField = {
   id: string;
-  key: LocalizedString; // Localized
+  key: LocalizedString;
   options: Option[];
 };
 
 type Entity = {
   id: string;
-  name: LocalizedString; // Localized
+  name: LocalizedString;
   publicIconUrl: string;
   fieldValuesMap: Record<string, { color?: string; iconUrl?: string }>;
   allValues: Record<string, string[]>;
@@ -32,10 +33,10 @@ type Props = {
   filterFields: FilterField[];
   gameSlug: string;
   sectionId: string;
-  sectionName: string; // Already localized before passing
+  sectionName: string;
   isAdmin?: boolean;
-  gameDefaultLang: string; // Add gameDefaultLang
-  currentLang: string; // Add currentLang
+  gameDefaultLang: string;
+  currentLang: string;
 };
 
 export default function EntityGridManager({
@@ -63,25 +64,19 @@ export default function EntityGridManager({
       return true;
     });
 
-    // Alphabetical sort based on current activeLang
     return [...filtered].sort((a, b) => {
       const nameA = getTranslatedField(a.name, activeLang, gameDefaultLang).trim();
       const nameB = getTranslatedField(b.name, activeLang, gameDefaultLang).trim();
       
-      // Handle empty names by pushing them to the bottom
       if (!nameA && nameB) return 1;
       if (nameA && !nameB) return -1;
       if (!nameA && !nameB) return 0;
 
-      // Use localeCompare for correct alphabetical order in the target language
-      // Using sensitivity 'accent' to ensure items like "é" are sorted predictably 
-      // while still being case-insensitive.
       const cmp = nameA.localeCompare(nameB, activeLang, { 
         sensitivity: 'accent',
         numeric: true 
       });
 
-      // If names are identical, fallback to ID for a stable sort
       if (cmp === 0) return a.id.localeCompare(b.id);
       return cmp;
     });
@@ -150,11 +145,15 @@ export default function EntityGridManager({
                     >
                       {opt.iconUrl ? (
                         <>
-                          <img
-                            src={opt.iconUrl}
-                            alt={displayValue}
-                            className={`w-full h-full object-contain ${isActive ? "brightness-0" : ""}`}
-                          />
+                          <div className="relative w-full h-full">
+                            <Image
+                              src={opt.iconUrl}
+                              alt={displayValue}
+                              fill
+                              sizes="40px"
+                              className={`object-contain ${isActive ? "brightness-0" : ""}`}
+                            />
+                          </div>
                           {/* Tooltip */}
                           <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50 shadow-xl border border-gray-700">
                             {displayValue}
@@ -216,28 +215,29 @@ export default function EntityGridManager({
 
               const cardContent = (
                 <>
-                  {/* Square Cell Container */}
                   <div
                     className="relative aspect-square overflow-hidden"
                     style={{ backgroundColor: bgValue?.color || "#1a1a1a" }}
                   >
-                    {/* Overlay Icon (Centered and maximized without distortion) */}
                     {overlayValue?.iconUrl && (
                       <div className="absolute inset-0 flex items-center justify-center p-2">
-                        <img
+                        <Image
                           src={overlayValue.iconUrl}
-                          className="w-full h-full object-contain opacity-20 pointer-events-none grayscale brightness-150"
+                          fill
+                          sizes="160px"
+                          className="object-contain opacity-20 pointer-events-none grayscale brightness-150"
                           alt=""
                         />
                       </div>
                     )}
 
-                    {/* Entity Main Icon (Fills square, crops top/bottom if tall) */}
                     {entity.publicIconUrl ? (
                       <div className="w-full h-full flex items-center justify-center">
-                        <img
+                        <Image
                           src={entity.publicIconUrl}
-                          className="w-full h-full object-cover relative z-10"
+                          fill
+                          sizes="160px"
+                          className="object-cover relative z-10"
                           alt={getTranslatedField(entity.name, activeLang, gameDefaultLang)}
                         />
                       </div>
@@ -247,28 +247,34 @@ export default function EntityGridManager({
                       </div>
                     )}
 
-                    {/* Corner Icons (Fill their containers) */}
                     {topLeftValue?.iconUrl && (
                       <div className="absolute top-1.5 left-1.5 w-8 h-8 bg-black/70 backdrop-blur-md border border-white/10 rounded-lg flex items-center justify-center p-0 z-20 shadow-2xl overflow-hidden">
-                        <img
-                          src={topLeftValue.iconUrl}
-                          className="w-full h-full object-contain"
-                          alt=""
-                        />
+                        <div className="relative w-full h-full">
+                          <Image
+                            src={topLeftValue.iconUrl}
+                            fill
+                            sizes="32px"
+                            className="object-contain"
+                            alt=""
+                          />
+                        </div>
                       </div>
                     )}
                     {topRightValue?.iconUrl && (
                       <div className="absolute top-1.5 right-1.5 w-8 h-8 bg-black/70 backdrop-blur-md border border-white/10 rounded-lg flex items-center justify-center p-0 z-20 shadow-2xl overflow-hidden">
-                        <img
-                          src={topRightValue.iconUrl}
-                          className="w-full h-full object-contain"
-                          alt=""
-                        />
+                        <div className="relative w-full h-full">
+                          <Image
+                            src={topRightValue.iconUrl}
+                            fill
+                            sizes="32px"
+                            className="object-contain"
+                            alt=""
+                          />
+                        </div>
                       </div>
                     )}
                   </div>
 
-                  {/* Name Label (Attached to the bottom) */}
                   <div className="bg-black/90 p-2 min-h-[44px] flex items-center justify-center border-t border-gray-800 group-hover:bg-[#22c55e] transition-colors">
                     <span className="text-[11px] font-bold px-1 text-gray-200 group-hover:text-black uppercase tracking-tight flex flex-wrap items-center justify-center gap-1 leading-tight text-center">
                       {getTranslatedField(entity.name, activeLang, gameDefaultLang)}

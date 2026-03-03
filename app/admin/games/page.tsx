@@ -15,14 +15,19 @@ type Game = {
 
 export default async function AdminGamesPage() {
   const supabase = await createClient()
-  const headersList = await headers();
+  
+  // 1. Parallelize all initial data fetching
+  const [gamesRes, headersList] = await Promise.all([
+    supabase
+      .from('games')
+      .select('id, name, slug, cover_url, default_lang, supported_languages')
+      .order('name->>en', { ascending: true }),
+    headers()
+  ]);
+
+  const games = gamesRes.data;
   const acceptLanguage = headersList.get('Accept-Language');
   const currentLang = acceptLanguage ? acceptLanguage.split(',')[0].split('-')[0].toLowerCase() : 'en';
-
-  const { data: games } = await supabase
-    .from('games')
-    .select('id, name, slug, cover_url, default_lang, supported_languages')
-    .order('name->>en', { ascending: true })
 
   return (
     <main className="p-8 space-y-6">

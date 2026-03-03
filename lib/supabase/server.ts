@@ -22,3 +22,20 @@ export async function createClient() {
     }
   )
 }
+
+/**
+ * A Supabase client for public data fetching that doesn't use cookies.
+ * Safe to use inside unstable_cache.
+ */
+export function createPublicClient() {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      cookies: {
+        getAll: () => [],
+        setAll: () => {},
+      },
+    }
+  )
+}

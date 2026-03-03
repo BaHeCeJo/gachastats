@@ -4,6 +4,24 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
 /**
+ * Checks if the current user owns a specific entity.
+ */
+export async function checkEntityOwnershipAction(entityId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { owned: false };
+
+  const { data } = await supabase
+    .from("user_entities")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("entity_id", entityId)
+    .maybeSingle();
+
+  return { owned: !!data, authenticated: true };
+}
+
+/**
  * Toggles an entity in the user's collection.
  */
 export async function toggleCollectionEntityAction(entityId: string, isOwned: boolean) {
@@ -33,7 +51,11 @@ export async function toggleCollectionEntityAction(entityId: string, isOwned: bo
     if (error) return { error: error.message };
   }
 
-  revalidatePath("/", "layout");
+  // Revalidate only the necessary paths instead of the entire layout
+  await Promise.all([
+    revalidatePath(`/[gameSlug]/sections/[sectionId]`, "page"),
+    revalidatePath("/profile")
+  ]);
   return { success: true };
 }
 
@@ -53,7 +75,7 @@ export async function updateEntityDupesAction(instanceId: string, dupes: number)
 
   if (error) return { error: error.message };
   
-  revalidatePath("/", "layout");
+  revalidatePath("/profile");
   return { success: true };
 }
 
@@ -73,7 +95,7 @@ export async function removeUserEntityAction(instanceId: string) {
 
   if (error) return { error: error.message };
   
-  revalidatePath("/", "layout");
+  revalidatePath("/profile");
   return { success: true };
 }
 

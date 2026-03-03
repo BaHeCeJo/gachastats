@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useMemo, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { LocalizedString, getTranslatedField, useLocalizationParams } from "@/lib/localization";
 import { toggleCollectionEntityAction, updateEntityDupesAction, removeUserEntityAction } from "@/app/collections/actions";
 import { Loader2, Plus, Minus, Trash2 } from "lucide-react";
@@ -36,7 +38,9 @@ type Section = {
   id: string;
   is_unique: boolean;
   max_dupes: number;
+  min_dupes: number;
   dupe_name: LocalizedString;
+  is_collectible: boolean;
 };
 
 type Props = {
@@ -58,6 +62,7 @@ export default function CollectionGridManager({
   gameDefaultLang,
   currentLang: browserLang,
 }: Props) {
+  const router = useRouter();
   const { displayLang, t } = useLocalizationParams() as any;
   const activeLang = displayLang || browserLang;
 
@@ -101,21 +106,19 @@ export default function CollectionGridManager({
     startTransition(async () => {
       const result = await toggleCollectionEntityAction(entityId, section.is_unique && isOwned);
       if (result.success) {
-        window.location.reload();
+        router.refresh();
       } else {
         alert(result.error);
-        setPendingId(null);
       }
+      setPendingId(null);
     });
   };
 
   const updateDupes = (instanceId: string, newDupes: number) => {
     if (newDupes < section.min_dupes || newDupes > section.max_dupes) return;
     
-    // 1. Update UI Instantly
     setOwnedEntities(prev => prev.map(oe => oe.id === instanceId ? { ...oe, dupes: newDupes } : oe));
 
-    // 2. Debounce the server request (wait 500ms after last move)
     if (debounceTimers[instanceId]) clearTimeout(debounceTimers[instanceId]);
     
     const newTimer = setTimeout(() => {
@@ -123,7 +126,6 @@ export default function CollectionGridManager({
         const result = await updateEntityDupesAction(instanceId, newDupes);
         if (!result.success) {
           alert(result.error);
-          // Revert on error? (Optional)
         }
       });
     }, 500);
@@ -142,16 +144,14 @@ export default function CollectionGridManager({
     });
   };
 
-  // Helper for segments
   const renderSegments = (current: number) => {
-    // Only show segments for "extra" dupes above the minimum possible.
     const totalExtra = section.max_dupes - section.min_dupes;
     if (totalExtra <= 0) return null;
     
     return (
       <div className="flex gap-1 mt-2 w-full">
         {Array.from({ length: totalExtra }).map((_, i) => {
-          const val = section.min_dupes + i + 1; // Progress starting from min + 1
+          const val = section.min_dupes + i + 1;
           const isActive = val <= current;
           return (
             <div 
@@ -207,7 +207,15 @@ export default function CollectionGridManager({
                       `}
                     >
                       {opt.iconUrl ? (
-                        <img src={opt.iconUrl} alt={displayValue} className={`w-full h-full object-contain ${isActive ? "brightness-0" : ""}`} />
+                        <div className="relative w-full h-full">
+                          <Image 
+                            src={opt.iconUrl} 
+                            alt={displayValue} 
+                            fill
+                            sizes="56px"
+                            className={`object-contain ${isActive ? "brightness-0" : ""}`} 
+                          />
+                        </div>
                       ) : (
                         <span>{displayValue}</span>
                       )}
@@ -257,12 +265,12 @@ export default function CollectionGridManager({
                 >
                   {overlayValue?.iconUrl && (
                     <div className="absolute inset-0 flex items-center justify-center p-2">
-                      <img src={overlayValue.iconUrl} className="w-full h-full object-contain opacity-10 pointer-events-none" alt="" />
+                      <Image src={overlayValue.iconUrl} fill sizes="160px" className="object-contain opacity-10 pointer-events-none" alt="" />
                     </div>
                   )}
 
                   {entity.publicIconUrl ? (
-                    <img src={entity.publicIconUrl} className="w-full h-full object-cover relative z-10" alt="" />
+                    <Image src={entity.publicIconUrl} fill sizes="160px" className="object-cover relative z-10" alt="" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-zinc-700 text-4xl font-black">?</div>
                   )}
@@ -275,8 +283,20 @@ export default function CollectionGridManager({
                     </div>
                   )}
 
-                  {topLeftValue?.iconUrl && <div className="absolute top-2 left-2 w-8 h-8 bg-black/60 backdrop-blur-md rounded-lg flex items-center justify-center p-1 z-20 shadow-xl"><img src={topLeftValue.iconUrl} className="w-full h-full object-contain" alt="" /></div>}
-                  {topRightValue?.iconUrl && <div className="absolute top-2 right-2 w-8 h-8 bg-black/60 backdrop-blur-md rounded-lg flex items-center justify-center p-1 z-20 shadow-xl"><img src={topRightValue.iconUrl} className="w-full h-full object-contain" alt="" /></div>}
+                  {topLeftValue?.iconUrl && (
+                    <div className="absolute top-2 left-2 w-8 h-8 bg-black/60 backdrop-blur-md rounded-lg flex items-center justify-center p-1 z-20 shadow-xl">
+                      <div className="relative w-full h-full">
+                        <Image src={topLeftValue.iconUrl} fill sizes="32px" className="object-contain" alt="" />
+                      </div>
+                    </div>
+                  )}
+                  {topRightValue?.iconUrl && (
+                    <div className="absolute top-2 right-2 w-8 h-8 bg-black/60 backdrop-blur-md rounded-lg flex items-center justify-center p-1 z-20 shadow-xl">
+                      <div className="relative w-full h-full">
+                        <Image src={topRightValue.iconUrl} fill sizes="32px" className="object-contain" alt="" />
+                      </div>
+                    </div>
+                  )}
 
                   {isToggling && (
                     <div className="absolute inset-0 z-50 bg-black/60 flex items-center justify-center">
@@ -291,7 +311,6 @@ export default function CollectionGridManager({
                   </span>
                 </div>
 
-                {/* Slider for Unique Items (Appears at bottom on hover) */}
                 {isOwned && section.is_unique && section.max_dupes > section.min_dupes && (
                   <div className="absolute inset-x-0 bottom-0 bg-black/95 backdrop-blur-3xl p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 z-50 border-t border-white/5">
                     <div className="flex justify-between items-center mb-1">

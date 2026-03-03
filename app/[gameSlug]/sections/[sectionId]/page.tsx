@@ -1,4 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/server";
+import { getGameBySlug, getSectionById, getPublicUrl, getSectionFields, getSectionDisplaySettings, getSectionEntities } from "@/lib/supabase/queries";
 import { redirect } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -7,10 +8,25 @@ import GSBackground from "@/app/components/GSBackground";
 import EntityGridManager from "@/app/components/EntityGridManager";
 import { LocalizedString, getTranslatedField, getTranslation } from "@/lib/localization-utils";
 import { GameLocalizationProvider } from "@/lib/localization";
-import { headers, cookies } from "next/headers"; // Import cookies helper
+
+// Enable ISR
+export const revalidate = 3600;
+
+/**
+ * Pre-generate static paths for sections.
+ */
+export async function generateStaticParams() {
+  const supabase = createPublicClient();
+  const { data: sections } = await supabase.from('game_sections').select('id, games(slug)').returns<any[]>();
+  
+  return (sections || []).map((s) => ({
+    gameSlug: s.games?.slug,
+    sectionId: s.id,
+  }));
+}
 
 // --- Type Definitions ---
-type Game = {
+export type Game = {
   id: string;
   name: LocalizedString;
   slug: string;
@@ -19,7 +35,7 @@ type Game = {
   supported_languages: string[];
 };
 
-type Section = {
+export type Section = {
   id: string;
   key: LocalizedString;
   game_id: string;
@@ -30,7 +46,7 @@ type Section = {
 type FieldOption = {
   id: string;
   field_id: string;
-  value_key: LocalizedString; // Localized
+  value_key: LocalizedString;
   icon_path: string | null;
   color: string | null;
   order_index: number;
@@ -39,7 +55,7 @@ type FieldOption = {
 type Field = {
   id: string;
   section_id: string;
-  key: LocalizedString; // Localized
+  key: LocalizedString;
   required: boolean;
   manual_fill: boolean;
   has_icon: boolean;
@@ -48,25 +64,26 @@ type Field = {
   is_multi: boolean;
   category: string | null;
   field_options: FieldOption[] | null;
+  game_field_id: string;
 };
 
 type EntityFieldValue = {
   id: string;
-  field_id: string;
-  value_text: LocalizedString | null; // Localized
+  game_field_id: string;
+  value_text: LocalizedString | null;
   option_id: string | null;
-  field_options: Pick<FieldOption, 'color' | 'icon_path' | 'value_key'> | null; // value_key also Localized here
+  field_options: Pick<FieldOption, 'color' | 'icon_path' | 'value_key'> | null;
 };
 
 type EntitySkin = {
   is_default: boolean;
-  entity_images: { image_path: string | null }[];
+  entity_images: { image_path: string | null; type: string }[];
 };
 
 type Entity = {
   id: string;
   section_id: string;
-  name: LocalizedString; // Localized
+  name: LocalizedString;
   icon_path: string | null;
   entity_skins: EntitySkin[] | null;
   entity_field_values: EntityFieldValue[] | null;
@@ -85,21 +102,19 @@ type PageProps = {
 
 export async function generateMetadata({ params: paramsPromise }: PageProps) {
   const { gameSlug, sectionId } = await paramsPromise;
-  const supabase = await createClient();
   
-  // Get current language from cookie or header
-  const headersList = await headers();
-  const cookies = headersList.get('cookie') || '';
-  const userLang = cookies.split('; ').find(row => row.startsWith('user_lang='))?.split('=')[1];
-  const acceptLanguage = headersList.get('Accept-Language');
-  const browserLang = acceptLanguage ? acceptLanguage.split(',')[0].split('-')[0].toLowerCase() : 'en';
-  const currentLang = userLang || browserLang;
+  const [gameRes, sectionRes] = await Promise.all([
+    getGameBySlug(gameSlug),
+    getSectionById(sectionId)
+  ]);
 
-  const { data: game } = await supabase.from("games").select("name, default_lang").eq("slug", gameSlug).single();
-  const { data: section } = await supabase.from("game_sections").select("key").eq("id", sectionId).single();
+  const game = gameRes.data;
+  const section = sectionRes.data;
 
   if (!game || !section) return { title: 'Section Not Found' };
 
+  // Use default lang for static generation
+  const currentLang = game.default_lang || 'en';
   const gameTitle = getTranslatedField(game.name, currentLang, game.default_lang || 'en');
   const sectionTitle = getTranslatedField(section.key, currentLang, game.default_lang || 'en');
 
@@ -114,100 +129,53 @@ export async function generateMetadata({ params: paramsPromise }: PageProps) {
 export default async function SectionDetailPage({ params: paramsPromise }: PageProps) {
   const params = await paramsPromise;
   const { gameSlug, sectionId } = params;
-  const supabase = await createClient();
 
-  // 1. Fetch game details first to get the default_lang needed for sorting child queries
-  const { data: game, error: gameError } = await supabase
-    .from("games")
-    .select("id, name, slug, cover_url, default_lang, supported_languages")
-    .eq("slug", gameSlug)
-    .single<Game>();
+  // 1. Fetch game (cached)
+  const { data: game, error: gameError } = await getGameBySlug(gameSlug);
 
   if (gameError || !game) {
-    console.error("Game fetch error:", gameError?.message || "Game not found.");
     redirect("/");
   }
 
-  // 2. Initiate remaining requests in parallel using game data
-  const [sectionRes, fieldsRes, optionsRes, settingsRes, entitiesRes] = await Promise.all([
-    supabase.from("game_sections").select("id, key, game_id, icon_path, color").eq("id", sectionId).single<Section>(),
-    supabase.from("section_fields").select(`
-      id, key, required, is_multi, category, order_index, game_field_id,
-      game_fields (
-        manual_fill, has_icon, has_color
-      )
-    `).eq("section_id", sectionId).order("order_index", { ascending: true }),
-    supabase.from("field_options").select("id, game_field_id, value_key, icon_path, color, order_index"),
-    supabase.from("section_display_settings").select("*").eq("section_id", sectionId).single(),
-    supabase.from("section_entities").select(`
-      id, section_id, name, icon_path,
-      entity_skins ( is_default, entity_images ( image_path, type ) ),
-      entity_field_values ( id, game_field_id, value_text, option_id, field_options ( color, icon_path, value_key ) )
-    `).eq("section_id", sectionId).eq("entity_skins.is_default", true).order(`name->>${game.default_lang}`, { ascending: true })
+  // 2. Fetch everything else in parallel (all cached)
+  const [sectionRes, fieldsRes, settingsRes, entitiesRes] = await Promise.all([
+    getSectionById(sectionId),
+    getSectionFields(sectionId),
+    getSectionDisplaySettings(sectionId),
+    getSectionEntities(sectionId, game.default_lang)
   ]);
 
   const { data: section, error: sectionError } = sectionRes;
   const { data: fieldsRaw } = fieldsRes;
-  const { data: allOptionsRaw } = optionsRes;
   const { data: displaySettings } = settingsRes;
   const { data: entities, error: entitiesError } = entitiesRes;
 
   if (sectionError || !section) {
-    console.error("Section fetch error:", sectionError?.message || "Section not found.");
     redirect(`/${gameSlug}`);
   }
 
-  if (entitiesError) {
-    console.error("Entities fetch error:", entitiesError?.message);
-  }
+  // Static fallback language
+  const currentLang = game.default_lang;
 
-  // Flatten fields structure for compatibility
   const fields = (fieldsRaw || []).map((f: any) => {
-    // Handle cases where game_fields might be returned as an array or a single object
     const gf = Array.isArray(f.game_fields) ? f.game_fields[0] : f.game_fields;
-    const options = (allOptionsRaw || []).filter((opt: any) => opt.game_field_id === f.game_field_id);
     return {
       ...f,
       manual_fill: gf?.manual_fill,
       has_icon: gf?.has_icon,
       has_color: gf?.has_color,
-      field_options: options || []
+      field_options: gf?.field_options || []
     };
   });
 
-  // --- Language Detection ---
-  const headersList = await headers();
-  const cookieStore = await cookies();
-  const userLang = cookieStore.get('user_lang')?.value;
-  
-  const acceptLanguage = headersList.get('Accept-Language');
-  const browserLang = acceptLanguage ? acceptLanguage.split(',')[0].split('-')[0].toLowerCase() : 'en';
-
-  const preferredLang = userLang || browserLang;
-
-  const currentLang = game.supported_languages.includes(preferredLang) ? preferredLang : game.default_lang;
-
-  // Create a map of fields for easy lookup - use game_field_id for value mapping
-  const fieldsMap = new Map((fields || [])?.map(f => [f.id, f]));
   const gameFieldsMap = new Map((fields || [])?.map(f => [f.game_field_id, f]));
 
-  // Process entities
   const processedEntities: ProcessedEntity[] = (entities || []).map((entity: any) => {
-    // 1. Try to get the direct icon_path from the entity table
-    // 2. Fallback to the icon from the default skin
     const defaultSkin = entity.entity_skins?.[0];
     const skinIconPath = defaultSkin?.entity_images?.find((img: any) => img.type === 'icon')?.image_path;
     const iconPath = entity.icon_path || skinIconPath;
     
-    let publicIconUrl = "";
-
-    if (iconPath) {
-      if (iconPath.startsWith("http")) {
-        publicIconUrl = iconPath;
-      } else {
-        publicIconUrl = supabase.storage.from("games").getPublicUrl(iconPath).data.publicUrl;
-      }
-    }
+    const publicIconUrl = getPublicUrl('games', iconPath) || "";
 
     const fieldValuesMap: Record<string, { color?: string; iconUrl?: string }> = {};
     const allValues: Record<string, string[]> = {};
@@ -220,10 +188,8 @@ export default async function SectionDetailPage({ params: paramsPromise }: PageP
       if (!allValues[fieldId]) allValues[fieldId] = [];
 
       if (val.option_id) {
-        // If it's an option, we use the option_id for filtering
         allValues[fieldId].push(val.option_id);
       } else {
-        // For manual fill fields, we use the translated text value(s)
         const translatedValue = getTranslatedField(val.value_text, currentLang, game.default_lang);
         if (translatedValue) {
           if (field?.is_multi) {
@@ -239,43 +205,35 @@ export default async function SectionDetailPage({ params: paramsPromise }: PageP
       if (opt) {
         fieldValuesMap[fieldId] = {
           color: opt.color || undefined,
-          iconUrl: opt.icon_path
-            ? (opt.icon_path.startsWith("http") ? opt.icon_path : supabase.storage.from("games").getPublicUrl(opt.icon_path).data.publicUrl)
-            : undefined,
+          iconUrl: getPublicUrl('games', opt.icon_path) || undefined,
         };
       }
     });
 
-    return { ...entity, publicIconUrl, fieldValuesMap, allValues };
+    return { ...entity, publicIconUrl, fieldValuesMap, allValues } as ProcessedEntity;
   });
 
-  // Prepare filter fields data for EntityGridManager
   const filterFieldIds = displaySettings?.filter_field_ids || [];
   const filterFields =
     (fields || [])
       .filter((f) => filterFieldIds.includes(f.id))
       .map((f) => ({
         id: String(f.id),
-        key: f.key, // Keep as LocalizedString object
+        key: f.key,
         options: (f.field_options || [])
           .sort((a: any, b: any) => a.order_index - b.order_index)
           .map((opt: any) => ({
             id: String(opt.id),
-            value_key: opt.value_key, // Keep as LocalizedString object
-            iconUrl: opt.icon_path
-              ? (opt.icon_path.startsWith("http") ? opt.icon_path : supabase.storage.from("games").getPublicUrl(opt.icon_path).data.publicUrl)
-              : undefined,
+            value_key: opt.value_key,
+            iconUrl: getPublicUrl('games', opt.icon_path) || undefined,
             color: opt.color,
           })),
       })) || [];
 
-  const gameCoverUrl = game.cover_url
-    ? supabase.storage.from("games").getPublicUrl(game.cover_url).data.publicUrl
-    : null;
+  const gameCoverUrl = getPublicUrl('games', game.cover_url);
 
   return (
     <div className="relative flex flex-col min-h-screen bg-zinc-50 dark:bg-black font-sans overflow-x-hidden">
-      {/* Dynamic Background Cover (Game Cover) */}
       <div className="fixed inset-0 pointer-events-none z-[1] overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-center grayscale blur-md opacity-25 scale-105 transition-all duration-1000 ease-out"
@@ -288,7 +246,6 @@ export default async function SectionDetailPage({ params: paramsPromise }: PageP
         gameDefaultLang={game.default_lang} 
         gameSupportedLanguages={game.supported_languages}
       >
-        {/* GS logo as a lower layer for brand presence, hidden if game cover is present */}
         <GSBackground isHidden={!!gameCoverUrl} />
         
         <Header
@@ -304,7 +261,7 @@ export default async function SectionDetailPage({ params: paramsPromise }: PageP
             <div className="flex items-center gap-6">
               {section.icon_path ? (
                 <Image
-                  src={supabase.storage.from("games").getPublicUrl(section.icon_path).data.publicUrl}
+                  src={getPublicUrl('games', section.icon_path)!}
                   alt={getTranslatedField(section.key, currentLang, game.default_lang)}
                   width={80}
                   height={80}

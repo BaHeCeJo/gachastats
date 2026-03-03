@@ -1,4 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
+import { 
+  getGameBySlug, 
+  getSectionById, 
+  getSectionFields, 
+  getSectionDisplaySettings, 
+  getSectionEntities,
+  getPublicUrl
+} from "@/lib/supabase/queries";
 import { redirect } from "next/navigation";
 import Image from "next/image";
 import Header from "@/app/components/Header";
@@ -17,40 +25,62 @@ export default async function SectionCollectionPage({ params: paramsPromise }: P
   const { gameSlug, sectionId } = params;
   const supabase = await createClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
+  // 1. Parallelize Auth and Cached Global Data
+  const [userRes, gameRes] = await Promise.all([
+    supabase.auth.getUser(),
+    getGameBySlug(gameSlug)
+  ]);
+
+  const user = userRes.data.user;
+  const { data: game, error: gameError } = gameRes;
+
   if (!user) redirect("/auth/signin");
-
-  const { data: game, error: gameError } = await supabase
-    .from("games")
-    .select("id, name, slug, cover_url, default_lang, supported_languages")
-    .eq("slug", gameSlug)
-    .single();
-
   if (gameError || !game) redirect("/profile");
 
-  const [sectionRes, fieldsRes, settingsRes, entitiesRes, ownedRes] = await Promise.all([
-    supabase.from("game_sections").select("*").eq("id", sectionId).single(),
-    supabase.from("section_fields").select(`
-      id, key, required, is_multi, category, order_index, game_field_id,
-      game_fields (
-        manual_fill, has_icon, has_color,
-        field_options ( id, value_key, icon_path, color, order_index )
-      )
-    `).eq("section_id", sectionId).order("order_index", { ascending: true }),
-    supabase.from("section_display_settings").select("*").eq("section_id", sectionId).single(),
+  // 2. Parallelize everything else (Consolidated entities and owned check)
+  const [sectionRes, fieldsRes, settingsRes, entitiesRes] = await Promise.all([
+    getSectionById(sectionId),
+    getSectionFields(sectionId),
+    getSectionDisplaySettings(sectionId),
+    // Fetch entities AND the user's ownership status in ONE query
     supabase.from("section_entities").select(`
-      id, section_id, name, icon_path,
-      entity_skins ( is_default, entity_images ( image_path, type ) ),
-      entity_field_values ( id, game_field_id, value_text, option_id, field_options ( color, icon_path, value_key ) )
-    `).eq("section_id", sectionId).eq("entity_skins.is_default", true).order(`name->>${game.default_lang}`, { ascending: true }),
-    supabase.from("user_entities").select("id, entity_id, dupes").eq("user_id", user.id)
+      id, 
+      section_id, 
+      name, 
+      icon_path,
+      entity_skins ( 
+        entity_images ( image_path, type ) 
+      ),
+      entity_field_values ( 
+        game_field_id, 
+        value_text, 
+        option_id, 
+        field_options ( color, icon_path, value_key ) 
+      ),
+      user_entities!left (
+        id,
+        dupes
+      )
+    `)
+    .eq("section_id", sectionId)
+    .eq("user_entities.user_id", user.id)
+    .eq("entity_skins.is_default", true)
+    .order(`name->>${game.default_lang}`, { ascending: true })
   ]);
 
   const section = sectionRes.data;
   const fieldsRaw = fieldsRes.data;
   const displaySettings = settingsRes.data;
-  const entities = entitiesRes.data;
-  const ownedEntities = ownedRes.data || [];
+  const entities = entitiesRes.data || [];
+
+  // Map owned entities from the joined query
+  const ownedEntities = entities
+    .filter(e => e.user_entities && e.user_entities.length > 0)
+    .map(e => ({
+      id: e.user_entities[0].id,
+      entity_id: e.id,
+      dupes: e.user_entities[0].dupes
+    }));
 
   if (!section || section.game_id !== game.id || !section.is_collectible) redirect(`/profile/${gameSlug}`);
 
@@ -85,7 +115,7 @@ export default async function SectionCollectionPage({ params: paramsPromise }: P
     
     let publicIconUrl = "";
     if (iconPath) {
-      publicIconUrl = iconPath.startsWith("http") ? iconPath : supabase.storage.from("games").getPublicUrl(iconPath).data.publicUrl;
+      publicIconUrl = getPublicUrl('games', iconPath) || "";
     }
 
     const fieldValuesMap: Record<string, { color?: string; iconUrl?: string }> = {};
@@ -108,7 +138,7 @@ export default async function SectionCollectionPage({ params: paramsPromise }: P
       if (val.field_options) {
         fieldValuesMap[fieldId] = {
           color: val.field_options.color || undefined,
-          iconUrl: val.field_options.icon_path ? supabase.storage.from("games").getPublicUrl(val.field_options.icon_path).data.publicUrl : undefined,
+          iconUrl: getPublicUrl('games', val.field_options.icon_path) || undefined,
         };
       }
     });
@@ -127,12 +157,12 @@ export default async function SectionCollectionPage({ params: paramsPromise }: P
         .map((opt: any) => ({
           id: String(opt.id),
           value_key: opt.value_key,
-          iconUrl: opt.icon_path ? supabase.storage.from("games").getPublicUrl(opt.icon_path).data.publicUrl : undefined,
+          iconUrl: getPublicUrl('games', opt.icon_path) || undefined,
           color: opt.color,
         })),
     }));
 
-  const gameCoverUrl = game.cover_url ? supabase.storage.from("games").getPublicUrl(game.cover_url).data.publicUrl : null;
+  const gameCoverUrl = getPublicUrl('games', game.cover_url);
 
   return (
     <div className="relative flex flex-col min-h-screen bg-black font-sans text-white overflow-x-hidden">
@@ -154,7 +184,7 @@ export default async function SectionCollectionPage({ params: paramsPromise }: P
             <div className="flex flex-col md:flex-row items-center gap-8">
               {section.icon_path ? (
                 <div className="w-24 h-24 rounded-full bg-zinc-800 border-2 border-zinc-700 p-4 shadow-2xl flex items-center justify-center" style={{ backgroundColor: section.color || 'transparent' }}>
-                  <img src={supabase.storage.from("games").getPublicUrl(section.icon_path).data.publicUrl} className="w-full h-full object-contain filter grayscale invert brightness-200" alt="" />
+                  <img src={getPublicUrl('games', section.icon_path)!} className="w-full h-full object-contain filter grayscale invert brightness-200" alt="" />
                 </div>
               ) : (
                 <div className="w-24 h-24 rounded-full bg-zinc-800 border-2 border-zinc-700 flex items-center justify-center text-zinc-500 text-4xl font-black" style={{ backgroundColor: section.color || 'transparent' }}>?</div>

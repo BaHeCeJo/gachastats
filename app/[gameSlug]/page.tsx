@@ -1,54 +1,32 @@
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/server";
+import { getGameBySlug, getPublicUrl } from "@/lib/supabase/queries";
 import { redirect } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import Header from "@/app/components/Header";
-import GSBackground from "@/app/components/GSBackground"; // For consistent background layering
-import { LocalizedString, getTranslatedField, getTranslation } from "@/lib/localization-utils"; // Server-safe utilities
-import { GameLocalizationProvider } from "@/lib/localization"; // Client-side provider
-import { headers, cookies } from "next/headers";
+import GSBackground from "@/app/components/GSBackground";
+import { LocalizedString, getTranslatedField, getTranslation } from "@/lib/localization-utils";
+import { GameLocalizationProvider } from "@/lib/localization";
 
-type Game = {
-  id: string;
-  name: LocalizedString; // Changed to LocalizedString
-  slug: string;
-  description: LocalizedString; // Added description as LocalizedString
-  cover_url: string | null;
-  default_lang: string; // Added default_lang
-  supported_languages: string[]; // Added supported_languages
-};
+export const revalidate = 3600;
 
-type Section = {
-  id: string;
-  key: LocalizedString; // Changed to LocalizedString
-  icon_path: string | null;
-  color: string | null;
+export async function generateStaticParams() {
+  const supabase = createPublicClient();
+  const { data: games } = await supabase.from('games').select('slug');
+  return (games || []).map((game) => ({
+    gameSlug: game.slug,
+  }));
 }
 
-type PageProps = {
-  params: Promise<{ gameSlug: string }>;
-};
+// ... (types)
 
 export async function generateMetadata({ params: paramsPromise }: PageProps) {
   const { gameSlug } = await paramsPromise;
-  const supabase = await createClient();
-  
-  // Get current language from cookie or header
-  const headersList = await headers();
-  const cookies = headersList.get('cookie') || '';
-  const userLang = cookies.split('; ').find(row => row.startsWith('user_lang='))?.split('=')[1];
-  const acceptLanguage = headersList.get('Accept-Language');
-  const browserLang = acceptLanguage ? acceptLanguage.split(',')[0].split('-')[0].toLowerCase() : 'en';
-  const currentLang = userLang || browserLang;
-
-  const { data: game } = await supabase
-    .from("games")
-    .select("name, description, default_lang")
-    .eq("slug", gameSlug)
-    .single();
+  const { data: game } = await getGameBySlug(gameSlug);
 
   if (!game) return { title: 'Game Not Found' };
 
+  const currentLang = game.default_lang || 'en';
   const title = getTranslatedField(game.name, currentLang, game.default_lang || 'en');
   const description = getTranslatedField(game.description, currentLang, game.default_lang || 'en');
 
@@ -65,49 +43,23 @@ export async function generateMetadata({ params: paramsPromise }: PageProps) {
 export default async function GameDetailPage({ params: paramsPromise }: PageProps) {
   const params = await paramsPromise;
   const { gameSlug } = params;
-  const supabase = await createClient();
+  const supabase = createPublicClient();
 
-  // Fetch game details, including new language fields
-  const { data: game, error: gameError } = await supabase
-    .from("games")
-    .select("id, name, slug, description, cover_url, default_lang, supported_languages") // Select all relevant fields
-    .eq("slug", gameSlug)
-    .single<Game>(); // Explicitly type the result
+  const { data: game, error: gameError } = await getGameBySlug(gameSlug);
 
   if (gameError || !game) {
-    console.error("Game fetch error:", gameError?.message || "Game not found.");
-    redirect("/"); // Redirect to home if game not found (e.g., due to RLS or bad slug)
+    redirect("/");
   }
 
-  // Fetch sections for the game
   const { data: sections, error: sectionsError } = await supabase
     .from("game_sections")
     .select("id, key, icon_path, color")
     .eq("game_id", game.id)
     .order("order_index", { ascending: true });
 
-  if (sectionsError) {
-    console.error("Sections fetch error:", sectionsError?.message);
-  }
+  const coverUrl = getPublicUrl('games', game.cover_url);
+  const currentLang = game.default_lang;
 
-  const coverUrl = game.cover_url
-    ? supabase.storage.from("games").getPublicUrl(game.cover_url).data.publicUrl
-    : null;
-
-  // --- Language Detection ---
-  const headersList = await headers();
-  const cookieStore = await cookies();
-  const userLang = cookieStore.get('user_lang')?.value;
-  
-  const acceptLanguage = headersList.get('Accept-Language');
-  const browserLang = acceptLanguage ? acceptLanguage.split(',')[0].split('-')[0].toLowerCase() : 'en';
-
-  const preferredLang = userLang || browserLang;
-
-  // Use the preferred language if it's supported by the game, otherwise fallback to game default
-  const currentLang = game.supported_languages.includes(preferredLang) ? preferredLang : game.default_lang;
-
-  // --- Sorting Logic ---
   const sortedSections = [...(sections || [])].sort((a, b) => {
     const nameA = getTranslatedField(a.key, currentLang, game.default_lang).trim();
     const nameB = getTranslatedField(b.key, currentLang, game.default_lang).trim();
@@ -116,13 +68,11 @@ export default async function GameDetailPage({ params: paramsPromise }: PageProp
 
   return (
     <div className="relative flex flex-col min-h-screen bg-zinc-50 dark:bg-black font-sans overflow-x-hidden">
-      {/* Background Cover */}
       <div className="fixed inset-0 pointer-events-none z-[1] overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-center grayscale blur-md opacity-25 scale-105 transition-all duration-1000 ease-out"
           style={{ backgroundImage: coverUrl ? `url(${coverUrl})` : "none" }}
         />
-        {/* Subtle dark overlay to ensure readability */}
         <div className="absolute inset-0 bg-zinc-50/60 dark:bg-black/80" />
       </div>
 
@@ -130,7 +80,6 @@ export default async function GameDetailPage({ params: paramsPromise }: PageProp
         gameDefaultLang={game.default_lang} 
         gameSupportedLanguages={game.supported_languages}
       >
-        {/* GS logo as a lower layer for brand presence, hidden if cover is present */}
         <GSBackground isHidden={!!coverUrl} />
         
         <Header breadcrumbs={[{ href: '/', label: getTranslation('home', currentLang) }, { href: `/${gameSlug}`, label: getTranslatedField(game.name, currentLang, game.default_lang) }]} />
@@ -163,9 +112,7 @@ export default async function GameDetailPage({ params: paramsPromise }: PageProp
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
                 {sortedSections && sortedSections.length > 0 ? (
                   sortedSections.map((section) => {
-                    const sectionIconUrl = section.icon_path
-                      ? supabase.storage.from("games").getPublicUrl(section.icon_path).data.publicUrl
-                      : null;
+                    const sectionIconUrl = getPublicUrl('games', section.icon_path);
                     return (
                       <Link
                         key={section.id}
@@ -205,3 +152,4 @@ export default async function GameDetailPage({ params: paramsPromise }: PageProp
     </div>
   );
 }
+

@@ -1,0 +1,216 @@
+import { cache } from 'react';
+import { unstable_cache } from 'next/cache';
+import { createPublicClient } from './server';
+
+/**
+ * Cached fetch for a single game by its slug.
+ */
+export const getGameBySlug = cache(async (slug: string) => {
+  return unstable_cache(
+    async () => {
+      const supabase = createPublicClient();
+      return supabase
+        .from("games")
+        .select("id, name, slug, description, cover_url, default_lang, supported_languages")
+        .eq("slug", slug)
+        .single();
+    },
+    [`game-${slug}`],
+    { revalidate: 3600, tags: [`game-${slug}`] }
+  )();
+});
+
+/**
+ * Cached fetch for a single section by its ID.
+ */
+export const getSectionById = cache(async (sectionId: string) => {
+  return unstable_cache(
+    async () => {
+      const supabase = createPublicClient();
+      return supabase
+        .from("game_sections")
+        .select("id, key, game_id, icon_path, color, is_collectible, is_unique, min_dupes, max_dupes, dupe_name")
+        .eq("id", sectionId)
+        .single();
+    },
+    [`section-${sectionId}`],
+    { revalidate: 3600, tags: [`section-${sectionId}`] }
+  )();
+});
+
+/**
+ * Cached fetch for section fields.
+ */
+export const getSectionFields = cache(async (sectionId: string) => {
+  return unstable_cache(
+    async () => {
+      const supabase = createPublicClient();
+      return supabase.from("section_fields").select(`
+        id, key, required, is_multi, category, order_index, game_field_id,
+        game_fields (
+          manual_fill, has_icon, has_color,
+          field_options ( id, value_key, icon_path, color, order_index )
+        )
+      `).eq("section_id", sectionId).order("order_index", { ascending: true });
+    },
+    [`section-fields-${sectionId}`],
+    { revalidate: 3600, tags: [`section-fields-${sectionId}`] }
+  )();
+});
+
+/**
+ * Cached fetch for field options.
+ */
+export const getFieldOptions = cache(async () => {
+  return unstable_cache(
+    async () => {
+      const supabase = createPublicClient();
+      return supabase.from("field_options").select("id, game_field_id, value_key, icon_path, color, order_index");
+    },
+    ['all-field-options'],
+    { revalidate: 3600, tags: ['field-options'] }
+  )();
+});
+
+/**
+ * Cached fetch for section display settings.
+ */
+export const getSectionDisplaySettings = cache(async (sectionId: string) => {
+  return unstable_cache(
+    async () => {
+      const supabase = createPublicClient();
+      return supabase.from("section_display_settings").select("*").eq("section_id", sectionId).single();
+    },
+    [`section-settings-${sectionId}`],
+    { revalidate: 3600, tags: [`section-settings-${sectionId}`] }
+  )();
+});
+
+/**
+ * Cached fetch for section entities with pagination and field limiting.
+ */
+export const getSectionEntities = cache(async (
+  sectionId: string, 
+  defaultLang: string, 
+  page: number = 0, 
+  pageSize: number = 50
+) => {
+  return unstable_cache(
+    async () => {
+      const supabase = createPublicClient();
+      const from = page * pageSize;
+      const to = from + pageSize - 1;
+
+      return supabase.from("section_entities").select(`
+        id, 
+        name, 
+        icon_path,
+        entity_skins!left ( 
+          entity_images ( image_path, type ) 
+        ),
+        entity_field_values ( 
+          game_field_id, 
+          value_text, 
+          option_id, 
+          field_options ( color, icon_path, value_key ) 
+        )
+      `)
+      .eq("section_id", sectionId)
+      .eq("entity_skins.is_default", true)
+      .order(`name->>${defaultLang}`, { ascending: true })
+      .range(from, to);
+    },
+    [`section-entities-${sectionId}-${defaultLang}-p${page}`],
+    { revalidate: 3600, tags: [`section-entities-${sectionId}`] }
+  )();
+});
+
+/**
+ * Cached fetch for a single entity by its ID (Public version).
+ */
+export const getEntityById = cache(async (entityId: string) => {
+  return unstable_cache(
+    async () => {
+      const supabase = createPublicClient();
+      return supabase.from("section_entities")
+        .select(`*, entity_skins (id, is_default, name, entity_images (image_path, type))`)
+        .eq("id", entityId)
+        .single();
+    },
+    [`entity-${entityId}`],
+    { revalidate: 3600, tags: [`entity-${entityId}`] }
+  )();
+});
+
+/**
+ * Cached fetch for a full entity by its ID (Admin version with all skins/images).
+ */
+export const getFullEntityById = cache(async (entityId: string) => {
+  return unstable_cache(
+    async () => {
+      const supabase = createPublicClient();
+      return supabase.from("section_entities").select(`
+        id, section_id, name, icon_path,
+        entity_skins (
+          id, entity_id, name, is_default,
+          entity_images ( id, type, key, image_path, width, height, order_index )
+        )
+      `).eq("id", entityId).single();
+    },
+    [`entity-full-${entityId}`],
+    { revalidate: 3600, tags: [`entity-${entityId}`] }
+  )();
+});
+
+/**
+ * Cached fetch for entity field values.
+ */
+export const getEntityFieldValues = cache(async (entityId: string) => {
+  return unstable_cache(
+    async () => {
+      const supabase = createPublicClient();
+      return supabase.from("entity_field_values").select("*").eq("entity_id", entityId);
+    },
+    [`entity-values-${entityId}`],
+    { revalidate: 3600, tags: [`entity-values-${entityId}`] }
+  )();
+});
+
+/**
+ * Cached fetch for section teams that include a specific entity.
+ */
+export const getEntityTeams = cache(async (entityId: string) => {
+  return unstable_cache(
+    async () => {
+      const supabase = createPublicClient();
+      // First get team IDs where the entity is a member
+      const { data: memberData } = await supabase
+        .from("section_team_members")
+        .select("team_id")
+        .eq("entity_id", entityId);
+      
+      const teamIds = (memberData || []).map(m => m.team_id);
+      if (teamIds.length === 0) return { data: [], error: null };
+
+      // Then fetch full team details
+      return supabase
+        .from("section_teams")
+        .select(`*, section_team_members(*)`)
+        .in("id", teamIds)
+        .order('created_at', { ascending: false });
+    },
+    [`entity-teams-${entityId}`],
+    { revalidate: 3600, tags: [`entity-teams-${entityId}`] }
+  )();
+});
+
+/**
+ * Manual URL construction for Supabase Storage to avoid library overhead in loops.
+ */
+export function getPublicUrl(bucket: string, path: string | null) {
+  if (!path) return null;
+  if (path.startsWith('http')) return path;
+  
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  return `${supabaseUrl}/storage/v1/object/public/${bucket}/${path}`;
+}

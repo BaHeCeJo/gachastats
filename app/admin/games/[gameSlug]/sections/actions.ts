@@ -172,30 +172,27 @@ export async function deleteSectionAction(
 ) {
   const supabase = await createClient();
 
-  // 1. Fetch all asset paths for this section before they are deleted from DB
-  const { data: entities } = await supabase
-    .from("section_entities")
-    .select("id")
-    .eq("section_id", sectionId);
+  // 1. Fetch section and its entities in parallel before they are deleted from DB
+  const [sectionRes, entitiesRes] = await Promise.all([
+    supabase.from("game_sections").select("icon_path").eq("id", sectionId).single(),
+    supabase.from("section_entities").select("id").eq("section_id", sectionId)
+  ]);
 
-  const { data: section } = await supabase
-    .from("game_sections")
-    .select("icon_path")
-    .eq("id", sectionId)
-    .single();
+  const section = sectionRes.data;
+  const entities = entitiesRes.data || [];
+  const entityIds = entities.map(e => e.id);
 
-  const entityIds = entities?.map(e => e.id) || [];
-  
+  // 2. Fetch all image paths for these entities
   const { data: images } = await supabase
     .from("entity_images")
     .select("image_path")
     .in("entity_id", entityIds);
 
-  // 2. Prepare and cleanup storage
+  // 3. Prepare and cleanup storage
   const pathsToDelete: string[] = [];
-  
+
   if (section?.icon_path) pathsToDelete.push(extractPathFromUrl(section.icon_path, "games"));
-  
+
   images?.forEach(img => {
     if (img.image_path) pathsToDelete.push(extractPathFromUrl(img.image_path, "games"));
   });
@@ -206,7 +203,7 @@ export async function deleteSectionAction(
     await supabase.storage.from("games").remove(validPaths);
   }
 
-  // 3. Finally delete the section - database CASCADE handles the rest
+  // 4. Finally delete the section - database CASCADE handles the rest
   const { error } = await supabase
     .from("game_sections")
     .delete()

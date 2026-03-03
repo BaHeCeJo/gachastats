@@ -156,27 +156,29 @@ export async function upsertEntityAction(
     return { error: `Failed to clear old field values: ${deleteValuesError.message}` };
   }
 
-  // Then, insert new/updated values
-  // fieldValues is now expected to be an array of { field_id, values: string[] }
+  // OPTIMIZATION: Fetch all field definitions in one query to avoid N+1
+  const fieldIds = fieldValues.map((fv: any) => fv.field_id);
+  const { data: fieldDefs } = await supabase
+    .from("section_fields")
+    .select(`
+      id,
+      is_multi,
+      game_field_id,
+      game_fields (
+        manual_fill
+      )
+    `)
+    .in("id", fieldIds);
+
+  const fieldDefMap = new Map(fieldDefs?.map(fd => [fd.id, fd]));
+
   const valuesToInsert: any[] = [];
 
   for (const fVal of fieldValues) {
     const { field_id, values } = fVal;
     if (!values || values.length === 0) continue;
 
-    // Fetch field definition to check rules (Join with game_fields)
-    const { data: fieldDef } = await supabase
-      .from("section_fields")
-      .select(`
-        is_multi,
-        game_field_id,
-        game_fields (
-          manual_fill
-        )
-      `)
-      .eq("id", field_id)
-      .single();
-
+    const fieldDef = fieldDefMap.get(field_id);
     if (!fieldDef) continue;
 
     const gameFieldId = fieldDef.game_field_id;
@@ -187,13 +189,13 @@ export async function upsertEntityAction(
     for (const val of values) {
       if (!val) continue;
 
-      // Check if val is a UUID
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 
       if (isUuid) {
         processedOptionIds.push(val);
       } else if (manualFill) {
-        // Create new option
+        // This is still sequential because we need the new ID, 
+        // but it's much better than fetching the field definition in a loop.
         const { data: newOpt, error: optError } = await supabase
           .from("field_options")
           .insert({
@@ -215,7 +217,6 @@ export async function upsertEntityAction(
     if (processedOptionIds.length === 0) continue;
 
     if (fieldDef.is_multi) {
-      // Store as comma-separated IDs in value_text
       valuesToInsert.push({
         entity_id: currentEntityId,
         game_field_id: gameFieldId,
@@ -223,7 +224,6 @@ export async function upsertEntityAction(
         option_id: null
       });
     } else {
-      // Store single ID in option_id
       valuesToInsert.push({
         entity_id: currentEntityId,
         game_field_id: gameFieldId,

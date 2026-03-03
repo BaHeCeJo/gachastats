@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { getGameBySlug, getPublicUrl } from "@/lib/supabase/queries";
 import { redirect } from 'next/navigation'
 import { LocalizedString, getTranslatedField, getTranslation } from "@/lib/localization-utils";
 import { GameLocalizationProvider } from "@/lib/localization";
@@ -24,29 +25,27 @@ type PageProps = {
   params: Promise<{ gameSlug: string }>
 }
 
-export default async function SectionsPage({ params }: PageProps) {
-  const { gameSlug } = await params
+export default async function SectionsPage({ params: paramsPromise }: PageProps) {
+  const { gameSlug } = await paramsPromise
   if (!gameSlug) redirect('/admin/games')
 
   const supabase = await createClient()
 
-  // Fetch game (including language settings)
-  const { data: game } = await supabase
-    .from('games')
-    .select('id, name, slug, default_lang, supported_languages') // Select language fields
-    .eq('slug', gameSlug)
-    .single<Game>();
-
+  // 1. Fetch game (cached)
+  const { data: game } = await getGameBySlug(gameSlug);
   if (!game) redirect('/admin/games')
 
-  // Fetch sections
-  const { data: sections } = await supabase
-    .from('game_sections')
-    .select('id, key, icon_path') // Select key as LocalizedString
-    .eq('game_id', game.id)
-    .order('order_index', { ascending: true });
+  // 2. Fetch sections and headers in parallel
+  const [sectionsRes, headersList] = await Promise.all([
+    supabase
+      .from('game_sections')
+      .select('id, key, icon_path')
+      .eq('game_id', game.id)
+      .order('order_index', { ascending: true }),
+    headers()
+  ]);
 
-  const headersList = await headers();
+  const sections = sectionsRes.data;
   const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
   return (
@@ -71,11 +70,7 @@ export default async function SectionsPage({ params }: PageProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {sections && sections.length > 0 ? (
             sections.map(section => {
-              const iconUrl = section.icon_path
-                ? supabase.storage
-                    .from('games')
-                    .getPublicUrl(section.icon_path).data.publicUrl
-                : null
+              const iconUrl = getPublicUrl('games', section.icon_path);
 
               return (
                 <Link
