@@ -1,25 +1,13 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/server'
-import { getGameBySlug, getPublicUrl } from "@/lib/supabase/queries";
+import { getGameBySlug, Section } from "@/lib/supabase/queries";
+import { getPublicUrl } from "@/lib/supabase/client";
 import { redirect } from 'next/navigation'
-import { LocalizedString, getTranslatedField, getTranslation } from "@/lib/localization-utils";
+import { getTranslatedField, getTranslation } from "@/lib/localization-utils";
 import { GameLocalizationProvider } from "@/lib/localization";
 import { headers } from "next/headers";
 import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
-
-type Game = {
-  id: string;
-  name: LocalizedString;
-  slug: string;
-  default_lang: string;
-  supported_languages: string[];
-}
-
-type Section = {
-  id: string;
-  key: LocalizedString;
-  icon_path: string | null;
-}
 
 type PageProps = {
   params: Promise<{ gameSlug: string }>
@@ -45,7 +33,7 @@ export default async function SectionsPage({ params: paramsPromise }: PageProps)
     headers()
   ]);
 
-  const sections = sectionsRes.data;
+  const sections = sectionsRes.data as Section[] | null;
   const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
   return (
@@ -77,16 +65,20 @@ export default async function SectionsPage({ params: paramsPromise }: PageProps)
                   key={section.id}
                   href={`/admin/games/${gameSlug}/sections/${section.id}`}
                   prefetch={false}
-                  className="border rounded p-4 hover:bg-gray-800 transition-colors flex items-center gap-4"
+                  className="border rounded p-4 border-zinc-800 hover:bg-zinc-800 transition-colors flex items-center gap-4"
                 >
                   {iconUrl && (
-                    <img
-                      src={iconUrl}
-                      alt={getTranslatedField(section.key, currentLang, game.default_lang)}
-                      className="w-12 h-12 object-cover rounded"
-                    />
+                    <div className="relative w-12 h-12 flex-shrink-0">
+                      <Image
+                        src={iconUrl}
+                        alt={getTranslatedField(section.key, currentLang, game.default_lang)}
+                        fill
+                        sizes="48px"
+                        className="object-cover rounded"
+                      />
+                    </div>
                   )}
-                  <span className="font-medium flex items-center gap-2">
+                  <span className="font-medium flex items-center gap-2 text-zinc-200">
                     {getTranslatedField(section.key, currentLang, game.default_lang)}
                     <MissingTranslationIndicator value={section.key} />
                   </span>

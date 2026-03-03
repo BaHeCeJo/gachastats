@@ -2,6 +2,109 @@ import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
 import { createPublicClient } from './server';
 
+export type LocalizedString = Record<string, string>;
+
+export interface Game {
+  id: string;
+  name: LocalizedString;
+  slug: string;
+  description: LocalizedString;
+  cover_url: string | null;
+  default_lang: string;
+  supported_languages: string[];
+}
+
+export interface Section {
+  id: string;
+  key: LocalizedString;
+  game_id: string;
+  icon_path: string | null;
+  color: string | null;
+  is_collectible: boolean;
+  is_unique: boolean;
+  min_dupes: number;
+  max_dupes: number;
+  dupe_name: LocalizedString;
+  has_teams: boolean;
+  max_team_size: number;
+}
+
+export interface FieldOption {
+  id: string;
+  game_field_id: string;
+  value_key: LocalizedString;
+  icon_path: string | null;
+  color: string | null;
+  order_index: number;
+}
+
+export interface GameField {
+  manual_fill: boolean;
+  has_icon: boolean;
+  has_color: boolean;
+  field_options: FieldOption[];
+}
+
+export interface SectionField {
+  id: string;
+  key: LocalizedString;
+  required: boolean;
+  is_multi: boolean;
+  category: string | null;
+  order_index: number;
+  game_field_id: string;
+  game_fields: GameField;
+}
+
+export interface EntityFieldValue {
+  id: string;
+  game_field_id: string;
+  value_text: string | LocalizedString | null;
+  option_id: string | null;
+  field_options?: {
+    color: string | null;
+    icon_path: string | null;
+    value_key: LocalizedString;
+  };
+}
+
+export interface EntityImage {
+  id: string;
+  type: string;
+  key: string;
+  image_path: string;
+  width: number | null;
+  height: number | null;
+  order_index: number;
+}
+
+export interface EntitySkin {
+  id: string;
+  entity_id: string;
+  name: LocalizedString;
+  is_default: boolean;
+  entity_images: EntityImage[];
+}
+
+export interface SectionDisplaySettings {
+  section_id: string;
+  max_columns: number;
+  bg_color_field_id: string | null;
+  top_left_icon_field_id: string | null;
+  top_right_icon_field_id: string | null;
+  overlay_icon_field_id: string | null;
+  filter_field_ids: string[];
+}
+
+export interface SectionEntity {
+  id: string;
+  section_id: string;
+  name: LocalizedString;
+  icon_path: string | null;
+  entity_skins: EntitySkin[];
+  entity_field_values?: EntityFieldValue[];
+}
+
 /**
  * Cached fetch for a single game by its slug.
  */
@@ -29,7 +132,7 @@ export const getSectionById = cache(async (sectionId: string) => {
       const supabase = createPublicClient();
       return supabase
         .from("game_sections")
-        .select("id, key, game_id, icon_path, color, is_collectible, is_unique, min_dupes, max_dupes, dupe_name")
+        .select("id, key, game_id, icon_path, color, is_collectible, is_unique, min_dupes, max_dupes, dupe_name, has_teams, max_team_size")
         .eq("id", sectionId)
         .single();
     },
@@ -88,12 +191,13 @@ export const getSectionDisplaySettings = cache(async (sectionId: string) => {
 
 /**
  * Cached fetch for section entities with pagination and field limiting.
+ * Default pageSize 1000 effectively fetches all for most games while staying optimized.
  */
 export const getSectionEntities = cache(async (
   sectionId: string, 
   defaultLang: string, 
   page: number = 0, 
-  pageSize: number = 50
+  pageSize: number = 1000
 ) => {
   return unstable_cache(
     async () => {
@@ -106,6 +210,7 @@ export const getSectionEntities = cache(async (
         name, 
         icon_path,
         entity_skins!left ( 
+          is_default,
           entity_images ( image_path, type ) 
         ),
         entity_field_values ( 
@@ -120,7 +225,7 @@ export const getSectionEntities = cache(async (
       .order(`name->>${defaultLang}`, { ascending: true })
       .range(from, to);
     },
-    [`section-entities-${sectionId}-${defaultLang}-p${page}`],
+    [`section-entities-${sectionId}-${defaultLang}-p${page}-s${pageSize}`],
     { revalidate: 3600, tags: [`section-entities-${sectionId}`] }
   )();
 });
@@ -169,7 +274,7 @@ export const getEntityFieldValues = cache(async (entityId: string) => {
   return unstable_cache(
     async () => {
       const supabase = createPublicClient();
-      return supabase.from("entity_field_values").select("*").eq("entity_id", entityId);
+      return supabase.from("entity_field_values").select("id, game_field_id, value_text, option_id").eq("entity_id", entityId);
     },
     [`entity-values-${entityId}`],
     { revalidate: 3600, tags: [`entity-values-${entityId}`] }
@@ -189,7 +294,7 @@ export const getEntityTeams = cache(async (entityId: string) => {
         .select("team_id")
         .eq("entity_id", entityId);
       
-      const teamIds = (memberData || []).map(m => m.team_id);
+      const teamIds = (memberData || []).map((m: { team_id: string }) => m.team_id);
       if (teamIds.length === 0) return { data: [], error: null };
 
       // Then fetch full team details
@@ -203,14 +308,3 @@ export const getEntityTeams = cache(async (entityId: string) => {
     { revalidate: 3600, tags: [`entity-teams-${entityId}`] }
   )();
 });
-
-/**
- * Manual URL construction for Supabase Storage to avoid library overhead in loops.
- */
-export function getPublicUrl(bucket: string, path: string | null) {
-  if (!path) return null;
-  if (path.startsWith('http')) return path;
-  
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  return `${supabaseUrl}/storage/v1/object/public/${bucket}/${path}`;
-}

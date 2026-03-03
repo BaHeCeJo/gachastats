@@ -7,15 +7,6 @@ import { LocalizedString } from "@/lib/localization";
 import { v4 as uuidv4 } from "uuid";
 import { slugify } from "@/lib/utils/slugify";
 
-type GameFormData = {
-  id?: string; // Optional for new games
-  name: LocalizedString;
-  description: LocalizedString;
-  cover_image?: File | string | null; // Can be a File object for new upload, string for existing path, or null/undefined
-  default_lang: string;
-  supported_languages: string[];
-};
-
 /**
  * Extracts the storage path from a public URL.
  * Supabase URLs are typically: https://[project].supabase.co/storage/v1/object/public/[bucket]/[path]

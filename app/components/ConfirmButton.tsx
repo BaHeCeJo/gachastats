@@ -13,7 +13,7 @@ export default function ConfirmButton({
   buttonClassName?: string;
   action?: () => void | Promise<void>;
 }) {
-  const { t } = useLocalizationParams() as any;
+  const { t } = useLocalizationParams();
   const message = dialogMessage || t('deleteConfirm');
 
   return (

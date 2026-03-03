@@ -1,12 +1,14 @@
 "use client";
 
 import Link from 'next/link';
-import { getTranslatedField, useLocalizationParams } from "@/lib/localization";
+import Image from 'next/image';
+import { getTranslatedField, useLocalizationParams, LocalizedString } from "@/lib/localization";
 import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
+import { getPublicUrl } from "@/lib/supabase/client";
 
 type Option = {
   id: string;
-  value_key: any;
+  value_key: LocalizedString;
   icon_path: string | null;
   color: string | null;
   order_index: number;
@@ -18,27 +20,20 @@ export default function AdminOptionList({
   sectionId, 
   fieldId, 
   gameDefaultLang,
-  supabaseUrl
 }: { 
   options: Option[], 
   gameSlug: string, 
   sectionId: string, 
   fieldId: string,
-  gameDefaultLang: string,
-  supabaseUrl: string
+  gameDefaultLang: string
 }) {
-  const { displayLang, currentLang, t } = useLocalizationParams() as any;
+  const { displayLang, currentLang } = useLocalizationParams();
   const activeLang = displayLang || currentLang;
-
-  const getPublicUrl = (path: string) => {
-    if (!path) return null;
-    return `${supabaseUrl}/storage/v1/object/public/games/${path}`;
-  };
 
   return (
     <div className="grid gap-3">
       {options.map(opt => {
-        const iconUrl = getPublicUrl(opt.icon_path || "");
+        const iconUrl = getPublicUrl('games', opt.icon_path);
         
         return (
           <Link
@@ -48,11 +43,15 @@ export default function AdminOptionList({
             prefetch={false}
           >
             {iconUrl && (
-              <img
-                src={iconUrl}
-                className="w-10 h-10 object-contain rounded bg-black/20 p-1"
-                alt={getTranslatedField(opt.value_key, activeLang, gameDefaultLang)}
-              />
+              <div className="relative w-10 h-10 flex-shrink-0 bg-black/20 p-1 rounded">
+                <Image
+                  src={iconUrl}
+                  fill
+                  sizes="40px"
+                  className="object-contain"
+                  alt={getTranslatedField(opt.value_key, activeLang, gameDefaultLang)}
+                />
+              </div>
             )}
 
             <div className="flex items-center gap-2">

@@ -3,8 +3,28 @@ import { redirect } from 'next/navigation';
 import { headers } from "next/headers";
 import { getTranslatedField } from "@/lib/localization-utils";
 import EditOptionClient from './EditOptionClient';
+import { LocalizedString, Game } from '@/lib/supabase/queries';
 
 type PageProps = { params: Promise<{ gameSlug: string; sectionId: string; fieldId: string; optionId: string }>; };
+
+interface SectionFieldWithGameField {
+  id: string;
+  key: LocalizedString;
+  game_fields: {
+    manual_fill: boolean;
+    has_icon: boolean;
+    has_color: boolean;
+  } | null;
+}
+
+interface OptionData {
+  id: string;
+  field_id: string;
+  value_key: LocalizedString;
+  color: string | null;
+  icon_path: string | null;
+  order_index: number;
+}
 
 export async function generateMetadata({ params }: PageProps) {
   const { gameSlug, sectionId, fieldId, optionId } = await params;
@@ -40,23 +60,23 @@ export default async function EditFieldOptionPage({ params: paramsPromise }: Pag
       )
     `)
     .eq('id', fieldId)
-    .single();
+    .single() as { data: SectionFieldWithGameField | null };
 
   if (!fieldRaw) redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields`);
 
   const field = {
     id: fieldRaw.id,
     key: fieldRaw.key,
-    manual_fill: (fieldRaw.game_fields as any)?.manual_fill,
-    has_icon: (fieldRaw.game_fields as any)?.has_icon,
-    has_color: (fieldRaw.game_fields as any)?.has_color,
+    manual_fill: fieldRaw.game_fields?.manual_fill ?? false,
+    has_icon: fieldRaw.game_fields?.has_icon ?? false,
+    has_color: fieldRaw.game_fields?.has_color ?? false,
   };
 
-  const { data: option } = await supabase.from('field_options').select('*').eq('id', optionId).single();
+  const { data: option } = await supabase.from('field_options').select('*').eq('id', optionId).single() as { data: OptionData | null };
   if (!option) redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields/${fieldId}/options`);
 
   const headersList = await headers();
   const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
-  return <EditOptionClient game={game} field={field} option={option as any} sectionId={sectionId} currentLang={currentLang} />;
+  return <EditOptionClient game={game as Game} field={field} option={option} sectionId={sectionId} currentLang={currentLang} />;
 }

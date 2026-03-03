@@ -2,6 +2,7 @@ import { createClient as createServerClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { getTranslatedField } from "@/lib/localization-utils";
 import NewFieldClient from './NewFieldClient';
+import { Game, Section } from '@/lib/supabase/queries';
 
 type PageProps = { params: Promise<{ gameSlug: string; sectionId: string }>; };
 
@@ -45,5 +46,5 @@ export default async function NewFieldPage({ params: paramsPromise }: PageProps)
     console.error("Error fetching game fields:", gfError);
   }
 
-  return <NewFieldClient game={game as any} section={section as any} categories={categories} gameFields={gameFields || []} />;
+  return <NewFieldClient game={game as Game} section={section as Section} categories={categories} gameFields={gameFields || []} />;
 }

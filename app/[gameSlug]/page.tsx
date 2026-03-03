@@ -1,5 +1,6 @@
 import { createPublicClient } from "@/lib/supabase/server";
-import { getGameBySlug, getPublicUrl } from "@/lib/supabase/queries";
+import { getGameBySlug } from "@/lib/supabase/queries";
+import { getPublicUrl } from "@/lib/supabase/client";
 import { redirect } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -18,11 +19,25 @@ export async function generateStaticParams() {
   }));
 }
 
-// ... (types)
+// --- Type Definitions ---
+type Game = {
+  id: string;
+  name: LocalizedString;
+  slug: string;
+  description: LocalizedString;
+  cover_url: string | null;
+  default_lang: string;
+  supported_languages: string[];
+};
+
+type PageProps = {
+  params: Promise<{ gameSlug: string }>;
+};
 
 export async function generateMetadata({ params: paramsPromise }: PageProps) {
   const { gameSlug } = await paramsPromise;
-  const { data: game } = await getGameBySlug(gameSlug);
+  const gameRes = await getGameBySlug(gameSlug);
+  const game = gameRes.data as Game | null;
 
   if (!game) return { title: 'Game Not Found' };
 
@@ -45,13 +60,15 @@ export default async function GameDetailPage({ params: paramsPromise }: PageProp
   const { gameSlug } = params;
   const supabase = createPublicClient();
 
-  const { data: game, error: gameError } = await getGameBySlug(gameSlug);
+  const gameRes = await getGameBySlug(gameSlug);
+  const game = gameRes.data as Game | null;
+  const gameError = gameRes.error;
 
   if (gameError || !game) {
     redirect("/");
   }
 
-  const { data: sections, error: sectionsError } = await supabase
+  const { data: sections } = await supabase
     .from("game_sections")
     .select("id, key, icon_path, color")
     .eq("game_id", game.id)
@@ -69,10 +86,15 @@ export default async function GameDetailPage({ params: paramsPromise }: PageProp
   return (
     <div className="relative flex flex-col min-h-screen bg-zinc-50 dark:bg-black font-sans overflow-x-hidden">
       <div className="fixed inset-0 pointer-events-none z-[1] overflow-hidden">
-        <div
-          className="absolute inset-0 bg-cover bg-center grayscale blur-md opacity-25 scale-105 transition-all duration-1000 ease-out"
-          style={{ backgroundImage: coverUrl ? `url(${coverUrl})` : "none" }}
-        />
+        {coverUrl && (
+          <Image
+            src={coverUrl}
+            alt=""
+            fill
+            className="object-cover grayscale blur-md opacity-25 scale-105"
+            priority
+          />
+        )}
         <div className="absolute inset-0 bg-zinc-50/60 dark:bg-black/80" />
       </div>
 
@@ -120,13 +142,15 @@ export default async function GameDetailPage({ params: paramsPromise }: PageProp
                         className="group flex flex-col items-center justify-center p-6 border border-zinc-200 dark:border-zinc-800 rounded-2xl bg-white/50 dark:bg-zinc-900/50 backdrop-blur-md shadow-sm hover:shadow-lg hover:shadow-[#22c55e]/20 hover:-translate-y-1 transition-all duration-300 hover:border-[#22c55e]/50"
                       >
                         {sectionIconUrl ? (
-                          <Image
-                            src={sectionIconUrl}
-                            alt={getTranslatedField(section.key, currentLang, game.default_lang)}
-                            width={64}
-                            height={64}
-                            className="w-16 h-16 object-contain mb-4 filter grayscale group-hover:grayscale-0 transition-all duration-300"
-                          />
+                          <div className="relative w-16 h-16 mb-4">
+                            <Image
+                              src={sectionIconUrl}
+                              alt={getTranslatedField(section.key, currentLang, game.default_lang)}
+                              fill
+                              sizes="64px"
+                              className="object-contain filter grayscale group-hover:grayscale-0 transition-all duration-300"
+                            />
+                          </div>
                         ) : (
                           <div 
                             className="w-16 h-16 flex items-center justify-center text-zinc-400 text-3xl mb-4 border border-zinc-300 dark:border-zinc-700 rounded-full"
@@ -152,4 +176,3 @@ export default async function GameDetailPage({ params: paramsPromise }: PageProp
     </div>
   );
 }
-

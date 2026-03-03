@@ -1,8 +1,7 @@
-import { createClient as createServerClient } from '@/lib/supabase/server';
-import { getGameBySlug } from "@/lib/supabase/queries";
+import { getGameBySlug, Game } from "@/lib/supabase/queries";
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
-import { getTranslatedField, LocalizedString } from '@/lib/localization-utils';
+import { getTranslatedField } from '@/lib/localization-utils';
 import EditGameClient from './EditGameClient';
 
 type PageProps = { params: Promise<{ gameSlug: string }> };
@@ -13,7 +12,7 @@ export async function generateMetadata({ params: paramsPromise }: PageProps) {
     getGameBySlug(gameSlug),
     headers()
   ]);
-  const game = gameRes.data;
+  const game = gameRes.data as Game | null;
   const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
   const gameName = game?.name ? getTranslatedField(game.name, currentLang, game.default_lang || 'en') : 'Game';
@@ -30,10 +29,10 @@ export default async function ServerAdminGamePage({ params: paramsPromise }: Pag
     headers()
   ]);
 
-  const { data: game } = gameRes;
+  const game = gameRes.data as Game | null;
   const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
   if (!game) redirect('/admin/games');
 
-  return <EditGameClient game={game as any} currentLang={currentLang} />;
+  return <EditGameClient game={game} currentLang={currentLang} />;
 }

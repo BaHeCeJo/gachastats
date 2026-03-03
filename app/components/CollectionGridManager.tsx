@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { LocalizedString, getTranslatedField, useLocalizationParams } from "@/lib/localization";
 import { toggleCollectionEntityAction, updateEntityDupesAction, removeUserEntityAction } from "@/app/collections/actions";
-import { Loader2, Plus, Minus, Trash2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 
 type Option = {
   id: string;
@@ -43,11 +43,19 @@ type Section = {
   is_collectible: boolean;
 };
 
+type DisplaySettings = {
+  max_columns?: number;
+  bg_color_field_id?: string | null;
+  top_left_icon_field_id?: string | null;
+  top_right_icon_field_id?: string | null;
+  overlay_icon_field_id?: string | null;
+};
+
 type Props = {
   entities: Entity[];
   initialOwnedEntities: OwnedEntity[];
   section: Section;
-  displaySettings: any;
+  displaySettings: DisplaySettings | null;
   filterFields: FilterField[];
   gameDefaultLang: string;
   currentLang: string;
@@ -63,7 +71,7 @@ export default function CollectionGridManager({
   currentLang: browserLang,
 }: Props) {
   const router = useRouter();
-  const { displayLang, t } = useLocalizationParams() as any;
+  const { displayLang, t } = useLocalizationParams();
   const activeLang = displayLang || browserLang;
 
   const [ownedEntities, setOwnedEntities] = useState<OwnedEntity[]>(initialOwnedEntities);

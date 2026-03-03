@@ -11,6 +11,15 @@ async function isAdmin() {
   return profile?.role === 'admin';
 }
 
+interface TeamMemberInsert {
+  team_id: string;
+  member_type: 'entity' | 'option';
+  entity_id: string | null;
+  option_id: string | null;
+  slot_index: number;
+  order_index: number;
+}
+
 export async function upsertTeamAction(
   sectionId: string,
   teamId: string | null,
@@ -52,11 +61,11 @@ export async function upsertTeamAction(
   if (deleteError) return { error: deleteError.message };
 
   // 2. Prepare member data with both slot_index AND order_index
-  const memberData: any[] = [];
+  const memberData: TeamMemberInsert[] = [];
   slots.forEach((slot, slotIndex) => {
     slot.members.forEach((member, priority) => {
       memberData.push({
-        team_id: actualTeamId,
+        team_id: actualTeamId!,
         member_type: member.type,
         entity_id: member.type === 'entity' ? member.id : null,
         option_id: member.type === 'option' ? member.id : null,

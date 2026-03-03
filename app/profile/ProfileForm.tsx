@@ -16,7 +16,7 @@ export default function ProfileForm({
   const [existingAvatarUrl, setExistingAvatarUrl] = useState<string | null>(initialProfile.avatar_url);
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState("");
-  const { t } = useLocalizationParams() as any;
+  const { t } = useLocalizationParams();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

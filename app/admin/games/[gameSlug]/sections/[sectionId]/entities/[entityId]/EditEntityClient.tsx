@@ -8,27 +8,40 @@ import CreatableTagInput from '@/app/components/fields/CreatableTagInput';
 import ImageInput from '@/app/components/ImageInput';
 import ConfirmButton from '@/app/components/ConfirmButton';
 import SkinManager from "@/app/components/skins/SkinManager";
-import TeamBuilder from "@/app/components/TeamBuilder";
+import TeamBuilder, { TeamData, TeamEntity, TeamFieldOption } from "@/app/components/TeamBuilder";
 import { upsertEntityAction, deleteEntityAction } from '../actions';
-import Link from "next/link";
 import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
+import Image from 'next/image';
 
 type GameData = { id: string; name: LocalizedString; slug: string; default_lang: string; supported_languages: string[]; };
 type SectionData = { id: string; key: LocalizedString; game_id: string; };
-type FieldOption = { id: string; field_id: string; value_key: LocalizedString; icon_path: string | null; color: string | null; };
+type FieldOption = { id: string; field_id: string; value_key: LocalizedString; icon_path: string | null; color: string | null; order_index: number; };
 type FieldData = { id: string; game_field_id: string; key: LocalizedString; required: boolean; manual_fill: boolean; is_multi: boolean; has_icon: boolean; has_color: boolean; order_index: number; category: string | null; field_options: FieldOption[] | null; };
-type EntityFieldValueData = { id?: string; entity_id: string; game_field_id: string; value_text: LocalizedString | null; option_id: string | null; };
+type EntityFieldValueData = { id?: string; entity_id: string; game_field_id: string; value_text: string | LocalizedString | null; option_id: string | null; };
 type EntitySkinData = { id: string; entity_id: string; name: LocalizedString; is_default: boolean; entity_images: { id: string; type: string; image_path: string; publicUrl?: string; }[]; };
 type EntityData = { id: string; section_id: string; name: LocalizedString; icon_path: string | null; entity_skins: EntitySkinData[]; entity_field_values: EntityFieldValueData[]; };
 type FormState = { error?: string; };
 
+interface FieldValueState {
+  field_id: string;
+  values: string[];
+}
+
 export default function EditEntityClient({ 
   game, section, entity, fields, currentLang: browserLang, hasTeams, maxTeamSize, sectionTeams = [], sectionEntities = []
 }: {
-  game: GameData; section: SectionData; entity: EntityData; fields: FieldData[]; currentLang: string; hasTeams: boolean; maxTeamSize: number; sectionTeams: any[]; sectionEntities: any[];
+  game: GameData; 
+  section: SectionData; 
+  entity: EntityData; 
+  fields: FieldData[]; 
+  currentLang: string; 
+  hasTeams: boolean; 
+  maxTeamSize: number; 
+  sectionTeams: TeamData[]; 
+  sectionEntities: TeamEntity[];
 }) {
   const supabase = createClient();
-  const { displayLang, t } = useLocalizationParams() as any;
+  const { displayLang, t } = useLocalizationParams();
   const activeLang = displayLang || browserLang;
 
   const [localizedName, setLocalizedName] = useState<LocalizedString>(entity.name);
@@ -43,19 +56,23 @@ export default function EditEntityClient({
         const firstVal = existingValues[0];
         if (firstVal) {
           if (field.is_multi) {
-            const valText = firstVal.value_text as any;
-            const translated = typeof valText === 'string' ? valText : getTranslatedField(valText as any, game.default_lang, game.default_lang) || '';
+            const valText = firstVal.value_text;
+            const translated = typeof valText === 'string' ? valText : getTranslatedField(valText || {}, game.default_lang, game.default_lang) || '';
             values = translated.split(',').map((s: string) => s.trim()).filter(Boolean);
           } else {
             if (firstVal.option_id) values = [firstVal.option_id];
-            else if (firstVal.value_text) values = [getTranslatedField(firstVal.value_text as any, game.default_lang, game.default_lang)];
+            else if (firstVal.value_text) {
+              const valText = firstVal.value_text;
+              const translated = typeof valText === 'string' ? valText : getTranslatedField(valText || {}, game.default_lang, game.default_lang);
+              values = [translated];
+            }
           }
         }
       } else {
         if (field.is_multi) {
           const firstVal = existingValues[0];
-          if (firstVal?.value_text) values = (firstVal.value_text as string).split(',').map((s: string) => s.trim()).filter(Boolean);
-          else values = existingValues.map(v => v.option_id).filter(Boolean) as string[];
+          if (firstVal?.value_text && typeof firstVal.value_text === 'string') values = firstVal.value_text.split(',').map((s: string) => s.trim()).filter(Boolean);
+          else values = existingValues.map(v => v.option_id).filter((id): id is string => !!id);
         } else {
           const firstVal = existingValues[0];
           if (firstVal?.option_id) values = [firstVal.option_id];
@@ -65,16 +82,16 @@ export default function EditEntityClient({
     });
   }, [fields, entity.entity_field_values, game.default_lang]);
 
-  const [entityFieldValues, setEntityFieldValues] = useState<any[]>(initialFieldValues);
+  const [entityFieldValues, setEntityFieldValues] = useState<FieldValueState[]>(initialFieldValues);
   useEffect(() => { setEntityFieldValues(initialFieldValues); }, [initialFieldValues]);
 
-  const [state, formAction] = useActionState(
-    async (prevState: FormState, formData: FormData) => {
+  const [, formAction] = useActionState(
+    async () => {
+      const formData = new FormData();
       formData.set("id", entity.id);
       formData.set("name", JSON.stringify(localizedName));
       formData.set("section_id", section.id);
       if (iconFile) formData.set("icon_file", iconFile);
-      else formData.delete("icon_file");
       if (existingIconPath) formData.set("existing_icon_path", existingIconPath);
       else formData.set("existing_icon_path", "null");
       formData.set("field_values", JSON.stringify(entityFieldValues));
@@ -102,8 +119,8 @@ export default function EditEntityClient({
     }));
   };
 
-  const fieldOptions = useMemo(() => {
-    return fields.flatMap(f => (f.field_options || []).map((o: any) => ({
+  const fieldOptions = useMemo<TeamFieldOption[]>(() => {
+    return fields.flatMap(f => (f.field_options || []).map((o) => ({
       ...o,
       field_name: getTranslatedField(f.key, activeLang, game.default_lang)
     })));
@@ -135,7 +152,6 @@ export default function EditEntityClient({
           </h1>
           <form action={deleteEntityAction.bind(null, entity.id, game.slug, section.id)}><ConfirmButton>{t('delete')} {t('entity')}</ConfirmButton></form>
         </div>
-        {state?.error && <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-sm p-4 rounded-lg">{state.error}</div>}
         <form action={formAction} className="space-y-6">
           <LocalizedTextInput id="name" label={t('entityName')} value={localizedName} onChange={setLocalizedName} placeholder="e.g., Acheron" />
           <div>
@@ -169,9 +185,10 @@ export default function EditEntityClient({
                               {field.field_options?.map(option => {
                                 const isSelected = currentValue.values.includes(option.id);
                                 const optionLabel = getTranslatedField(option.value_key, activeLang, game.default_lang);
+                                const optionIconUrl = option.icon_path ? supabase.storage.from('games').getPublicUrl(option.icon_path).data.publicUrl : null;
                                 return (
                                   <button key={option.id} type="button" onClick={() => handleFieldValueChange(field.id, option.id, 'multi')} className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all text-sm ${isSelected ? "bg-green-600/20 border-green-500 text-green-400" : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-700"}`}>
-                                    {option.icon_path && <img src={supabase.storage.from('games').getPublicUrl(option.icon_path).data.publicUrl} className="w-5 h-5 object-contain" alt="" />}
+                                    {optionIconUrl && <div className="relative w-5 h-5"><Image src={optionIconUrl} fill className="object-contain" alt="" /></div>}
                                     <span className="truncate">{optionLabel}</span>
                                   </button>
                                 );
@@ -196,7 +213,7 @@ export default function EditEntityClient({
         <SkinManager entity={entity} skins={entity.entity_skins} gameSlug={game.slug} sectionId={section.id} gameDefaultLang={game.default_lang} activeLang={activeLang} />
         {hasTeams && (
           <div className="pt-10 border-t border-zinc-800">
-            <h2 className="text-xl font-semibold text-white mb-6 italic flex items-center gap-2"><span className="w-4 h-1 bg-green-500"></span>{t('recommendedTeams') || 'Recommended Teams'}</h2>
+            <h2 className="text-xl font-semibold text-white mb-6 italic flex items-center gap-2"><span className="w-4 h-1 bg-green-500"></span>Recommended Teams</h2>
             <TeamBuilder 
               sectionId={section.id} 
               gameSlug={game.slug}

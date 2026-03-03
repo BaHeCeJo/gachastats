@@ -3,10 +3,15 @@ import {
   getGameBySlug, 
   getSectionById, 
   getSectionFields, 
-  getSectionDisplaySettings, 
-  getSectionEntities,
-  getPublicUrl
+  getSectionDisplaySettings,
+  Game,
+  Section,
+  SectionField,
+  SectionDisplaySettings,
+  FieldOption,
+  LocalizedString,
 } from "@/lib/supabase/queries";
+import { getPublicUrl } from "@/lib/supabase/client";
 import { redirect } from "next/navigation";
 import Image from "next/image";
 import Header from "@/app/components/Header";
@@ -20,6 +25,43 @@ type PageProps = {
   params: Promise<{ gameSlug: string; sectionId: string }>;
 };
 
+interface EntityWithOwnership {
+  id: string;
+  section_id: string;
+  name: Record<string, string>;
+  icon_path: string | null;
+  entity_skins: {
+    entity_images: {
+      image_path: string;
+      type: string;
+    }[];
+  }[];
+  entity_field_values: {
+    game_field_id: string;
+    value_text: string | LocalizedString | null;
+    option_id: string | null;
+    field_options: {
+      color: string | null;
+      icon_path: string | null;
+      value_key: Record<string, string>;
+    } | null;
+  }[];
+  user_entities: {
+    id: string;
+    dupes: number;
+  }[];
+}
+
+interface ProcessedCollectionEntity {
+  id: string;
+  section_id: string;
+  name: Record<string, string>;
+  icon_path: string | null;
+  publicIconUrl: string;
+  fieldValuesMap: Record<string, { color?: string; iconUrl?: string }>;
+  allValues: Record<string, string[]>;
+}
+
 export default async function SectionCollectionPage({ params: paramsPromise }: PageProps) {
   const params = await paramsPromise;
   const { gameSlug, sectionId } = params;
@@ -32,10 +74,10 @@ export default async function SectionCollectionPage({ params: paramsPromise }: P
   ]);
 
   const user = userRes.data.user;
-  const { data: game, error: gameError } = gameRes;
+  const game = gameRes.data as Game | null;
 
   if (!user) redirect("/auth/signin");
-  if (gameError || !game) redirect("/profile");
+  if (!game) redirect("/profile");
 
   // 2. Parallelize everything else (Consolidated entities and owned check)
   const [sectionRes, fieldsRes, settingsRes, entitiesRes] = await Promise.all([
@@ -65,13 +107,15 @@ export default async function SectionCollectionPage({ params: paramsPromise }: P
     .eq("section_id", sectionId)
     .eq("user_entities.user_id", user.id)
     .eq("entity_skins.is_default", true)
-    .order(`name->>${game.default_lang}`, { ascending: true })
+    .order(`name->>${game.default_lang}`, { ascending: true }) as Promise<{ data: EntityWithOwnership[] | null }>
   ]);
 
-  const section = sectionRes.data;
-  const fieldsRaw = fieldsRes.data;
-  const displaySettings = settingsRes.data;
+  const section = sectionRes.data as Section | null;
+  const fieldsRaw = fieldsRes.data as unknown as SectionField[];
+  const displaySettings = settingsRes.data as SectionDisplaySettings | null;
   const entities = entitiesRes.data || [];
+
+  if (!section || section.game_id !== game.id || !section.is_collectible) redirect(`/profile/${gameSlug}`);
 
   // Map owned entities from the joined query
   const ownedEntities = entities
@@ -82,35 +126,31 @@ export default async function SectionCollectionPage({ params: paramsPromise }: P
       dupes: e.user_entities[0].dupes
     }));
 
-  if (!section || section.game_id !== game.id || !section.is_collectible) redirect(`/profile/${gameSlug}`);
-
   // Flatten fields structure for compatibility
-  const fields = (fieldsRaw || []).map((f: any) => {
-    // Handle cases where game_fields might be returned as an array or a single object
-    const gf = Array.isArray(f.game_fields) ? f.game_fields[0] : f.game_fields;
+  const fields = (fieldsRaw || []).map((f) => {
     return {
       ...f,
-      manual_fill: gf?.manual_fill,
-      has_icon: gf?.has_icon,
-      has_color: gf?.has_color,
-      field_options: gf?.field_options || []
+      manual_fill: f.game_fields?.manual_fill,
+      has_icon: f.game_fields?.has_icon,
+      has_color: f.game_fields?.has_color,
+      field_options: f.game_fields?.field_options || []
     };
   });
 
   // --- Language Detection ---
   const headersList = await headers();
   const cookieStore = await cookies();
-  const userLang = cookieStore.get('user_lang')?.value;
-  const acceptLanguage = headersList.get('Accept-Language');
+  const userLang = (await cookieStore).get('user_lang')?.value;
+  const acceptLanguage = (await headersList).get('Accept-Language');
   const browserLang = acceptLanguage ? acceptLanguage.split(',')[0].split('-')[0].toLowerCase() : 'en';
   const currentLang = game.supported_languages.includes(userLang || browserLang) ? (userLang || browserLang) : game.default_lang;
 
   // Create map by game_field_id for entity values processing
   const gameFieldsMap = new Map((fields || [])?.map(f => [f.game_field_id, f]));
 
-  const processedEntities = (entities || []).map((entity: any) => {
+  const processedEntities: ProcessedCollectionEntity[] = (entities || []).map((entity) => {
     const defaultSkin = entity.entity_skins?.[0];
-    const skinIconPath = defaultSkin?.entity_images?.find((img: any) => img.type === 'icon')?.image_path;
+    const skinIconPath = defaultSkin?.entity_images?.find((img) => img.type === 'icon')?.image_path;
     const iconPath = entity.icon_path || skinIconPath;
     
     let publicIconUrl = "";
@@ -121,15 +161,16 @@ export default async function SectionCollectionPage({ params: paramsPromise }: P
     const fieldValuesMap: Record<string, { color?: string; iconUrl?: string }> = {};
     const allValues: Record<string, string[]> = {};
 
-    entity.entity_field_values?.forEach((val: any) => {
+    entity.entity_field_values?.forEach((val) => {
       const field = gameFieldsMap.get(val.game_field_id);
       if (!field) return;
       const fieldId = field.id;
 
       if (!allValues[fieldId]) allValues[fieldId] = [];
-      if (val.option_id) allValues[fieldId].push(val.option_id);
-      else {
-        const translated = getTranslatedField(val.value_text, currentLang, game.default_lang);
+      if (val.option_id) {
+        allValues[fieldId].push(val.option_id);
+      } else {
+        const translated = getTranslatedField(val.value_text || {}, currentLang, game.default_lang);
         if (translated) {
           if (field?.is_multi) allValues[fieldId].push(...translated.split(',').filter(Boolean).map(p => p.trim()));
           else allValues[fieldId].push(translated);
@@ -138,12 +179,20 @@ export default async function SectionCollectionPage({ params: paramsPromise }: P
       if (val.field_options) {
         fieldValuesMap[fieldId] = {
           color: val.field_options.color || undefined,
-          iconUrl: getPublicUrl('games', val.field_options.icon_path) || undefined,
+          iconUrl: val.field_options.icon_path ? getPublicUrl('games', val.field_options.icon_path) || undefined : undefined,
         };
       }
     });
 
-    return { ...entity, publicIconUrl, fieldValuesMap, allValues };
+    return { 
+      id: entity.id,
+      section_id: entity.section_id,
+      name: entity.name,
+      icon_path: entity.icon_path,
+      publicIconUrl, 
+      fieldValuesMap, 
+      allValues 
+    };
   });
 
   const filterFieldIds = displaySettings?.filter_field_ids || [];
@@ -153,11 +202,11 @@ export default async function SectionCollectionPage({ params: paramsPromise }: P
       id: String(f.id),
       key: f.key,
       options: (f.field_options || [])
-        .sort((a: any, b: any) => a.order_index - b.order_index)
-        .map((opt: any) => ({
+        .sort((a: FieldOption, b: FieldOption) => a.order_index - b.order_index)
+        .map((opt: FieldOption) => ({
           id: String(opt.id),
           value_key: opt.value_key,
-          iconUrl: getPublicUrl('games', opt.icon_path) || undefined,
+          iconUrl: opt.icon_path ? getPublicUrl('games', opt.icon_path) || undefined : undefined,
           color: opt.color,
         })),
     }));
@@ -183,8 +232,14 @@ export default async function SectionCollectionPage({ params: paramsPromise }: P
           <div className="max-w-7xl mx-auto space-y-12">
             <div className="flex flex-col md:flex-row items-center gap-8">
               {section.icon_path ? (
-                <div className="w-24 h-24 rounded-full bg-zinc-800 border-2 border-zinc-700 p-4 shadow-2xl flex items-center justify-center" style={{ backgroundColor: section.color || 'transparent' }}>
-                  <img src={getPublicUrl('games', section.icon_path)!} className="w-full h-full object-contain filter grayscale invert brightness-200" alt="" />
+                <div className="relative w-24 h-24 rounded-full bg-zinc-800 border-2 border-zinc-700 p-4 shadow-2xl flex items-center justify-center overflow-hidden" style={{ backgroundColor: section.color || 'transparent' }}>
+                  <Image 
+                    src={getPublicUrl('games', section.icon_path)!} 
+                    fill
+                    sizes="96px"
+                    className="object-contain filter grayscale invert brightness-200" 
+                    alt="" 
+                  />
                 </div>
               ) : (
                 <div className="w-24 h-24 rounded-full bg-zinc-800 border-2 border-zinc-700 flex items-center justify-center text-zinc-500 text-4xl font-black" style={{ backgroundColor: section.color || 'transparent' }}>?</div>

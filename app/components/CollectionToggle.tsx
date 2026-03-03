@@ -16,7 +16,7 @@ export default function CollectionToggle({
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const { t } = useLocalizationParams() as any;
+  const { t } = useLocalizationParams();
 
   // Perform client-side check on mount to handle static page hydration
   useEffect(() => {

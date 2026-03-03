@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useActionState, useMemo } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useState, useActionState } from "react";
 import { LocalizedString, getTranslatedField, useLocalizationParams } from "@/lib/localization";
 import SkinImageInput from "../SkinImageInput";
 import { deleteSkin, upsertSkin, deleteSkinImage } from "./actions";
 import LocalizedTextInput from "../fields/LocalizedTextInput";
 import ConfirmButton from "../ConfirmButton";
 import { Edit2, Check, X as CloseIcon } from "lucide-react";
+import Image from "next/image";
 
 // --- Type Definitions ---
 type EntityData = {
@@ -52,8 +52,7 @@ export default function SkinManager({
   gameDefaultLang,
   activeLang: browserLang,
 }: SkinManagerProps) {
-  const supabase = createClient();
-  const { displayLang, t } = useLocalizationParams() as any;
+  const { displayLang, t } = useLocalizationParams();
   const activeLang = displayLang || browserLang;
 
   const entityId = entity.id;
@@ -136,8 +135,8 @@ export default function SkinManager({
 
       <div className="grid grid-cols-1 gap-6">
         {skins.map((skin) => {
-          const icon = skin.entity_images.find((img: any) => img.type === 'icon');
-          const splash = skin.entity_images.find((img: any) => img.type === 'splashart');
+          const icon = skin.entity_images.find((img) => img.type === 'icon');
+          const splash = skin.entity_images.find((img) => img.type === 'splashart');
           const isEditing = editingSkinId === skin.id;
 
           return (
@@ -191,10 +190,12 @@ export default function SkinManager({
                   <label className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">{t('icon')}</label>
                   {icon?.publicUrl ? (
                     <div className="relative w-32 h-32 group">
-                      <img
+                      <Image
                         src={icon.publicUrl}
                         alt="Icon"
-                        className="w-full h-full object-cover rounded-2xl border-2 border-zinc-800 bg-black shadow-xl"
+                        fill
+                        sizes="128px"
+                        className="object-cover rounded-2xl border-2 border-zinc-800 bg-black shadow-xl"
                       />
                       <ConfirmButton
                         action={deleteImageAction.bind(null, icon.id, icon.image_path)}
@@ -220,11 +221,13 @@ export default function SkinManager({
                 <div className="md:col-span-3 space-y-3">
                   <label className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">{t('fullArt')}</label>
                   {splash?.publicUrl ? (
-                    <div className="relative w-full group">
-                      <img
+                    <div className="relative w-full aspect-video group">
+                      <Image
                         src={splash.publicUrl}
                         alt="Splash"
-                        className="w-full h-auto max-h-[400px] object-contain rounded-2xl border-2 border-zinc-800 bg-black shadow-xl"
+                        fill
+                        sizes="(max-width: 768px) 100vw, 75vw"
+                        className="object-contain rounded-2xl border-2 border-zinc-800 bg-black shadow-xl"
                       />
                       <ConfirmButton
                         action={deleteImageAction.bind(null, splash.id, splash.image_path)}

@@ -1,17 +1,9 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import AdminGameList from './AdminGameList';
-import { LocalizedString, getTranslation } from "@/lib/localization-utils";
+import { getTranslation } from "@/lib/localization-utils";
 import { headers } from "next/headers";
-
-type Game = {
-  id: string;
-  name: LocalizedString;
-  slug: string;
-  cover_url: string | null;
-  default_lang: string;
-  supported_languages: string[];
-};
+import { Game } from '@/lib/supabase/queries';
 
 export default async function AdminGamesPage() {
   const supabase = await createClient()
@@ -25,7 +17,7 @@ export default async function AdminGamesPage() {
     headers()
   ]);
 
-  const games = gamesRes.data;
+  const games = gamesRes.data as Game[] | null;
   const acceptLanguage = headersList.get('Accept-Language');
   const currentLang = acceptLanguage ? acceptLanguage.split(',')[0].split('-')[0].toLowerCase() : 'en';
 
@@ -44,7 +36,7 @@ export default async function AdminGamesPage() {
 
       {games && games.length > 0 ? (
         <AdminGameList 
-          games={games as any} 
+          games={games} 
           supabaseUrl={process.env.NEXT_PUBLIC_SUPABASE_URL!} 
         />
       ) : (

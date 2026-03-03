@@ -1,14 +1,33 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { getGameBySlug } from "@/lib/supabase/queries";
-import { LocalizedString, getTranslatedField, getTranslation } from "@/lib/localization-utils";
+import { getGameBySlug, LocalizedString } from "@/lib/supabase/queries";
+import { getTranslatedField, getTranslation } from "@/lib/localization-utils";
 import { GameLocalizationProvider } from "@/lib/localization";
 import { headers } from "next/headers";
 import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
 import AdminOptionList from './AdminOptionList';
 
-// ... (types)
+type PageProps = {
+  params: Promise<{ gameSlug: string; sectionId: string; fieldId: string }>
+}
+
+interface Option {
+  id: string;
+  value_key: LocalizedString;
+  icon_path: string | null;
+  color: string | null;
+  order_index: number;
+}
+
+interface FieldData {
+  id: string;
+  key: LocalizedString;
+  game_field_id: string;
+  game_fields: {
+    manual_fill: boolean;
+  } | null;
+}
 
 export default async function FieldOptionsPage({ params: paramsPromise }: PageProps) {
   const { gameSlug, sectionId, fieldId } = await paramsPromise
@@ -33,7 +52,7 @@ export default async function FieldOptionsPage({ params: paramsPromise }: PagePr
         )
       `)
       .eq('id', fieldId)
-      .single(),
+      .single() as Promise<{ data: FieldData | null }>,
     headers()
   ]);
 
@@ -48,7 +67,7 @@ export default async function FieldOptionsPage({ params: paramsPromise }: PagePr
   const field = {
     id: fieldData.id,
     key: fieldData.key,
-    manual_fill: (fieldData.game_fields as any)?.manual_fill
+    manual_fill: fieldData.game_fields?.manual_fill ?? false
   };
 
   const { data: options } = await supabase
@@ -77,12 +96,11 @@ export default async function FieldOptionsPage({ params: paramsPromise }: PagePr
 
         {options && options.length > 0 ? (
           <AdminOptionList 
-            options={options as any} 
+            options={options} 
             gameSlug={gameSlug} 
             sectionId={sectionId} 
             fieldId={fieldId} 
             gameDefaultLang={game.default_lang}
-            supabaseUrl={process.env.NEXT_PUBLIC_SUPABASE_URL!}
           />
         ) : (
           <p className="text-gray-400">{getTranslation('noOptionsYet', currentLang)}</p>

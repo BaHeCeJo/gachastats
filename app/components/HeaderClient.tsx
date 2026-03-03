@@ -23,7 +23,7 @@ export default function HeaderClient({
     t,
     userSelectedLang,
     setUserSelectedLang
-  } = useLocalizationParams() as any;
+  } = useLocalizationParams();
 
   const isAdminRoute = pathname.startsWith("/admin")
 
@@ -40,7 +40,7 @@ export default function HeaderClient({
   })()
 
   return (
-    <nav className="flex gap-6 items-center ml-auto">
+    <nav className="flex gap-6 items-center">
       {/* Public Language Switcher - Shows on public pages when a game is active */}
       {!isAdminRoute && gameSupportedLanguages && gameSupportedLanguages.length > 0 && (
         <div className="flex items-center gap-2 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 transition-colors">
@@ -115,7 +115,7 @@ export default function HeaderClient({
       {!isLoggedIn ? (
         <Link
           href="/auth/signin"
-          className="px-4 py-2 rounded-md bg-[#22c55e] text-black font-bold hover:bg-[#1da34a] transition"
+          className="px-4 py-2 rounded-md bg-[#22c55e] text-black font-bold hover:bg-[#1da34a] transition relative z-[60]"
         >
           {t('signIn')}
         </Link>

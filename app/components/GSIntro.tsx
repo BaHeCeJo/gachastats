@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useLocalizationParams } from "@/lib/localization";
 
 export default function GSIntro() {
+  const [isMounted, setIsMounted] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
   const [shouldHide, setShouldHide] = useState(false);
   const [showArrow, setShowArrow] = useState(false);
@@ -11,9 +12,18 @@ export default function GSIntro() {
   const [gPathLength, setGPathLength] = useState(0);
   const sPathRef = useRef<SVGPathElement>(null);
   const gPathRef = useRef<SVGPathElement>(null);
-  const { t } = useLocalizationParams() as any;
+  const { t } = useLocalizationParams();
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsMounted(true);
+
+    const hasSeenIntro = sessionStorage.getItem("gs_intro_seen");
+    if (hasSeenIntro) {
+      setShouldHide(true);
+      return;
+    }
+
     if (sPathRef.current) {
       setSPathLength(sPathRef.current.getTotalLength());
     }
@@ -24,7 +34,10 @@ export default function GSIntro() {
     // Sequence timing
     const arrowTimer = setTimeout(() => setShowArrow(true), 400); // 0.4s: G ends, S starts
     const finishTimer = setTimeout(() => setIsFinished(true), 2100);
-    const hideTimer = setTimeout(() => setShouldHide(true), 3100);
+    const hideTimer = setTimeout(() => {
+      setShouldHide(true);
+      sessionStorage.setItem("gs_intro_seen", "true");
+    }, 3100);
 
     return () => {
       clearTimeout(arrowTimer);
@@ -33,7 +46,7 @@ export default function GSIntro() {
     };
   }, []);
 
-  if (shouldHide) return null;
+  if (!isMounted || shouldHide) return null;
 
   const sPathData = "M 250 200 H 350 H 500 Q 540 200 540 165 V 155 Q 540 130 500 130 H 420 Q 380 130 380 105 V 95 Q 380 60 420 60 H 540";
 
@@ -42,15 +55,18 @@ export default function GSIntro() {
       className={`fixed inset-0 z-[100] flex items-center justify-center bg-black transition-opacity duration-1000 ease-in-out ${
         isFinished ? "opacity-0 pointer-events-none" : "opacity-100"
       }`}
+      style={isFinished ? { display: 'none' } : undefined}
     >
       <div className="relative w-[800px] h-80 flex flex-col items-center justify-center">
         <svg
+          key={gPathLength > 0 ? "animated" : "static"} // Force re-mount once lengths are known to trigger CSS animations
           viewBox="0 0 800 400"
           className="w-full h-full fill-none stroke-[28] overflow-visible"
           strokeLinejoin="miter"
           style={{ 
-            // @ts-ignore
+            // @ts-expect-error custom css variables
             "--s-length": sPathLength,
+            // @ts-expect-error custom css variables
             "--g-length": gPathLength 
           } as React.CSSProperties}
         >
@@ -87,14 +103,14 @@ export default function GSIntro() {
         >
           <div className="flex flex-col items-center text-center">
             <span className="tracking-[2.2em] font-black text-4xl mr-[-2.2em] uppercase text-white">Gacha</span>
-            <span className="tracking-[0.8em] font-light text-sm text-green-500 mt-4 uppercase whitespace-nowrap mr-[-0.8em]">
+            <span className="tracking-[0.8em] font-light text-sm text-[#22c55e] mt-4 uppercase whitespace-nowrap mr-[-0.8em]">
               {t('archivesAnalytics')}
             </span>
           </div>
         </div>
       </div>
 
-      <style jsx>{`
+      <style jsx global>{`
         .gs-path-g {
           stroke-dasharray: var(--g-length);
           stroke-dashoffset: var(--g-length);

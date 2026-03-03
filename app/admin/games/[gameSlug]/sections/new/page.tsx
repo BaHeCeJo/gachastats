@@ -2,6 +2,7 @@ import { createClient as createServerClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { getTranslatedField } from "@/lib/localization-utils";
 import NewSectionClient from './NewSectionClient';
+import { Game } from '@/lib/supabase/queries';
 
 type PageProps = { params: Promise<{ gameSlug: string }>; };
 
@@ -18,5 +19,5 @@ export default async function NewSectionPage({ params: paramsPromise }: PageProp
   const supabase = await createServerClient();
   const { data: game } = await supabase.from('games').select('id, name, slug, default_lang, supported_languages').eq('slug', gameSlug).single();
   if (!game) redirect('/admin/games');
-  return <NewSectionClient game={game as any} />;
+  return <NewSectionClient game={game as Game} />;
 }

@@ -324,9 +324,12 @@ export const uiTranslations: Record<string, Record<string, string>> = {
     dupeLabelName: "Nom de l'étiquette de doublon",
     uniqueDescription: "Unique : Les utilisateurs ne peuvent posséder qu'un seul exemplaire. L'obtenir à nouveau augmente le nombre de doublons.",
     notUniqueDescription: "Non Unique : Les utilisateurs peuvent posséder plusieurs exemplaires distincts de cette entité.",
-  },
-  // Adding placeholders for other languages, they will fallback to 'en' if not provided
-  ja: {
+    ultimateCollectionTracker: "Le traqueur de collection ultime",
+    reuseExistingField: "Réutiliser un champ existant",
+    createNewField: "Créer un nouveau champ",
+    },
+    // Adding placeholders for other languages, they will fallback to 'en' if not provided
+    ja: {
     home: "ホーム",
     admin: "管理者",
     signIn: "サインイン",
@@ -344,8 +347,11 @@ export const uiTranslations: Record<string, Record<string, string>> = {
     name: "名前",
     description: "説明",
     color: "色",
-  },
-  ko: {
+    ultimateCollectionTracker: "究極のコレクション・トラッカー",
+    reuseExistingField: "既存のフィールドを再利用する",
+    createNewField: "新しいフィールドを作成する",
+    },
+    ko: {
     home: "홈",
     admin: "관리자",
     signIn: "로그인",
@@ -363,7 +369,9 @@ export const uiTranslations: Record<string, Record<string, string>> = {
     name: "이름",
     description: "설명",
     color: "색상",
-  }
-};
-
-export type TranslationKey = keyof typeof uiTranslations.en;
+    ultimateCollectionTracker: "궁극의 수집 추적기",
+    reuseExistingField: "기존 필드 재사용",
+    createNewField: "새 필드 만들기",
+    }
+    };
+export type UITranslationKey = keyof typeof uiTranslations.en;

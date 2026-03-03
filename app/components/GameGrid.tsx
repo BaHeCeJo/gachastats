@@ -23,7 +23,7 @@ type Props = {
 
 export default function GameGrid({ games, supabaseUrl, onHoverChange }: Props) {
   const [hoveredCover, setHoveredCover] = useState<string | null>(null);
-  const { currentLang, t } = useLocalizationParams() as any;
+  const { currentLang, t } = useLocalizationParams();
 
   const handleHover = (url: string | null) => {
     setHoveredCover(url);

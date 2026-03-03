@@ -8,7 +8,7 @@ type Props = {
 };
 
 export default function MissingTranslationIndicator({ value }: Props) {
-  const { gameSupportedLanguages } = useLocalizationParams() as any;
+  const { gameSupportedLanguages } = useLocalizationParams();
 
   if (!gameSupportedLanguages || gameSupportedLanguages.length === 0) return null;
 

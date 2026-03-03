@@ -38,7 +38,7 @@ export default function CreatableTagInput({ name, initialValues = [], options = 
     });
   });
   const [inputValue, setInputValue] = useState('');
-  const { currentLang, displayLang, gameDefaultLang } = useLocalizationParams() as any;
+  const { currentLang, displayLang, gameDefaultLang } = useLocalizationParams();
   const activeLang = displayLang || currentLang;
 
   const getLabelForTag = (tag: Tag) => {

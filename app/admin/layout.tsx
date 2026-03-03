@@ -6,7 +6,7 @@ export default async function AdminLayout({
   params,
 }: {
   children: React.ReactNode;
-  params: Promise<any>;
+  params: Promise<Record<string, string>>;
 }) {
   const resolvedParams = await params;
   const breadcrumbs = await generateBreadcrumbs(resolvedParams);

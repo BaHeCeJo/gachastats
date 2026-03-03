@@ -1,172 +1,169 @@
 "use client";
 
-import { createContext, useContext, ReactNode, useState, useEffect, useCallback } from "react";
-import { LocalizedString, formatNumber, formatDate } from "./localization-utils";
-import { uiTranslations, TranslationKey } from "./i18n/translations";
-
-import { languages } from "./constants/languages";
-
-// Re-export type for convenience
-export type { LocalizedString, TranslationKey };
+import { createContext, useContext, ReactNode, useState, useCallback, useEffect } from "react";
+import { formatNumber, formatDate } from "./localization-utils";
+import { uiTranslations, UITranslationKey } from "./i18n/translations";
 
 type LocalizationContextType = {
   currentLang: string;
-  adminSelectedLang: string | null;
-  setAdminSelectedLang: (lang: string | null) => void;
+  adminSelectedLang: string;
+  userSelectedLang: string | null;
+  setAdminSelectedLang: (lang: string) => void;
+  setUserSelectedLang: (lang: string | null) => void;
   displayLang: string;
-};
-
-type GameLocalizationContextType = {
+  t: (key: UITranslationKey) => string;
+  formatNumber: (n: number, options?: Intl.NumberFormatOptions) => string;
+  formatDate: (d: Date | string, options?: Intl.DateTimeFormatOptions) => string;
   gameDefaultLang: string;
   gameSupportedLanguages: string[];
 };
 
 const LocalizationContext = createContext<LocalizationContextType | undefined>(undefined);
-const GameLocalizationContext = createContext<GameLocalizationContextType | undefined>(undefined);
 
-// --- Client Component Provider ---
-export function LocalizationProvider({ children, currentLang: initialLang }: { children: ReactNode; currentLang: string }) {
-  const [adminSelectedLang, setAdminSelectedLang] = useState<string | null>(null);
-  const [userSelectedLang, setUserSelectedLang] = useState<string | null>(null);
-  
-  // Persist admin choice in session storage for better UX
+export function LocalizationProvider({ 
+  children, 
+  currentLang: initialLang 
+}: { 
+  children: ReactNode;
+  currentLang: string;
+}) {
+  const [adminSelectedLang, setAdminSelectedLangState] = useState<string>("");
+  const [userSelectedLang, setUserSelectedLangState] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
   useEffect(() => {
-    const savedAdmin = sessionStorage.getItem('admin_preview_lang');
-    if (savedAdmin) setAdminSelectedLang(savedAdmin);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsMounted(true);
+    const savedAdminLang = sessionStorage.getItem('admin_preview_lang') || "";
+    if (savedAdminLang) setAdminSelectedLangState(savedAdminLang);
 
-    const savedUser = document.cookie.split('; ').find(row => row.startsWith('user_lang='))?.split('=')[1];
-    if (savedUser) setUserSelectedLang(savedUser);
+    const cookies = document.cookie.split('; ');
+    const userLangCookie = cookies.find(row => row.startsWith('user_lang='))?.split('=')[1] || null;
+    if (userLangCookie) setUserSelectedLangState(userLangCookie);
   }, []);
 
-  const handleSetAdminLang = (lang: string | null) => {
-    setAdminSelectedLang(lang);
-    if (lang) {
-      sessionStorage.setItem('admin_preview_lang', lang);
-    } else {
-      sessionStorage.removeItem('admin_preview_lang');
-    }
-  };
+  // During hydration, we must use the initialLang from server to match HTML
+  const displayLang = isMounted 
+    ? (adminSelectedLang || userSelectedLang || initialLang || 'en')
+    : (initialLang || 'en');
 
-  const handleSetUserLang = (lang: string | null) => {
-    setUserSelectedLang(lang);
-    if (lang) {
-      document.cookie = `user_lang=${lang}; path=/; max-age=31536000; SameSite=Lax`;
-    } else {
-      document.cookie = `user_lang=; path=/; max-age=0`;
-    }
-    // Refresh the page to ensure server components update
-    window.location.reload();
-  };
+  const t = useCallback((key: UITranslationKey): string => {
+    const translations = uiTranslations[displayLang as keyof typeof uiTranslations] || uiTranslations.en;
+    return translations[key] || uiTranslations.en[key] || key;
+  }, [displayLang]);
 
-  const displayLang = adminSelectedLang || userSelectedLang || initialLang;
+  const fn = useCallback((n: number, options?: Intl.NumberFormatOptions) => 
+    formatNumber(n, displayLang, options), [displayLang]);
+    
+  const fd = useCallback((d: Date | string, options?: Intl.DateTimeFormatOptions) => 
+    formatDate(d, displayLang, options), [displayLang]);
+
+  const setAdminSelectedLang = useCallback((lang: string) => {
+    setAdminSelectedLangState(lang);
+    if (typeof window !== 'undefined') sessionStorage.setItem('admin_preview_lang', lang);
+  }, []);
+
+  const setUserSelectedLang = useCallback((lang: string | null) => {
+    setUserSelectedLangState(lang);
+    if (typeof document !== 'undefined') {
+      if (lang) {
+        document.cookie = `user_lang=${lang}; path=/; max-age=31536000; SameSite=Lax`;
+      } else {
+        document.cookie = `user_lang=; path=/; max-age=0`;
+      }
+    }
+  }, []);
+
+  const value = {
+    currentLang: initialLang,
+    adminSelectedLang,
+    userSelectedLang,
+    setAdminSelectedLang,
+    setUserSelectedLang,
+    displayLang,
+    t,
+    formatNumber: fn,
+    formatDate: fd,
+    gameDefaultLang: 'en',
+    gameSupportedLanguages: ['en']
+  };
 
   return (
-    <LocalizationContext.Provider value={{ 
-      currentLang: initialLang, 
-      adminSelectedLang, 
-      setAdminSelectedLang: handleSetAdminLang,
-      displayLang 
-    }}>
-      <UserLocalizationContext.Provider value={{ userSelectedLang, setUserSelectedLang: handleSetUserLang }}>
-        {children}
-      </UserLocalizationContext.Provider>
+    <LocalizationContext.Provider value={value}>
+      {children}
     </LocalizationContext.Provider>
   );
 }
 
-const UserLocalizationContext = createContext<{
-  userSelectedLang: string | null;
-  setUserSelectedLang: (lang: string | null) => void;
-} | undefined>(undefined);
-
-export function useUserLocalization() {
-  const context = useContext(UserLocalizationContext);
-  if (context === undefined) {
-    return { userSelectedLang: null, setUserSelectedLang: () => {} };
-  }
-  return context;
-}
-
-// --- Client Component Hook for currentLang ---
-export function useCurrentLanguage() {
-  const context = useContext(LocalizationContext);
-  if (context === undefined) {
-    return { currentLang: 'en', adminSelectedLang: null, setAdminSelectedLang: () => {}, displayLang: 'en' };
-  }
-  return context;
-}
-
-// --- Game-Specific Localization Provider ---
-export function GameLocalizationProvider({
+// Separate provider for Game-specific logic
+export function GameLocalizationProvider({ 
   children,
   gameDefaultLang,
-  gameSupportedLanguages
-}: {
+  gameSupportedLanguages 
+}: { 
   children: ReactNode;
   gameDefaultLang: string;
   gameSupportedLanguages: string[];
 }) {
+  const base = useLocalizationParams();
+  
+  // Logic here should also be hydration-safe
+  const rawDisplayLang = base.displayLang;
+  const displayLang = gameSupportedLanguages.includes(rawDisplayLang) 
+    ? rawDisplayLang 
+    : gameDefaultLang;
+
+  const t = useCallback((key: UITranslationKey): string => {
+    const translations = uiTranslations[displayLang as keyof typeof uiTranslations] || uiTranslations.en;
+    return translations[key] || uiTranslations.en[key] || key;
+  }, [displayLang]);
+
+  const fn = useCallback((n: number, options?: Intl.NumberFormatOptions) => 
+    formatNumber(n, displayLang, options), [displayLang]);
+    
+  const fd = useCallback((d: Date | string, options?: Intl.DateTimeFormatOptions) => 
+    formatDate(d, displayLang, options), [displayLang]);
+
+  const value = {
+    ...base,
+    displayLang,
+    t,
+    formatNumber: fn,
+    formatDate: fd,
+    gameDefaultLang,
+    gameSupportedLanguages
+  };
+
   return (
-    <GameLocalizationContext.Provider value={{ gameDefaultLang, gameSupportedLanguages }}>
+    <LocalizationContext.Provider value={value}>
       {children}
-    </GameLocalizationContext.Provider>
+    </LocalizationContext.Provider>
   );
 }
 
-// --- Client Component Hook for game-specific localization params ---
-export function useGameLocalizationParams() {
-  const context = useContext(GameLocalizationContext);
+export function useLocalizationParams() {
+  const context = useContext(LocalizationContext);
   if (context === undefined) {
-    return { gameDefaultLang: 'en', gameSupportedLanguages: ['en'] }; // Fallback
+    const displayLang = 'en';
+    const t = (key: UITranslationKey) => uiTranslations.en[key] || key;
+    const fn = (n: number, options?: Intl.NumberFormatOptions) => formatNumber(n, displayLang, options);
+    const fd = (d: Date | string, options?: Intl.DateTimeFormatOptions) => formatDate(d, displayLang, options);
+    
+    return {
+      currentLang: 'en',
+      adminSelectedLang: '',
+      userSelectedLang: null,
+      setAdminSelectedLang: () => {},
+      setUserSelectedLang: () => {},
+      displayLang,
+      t,
+      formatNumber: fn,
+      formatDate: fd,
+      gameDefaultLang: 'en',
+      gameSupportedLanguages: ['en']
+    };
   }
   return context;
 }
 
-/**
- * A client-side hook to get the current language, default language, and languages supported by the game.
- */
-export function useLocalizationParams() {
-  const { currentLang, adminSelectedLang, setAdminSelectedLang, displayLang: rawDisplayLang } = useCurrentLanguage();
-  const { gameDefaultLang, gameSupportedLanguages } = useGameLocalizationParams();
-  const { userSelectedLang, setUserSelectedLang } = useUserLocalization();
-
-  // Ensure the displayed language is actually supported by the current game context
-  // (This respects the "Ready" languages logic passed from the server)
-  const isSupported = (lang: string | null) => lang && gameSupportedLanguages.includes(lang);
-  
-  const displayLang = adminSelectedLang || (isSupported(userSelectedLang) ? userSelectedLang : (isSupported(currentLang) ? currentLang : gameDefaultLang));
-
-  const t = useCallback((key: TranslationKey): string => {
-    const lang = displayLang || 'en';
-    const translation = uiTranslations[lang]?.[key] || uiTranslations['en']?.[key] || key;
-    return translation;
-  }, [displayLang]);
-
-  const isRtl = languages.find(l => l.code === displayLang)?.isRtl || false;
-
-  const fn = useCallback((value: number, options?: Intl.NumberFormatOptions) => {
-    return formatNumber(value, displayLang || 'en', options);
-  }, [displayLang]);
-
-  const fd = useCallback((date: Date | string | number, options?: Intl.DateTimeFormatOptions) => {
-    return formatDate(date, displayLang || 'en', options);
-  }, [displayLang]);
-
-  return { 
-    currentLang, 
-    adminSelectedLang, 
-    setAdminSelectedLang, 
-    displayLang, 
-    gameDefaultLang, 
-    gameSupportedLanguages, 
-    t, 
-    userSelectedLang, 
-    setUserSelectedLang, 
-    isRtl,
-    formatNumber: fn,
-    formatDate: fd
-  };
-}
-
-// Re-export logic function for client components that import from here
 export { getTranslatedField, isMissingTranslation, formatNumber, formatDate } from "./localization-utils";

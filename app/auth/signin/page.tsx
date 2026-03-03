@@ -4,15 +4,23 @@ import { useActionState } from "react";
 import { signIn } from "./action";
 import Link from "next/link";
 import { useLocalizationParams } from "@/lib/localization";
+import GSLogo from "@/app/components/GSLogo";
+
+type SignInState = {
+  error?: string;
+  success?: boolean;
+} | null;
 
 export default function SignInPage() {
-  const { t } = useLocalizationParams() as any;
+  const { t } = useLocalizationParams();
   const [state, formAction, isPending] = useActionState(
-    async (prevState: any, formData: FormData) => {
+    async (_prevState: SignInState, formData: FormData) => {
       return await signIn(formData);
     },
     null
   );
+
+  const sPathData = "M 250 200 H 350 H 500 Q 540 200 540 165 V 155 Q 540 130 500 130 H 420 Q 380 130 380 105 V 95 Q 380 60 420 60 H 540";
 
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4">
@@ -20,39 +28,9 @@ export default function SignInPage() {
         {/* Logo and Branding */}
         <div className="flex flex-col items-center gap-4">
           <Link href="/" className="flex flex-col items-center group">
-            <svg
-              viewBox="0 0 800 400"
-              className="w-32 h-16 fill-none stroke-[30] overflow-visible"
-              strokeLinejoin="miter"
-            >
-              <defs>
-                <marker
-                  id="arrow-triangle-signin"
-                  viewBox="0 0 10 10"
-                  refX="0"
-                  refY="5"
-                  markerUnits="strokeWidth"
-                  markerWidth="1"
-                  markerHeight="1"
-                  orient="auto"
-                >
-                  <path d="M 0 0 L 10 5 L 0 10 Z" fill="#22c55e" />
-                </marker>
-              </defs>
-              <path
-                d="M 350 100 H 250 A 100 100 0 1 0 250 300 H 350 V 240"
-                className="stroke-white"
-                strokeLinecap="square"
-              />
-              <path
-                d="M 250 200 H 350 H 500 Q 540 200 540 165 V 155 Q 540 130 500 130 H 420 Q 380 130 380 105 V 95 Q 380 60 420 60 H 540"
-                className="stroke-[#22c55e]"
-                strokeLinecap="butt"
-                markerEnd="url(#arrow-triangle-signin)"
-              />
-            </svg>
+            <GSLogo className="w-24 h-12" sPathData={sPathData} />
             <div className="flex flex-col items-center leading-none mt-2">
-              <span className="text-3xl font-black text-white tracking-tighter">
+              <span className="text-3xl font-black text-white tracking-tighter transition-colors group-hover:text-[#22c55e]">
                 GACHA
               </span>
               <span className="text-[10px] font-bold text-green-600 tracking-[0.4em] uppercase mt-1">

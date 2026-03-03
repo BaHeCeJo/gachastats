@@ -1,17 +1,19 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Image from "next/image";
 import { toggleUserGameAction } from "@/app/collections/actions";
-import { useLocalizationParams, getTranslatedField } from "@/lib/localization";
+import { useLocalizationParams, getTranslatedField, LocalizedString } from "@/lib/localization";
 import { Plus, X, Loader2, Gamepad2 } from "lucide-react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import { getPublicUrl } from "@/lib/supabase/client";
 
 type Game = {
   id: string;
-  name: any;
+  name: LocalizedString;
   slug: string;
   cover_url: string | null;
+  default_lang?: string;
 };
 
 export default function GameCollectionManager({ 
@@ -23,10 +25,9 @@ export default function GameCollectionManager({
   userGameIds: string[];
   currentLang: string;
 }) {
-  const supabase = createClient();
   const [showPicker, setShowPicker] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const { t } = useLocalizationParams() as any;
+  const { t } = useLocalizationParams();
 
   const playedGames = allGames.filter(g => userGameIds.includes(g.id));
   const availableGames = allGames.filter(g => !userGameIds.includes(g.id));
@@ -45,12 +46,6 @@ export default function GameCollectionManager({
     });
   };
 
-  const getPublicUrl = (path: string | null) => {
-    if (!path) return "";
-    if (path.startsWith("http")) return path;
-    return supabase.storage.from("games").getPublicUrl(path).data.publicUrl;
-  };
-
   return (
     <div className="space-y-12">
       <div className="flex flex-wrap gap-10 items-center justify-center lg:justify-start">
@@ -62,11 +57,15 @@ export default function GameCollectionManager({
               className="block w-56 h-56 rounded-[3rem] overflow-hidden border-[6px] border-zinc-800 bg-zinc-900 hover:border-[#22c55e] transition-all duration-500 shadow-2xl hover:shadow-[#22c55e]/20"
             >
               {game.cover_url ? (
-                <img 
-                  src={getPublicUrl(game.cover_url)} 
-                  alt="" 
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
-                />
+                <div className="relative w-full h-full">
+                  <Image 
+                    src={getPublicUrl('games', game.cover_url)!} 
+                    alt="" 
+                    fill
+                    sizes="224px"
+                    className="object-cover group-hover:scale-110 transition-transform duration-700" 
+                  />
+                </div>
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-zinc-700">
                   <Gamepad2 size={80} />
@@ -76,7 +75,7 @@ export default function GameCollectionManager({
             
             {/* Remove Cross */}
             <button
-              onClick={() => handleToggle(game.id, true, getTranslatedField(game.name, currentLang, 'en'))}
+              onClick={() => handleToggle(game.id, true, getTranslatedField(game.name, currentLang, game.default_lang || 'en'))}
               disabled={isPending}
               className="absolute -top-4 -right-4 p-3 bg-red-600 text-white rounded-full shadow-2xl opacity-0 group-hover:opacity-100 transition-all z-10 hover:bg-red-500 hover:scale-110 active:scale-95"
             >
@@ -118,17 +117,21 @@ export default function GameCollectionManager({
               {availableGames.map((game) => (
                 <button
                   key={game.id}
-                  onClick={() => handleToggle(game.id, false, getTranslatedField(game.name, currentLang, 'en'))}
+                  onClick={() => handleToggle(game.id, false, getTranslatedField(game.name, currentLang, game.default_lang || 'en'))}
                   disabled={isPending}
                   className="relative group w-32 h-32 rounded-3xl overflow-hidden border-4 border-zinc-800 bg-zinc-900 hover:border-[#22c55e] transition-all duration-500 shadow-xl hover:scale-110 active:scale-90"
-                  title={getTranslatedField(game.name, currentLang, 'en')}
+                  title={getTranslatedField(game.name, currentLang, game.default_lang || 'en')}
                 >
                   {game.cover_url ? (
-                    <img 
-                      src={getPublicUrl(game.cover_url)} 
-                      alt="" 
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
-                    />
+                    <div className="relative w-full h-full">
+                      <Image 
+                        src={getPublicUrl('games', game.cover_url)!} 
+                        alt="" 
+                        fill
+                        sizes="128px"
+                        className="object-cover group-hover:scale-110 transition-transform duration-500" 
+                      />
+                    </div>
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-zinc-800">
                       <Gamepad2 size={40} />

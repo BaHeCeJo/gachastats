@@ -1,24 +1,11 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { LocalizedString, getTranslatedField, getTranslation } from "@/lib/localization-utils";
+import { getTranslatedField, getTranslation } from "@/lib/localization-utils";
 import { GameLocalizationProvider } from "@/lib/localization";
 import { headers } from "next/headers";
 import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
-
-type Game = {
-  id: string;
-  name: LocalizedString;
-  slug: string;
-  default_lang: string;
-  supported_languages: string[];
-}
-
-type Section = {
-  id: string;
-  key: LocalizedString;
-  game_id: string;
-}
+import { getGameBySlug, getSectionById, LocalizedString } from '@/lib/supabase/queries';
 
 type Field = {
   id: string;
@@ -78,10 +65,6 @@ export default async function FieldsPage({ params: paramsPromise }: PageProps) {
     return a.localeCompare(b)
   })
 
-  const headersList = await headers();
-  const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
-
-
   return (
     <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
       <main className="max-w-3xl p-8 space-y-6 mx-auto">
@@ -109,7 +92,7 @@ export default async function FieldsPage({ params: paramsPromise }: PageProps) {
                   {groupedFields[category]!.map(f => (
                     <li
                       key={f.id}
-                      className="border p-3 rounded flex justify-between items-center bg-zinc-900/50 border-zinc-800"
+                      className="border border-zinc-800 p-3 rounded flex justify-between items-center bg-zinc-900/50"
                     >
                       <span className="flex items-center gap-2">
                         {getTranslatedField(f.key, currentLang, game.default_lang)}

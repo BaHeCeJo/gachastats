@@ -1,28 +1,31 @@
 import { createClient as createServerClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
-import { getTranslatedField, LocalizedString } from '@/lib/localization-utils';
+import { getTranslatedField } from '@/lib/localization-utils';
 import { GameLocalizationProvider } from '@/lib/localization';
 import Link from 'next/link';
-import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
+import { LocalizedString } from '@/lib/supabase/queries';
+import { PostgrestError } from '@supabase/supabase-js';
 
-type GameField = {
+type PageProps = { params: Promise<{ gameSlug: string }> };
+
+interface SectionFieldWithGameSection {
+  id: string;
+  key: LocalizedString;
+  game_sections: {
+    id: string;
+    key: LocalizedString;
+  } | null;
+}
+
+interface GameFieldWithSections {
   id: string;
   internal_name: string;
   manual_fill: boolean;
   has_icon: boolean;
   has_color: boolean;
-  section_fields: {
-    id: string;
-    key: LocalizedString;
-    game_sections: {
-      id: string;
-      key: LocalizedString;
-    }
-  }[];
-};
-
-type PageProps = { params: Promise<{ gameSlug: string }> };
+  section_fields: SectionFieldWithGameSection[];
+}
 
 export default async function GameFieldsPage({ params }: PageProps) {
   const { gameSlug } = await params;
@@ -48,7 +51,7 @@ export default async function GameFieldsPage({ params }: PageProps) {
       )
     `)
     .eq('game_id', game.id)
-    .order('internal_name', { ascending: true });
+    .order('internal_name', { ascending: true }) as { data: GameFieldWithSections[] | null, error: PostgrestError | null };
 
   if (error) {
     return (
@@ -102,13 +105,13 @@ export default async function GameFieldsPage({ params }: PageProps) {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex flex-wrap gap-2">
-                      {gf.section_fields?.map((sf: any) => (
+                      {gf.section_fields?.map((sf) => (
                         <Link 
                           key={sf.id}
                           href={`/admin/games/${gameSlug}/sections/${sf.game_sections?.id}/fields/${sf.id}`}
                           className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white px-2 py-1 rounded text-xs transition border border-zinc-700"
                         >
-                          {getTranslatedField(sf.game_sections?.key, currentLang, game.default_lang)}
+                          {getTranslatedField(sf.game_sections?.key || {}, currentLang, game.default_lang)}
                         </Link>
                       ))}
                       {(!gf.section_fields || gf.section_fields.length === 0) && (

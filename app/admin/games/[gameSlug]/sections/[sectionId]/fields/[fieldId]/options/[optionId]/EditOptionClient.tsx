@@ -22,7 +22,7 @@ export default function EditOptionClient({ game, field, option, sectionId, curre
   currentLang: string;
 }) {
   const supabase = createClient();
-  const { displayLang, t } = useLocalizationParams() as any;
+  const { displayLang, t } = useLocalizationParams();
   const activeLang = displayLang || browserLang;
   const [localizedValueKey, setLocalizedValueKey] = useState<LocalizedString>(option.value_key);
   const [color, setColor] = useState<string | null>(option.color);
@@ -31,7 +31,7 @@ export default function EditOptionClient({ game, field, option, sectionId, curre
   const [orderIndex, setOrderIndex] = useState<number>(option.order_index);
 
   const [state, formAction] = useActionState(
-    async (prevState: FormState, formData: FormData) => {
+    async (_prevState: FormState, formData: FormData) => {
       formData.set("id", option.id);
       formData.set("value_key", JSON.stringify(localizedValueKey));
       formData.set("color", color || "");

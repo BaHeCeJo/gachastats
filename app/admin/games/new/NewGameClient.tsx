@@ -10,8 +10,7 @@ import { languages } from "@/lib/constants/languages";
 type FormState = { error?: string; };
 
 export default function NewGameClient() {
-  const { currentLang, displayLang, t } = useLocalizationParams() as any;
-  const activeLang = displayLang || currentLang;
+  const { t } = useLocalizationParams();
   const initialSupportedLanguages = ['en'];
   const [localizedName, setLocalizedName] = useState<LocalizedString>({ [initialSupportedLanguages[0]]: "" });
   const [localizedDescription, setLocalizedDescription] = useState<LocalizedString>({ [initialSupportedLanguages[0]]: "" });
@@ -20,7 +19,7 @@ export default function NewGameClient() {
   const [coverImage, setCoverImage] = useState<File | null>(null);
 
   const [state, formAction] = useActionState(
-    async (prevState: FormState, formData: FormData) => {
+    async (_prevState: FormState, formData: FormData) => {
       formData.set("name", JSON.stringify(localizedName));
       formData.set("description", JSON.stringify(localizedDescription));
       formData.set("default_lang", defaultLang);
@@ -48,7 +47,7 @@ export default function NewGameClient() {
       <form action={formAction} className="space-y-6">
         <LocalizedTextInput id="name" label={t('gameName')} value={localizedName} onChange={setLocalizedName} placeholder="Zenless Zone Zero" />
         <LocalizedTextInput id="description" label={t('description')} value={localizedDescription} onChange={setLocalizedDescription} placeholder="A brief overview..." textarea />
-        <div><label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{t('cover_url' as any) || 'Cover'} {t('icon')}</label><ImageInput name="cover_image" onFileChange={setCoverImage} existingImageUrl={null} /></div>
+        <div><label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{t('icon')}</label><ImageInput name="cover_image" onFileChange={setCoverImage} existingImageUrl={null} /></div>
         <div>
           <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{t('supportedLanguages')}</label>
           <div className="flex flex-wrap gap-2">

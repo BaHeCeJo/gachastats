@@ -1,23 +1,41 @@
 import { createPublicClient } from "@/lib/supabase/server";
-import { getGameBySlug, getSectionById, getPublicUrl, getSectionFields, getSectionDisplaySettings, getSectionEntities } from "@/lib/supabase/queries";
+import { 
+  getGameBySlug, 
+  getSectionById, 
+  getSectionFields, 
+  getSectionDisplaySettings, 
+  getSectionEntities,
+  Game,
+  Section,
+  SectionField,
+  SectionEntity,
+  SectionDisplaySettings,
+} from "@/lib/supabase/queries";
 import { redirect } from "next/navigation";
 import Image from "next/image";
-import Link from "next/link";
 import Header from "@/app/components/Header";
 import GSBackground from "@/app/components/GSBackground";
 import EntityGridManager from "@/app/components/EntityGridManager";
-import { LocalizedString, getTranslatedField, getTranslation } from "@/lib/localization-utils";
+import { getTranslatedField, getTranslation } from "@/lib/localization-utils";
 import { GameLocalizationProvider } from "@/lib/localization";
+import { getPublicUrl } from "@/lib/supabase/client";
 
 // Enable ISR
 export const revalidate = 3600;
+
+interface StaticParamsSection {
+  id: string;
+  games: {
+    slug: string;
+  } | null;
+}
 
 /**
  * Pre-generate static paths for sections.
  */
 export async function generateStaticParams() {
   const supabase = createPublicClient();
-  const { data: sections } = await supabase.from('game_sections').select('id, games(slug)').returns<any[]>();
+  const { data: sections } = await supabase.from('game_sections').select('id, games(slug)') as { data: StaticParamsSection[] | null };
   
   return (sections || []).map((s) => ({
     gameSlug: s.games?.slug,
@@ -25,71 +43,11 @@ export async function generateStaticParams() {
   }));
 }
 
-// --- Type Definitions ---
-export type Game = {
-  id: string;
-  name: LocalizedString;
-  slug: string;
-  cover_url: string | null;
-  default_lang: string;
-  supported_languages: string[];
-};
-
-export type Section = {
-  id: string;
-  key: LocalizedString;
-  game_id: string;
-  icon_path: string | null;
-  color: string | null;
-};
-
-type FieldOption = {
-  id: string;
-  field_id: string;
-  value_key: LocalizedString;
-  icon_path: string | null;
-  color: string | null;
-  order_index: number;
-};
-
-type Field = {
+export type ProcessedEntity = {
   id: string;
   section_id: string;
-  key: LocalizedString;
-  required: boolean;
-  manual_fill: boolean;
-  has_icon: boolean;
-  has_color: boolean;
-  order_index: number;
-  is_multi: boolean;
-  category: string | null;
-  field_options: FieldOption[] | null;
-  game_field_id: string;
-};
-
-type EntityFieldValue = {
-  id: string;
-  game_field_id: string;
-  value_text: LocalizedString | null;
-  option_id: string | null;
-  field_options: Pick<FieldOption, 'color' | 'icon_path' | 'value_key'> | null;
-};
-
-type EntitySkin = {
-  is_default: boolean;
-  entity_images: { image_path: string | null; type: string }[];
-};
-
-type Entity = {
-  id: string;
-  section_id: string;
-  name: LocalizedString;
+  name: Record<string, string>;
   icon_path: string | null;
-  entity_skins: EntitySkin[] | null;
-  entity_field_values: EntityFieldValue[] | null;
-};
-
-type ProcessedEntity = Entity & {
   publicIconUrl: string;
   fieldValuesMap: Record<string, { color?: string; iconUrl?: string }>;
   allValues: Record<string, string[]>;
@@ -108,12 +66,11 @@ export async function generateMetadata({ params: paramsPromise }: PageProps) {
     getSectionById(sectionId)
   ]);
 
-  const game = gameRes.data;
-  const section = sectionRes.data;
+  const game = gameRes.data as Game | null;
+  const section = sectionRes.data as Section | null;
 
   if (!game || !section) return { title: 'Section Not Found' };
 
-  // Use default lang for static generation
   const currentLang = game.default_lang || 'en';
   const gameTitle = getTranslatedField(game.name, currentLang, game.default_lang || 'en');
   const sectionTitle = getTranslatedField(section.key, currentLang, game.default_lang || 'en');
@@ -127,11 +84,11 @@ export async function generateMetadata({ params: paramsPromise }: PageProps) {
 }
 
 export default async function SectionDetailPage({ params: paramsPromise }: PageProps) {
-  const params = await paramsPromise;
-  const { gameSlug, sectionId } = params;
+  const { gameSlug, sectionId } = await paramsPromise;
 
   // 1. Fetch game (cached)
-  const { data: game, error: gameError } = await getGameBySlug(gameSlug);
+  const { data: gameRaw, error: gameError } = await getGameBySlug(gameSlug);
+  const game = gameRaw as Game | null;
 
   if (gameError || !game) {
     redirect("/");
@@ -145,42 +102,40 @@ export default async function SectionDetailPage({ params: paramsPromise }: PageP
     getSectionEntities(sectionId, game.default_lang)
   ]);
 
-  const { data: section, error: sectionError } = sectionRes;
-  const { data: fieldsRaw } = fieldsRes;
-  const { data: displaySettings } = settingsRes;
-  const { data: entities, error: entitiesError } = entitiesRes;
+  const section = sectionRes.data as Section | null;
+  const fieldsRaw = fieldsRes.data as unknown as SectionField[];
+  const displaySettings = settingsRes.data as SectionDisplaySettings | null;
+  const entities = entitiesRes.data as unknown as SectionEntity[];
 
-  if (sectionError || !section) {
+  if (!section) {
     redirect(`/${gameSlug}`);
   }
 
-  // Static fallback language
   const currentLang = game.default_lang;
 
-  const fields = (fieldsRaw || []).map((f: any) => {
-    const gf = Array.isArray(f.game_fields) ? f.game_fields[0] : f.game_fields;
+  const fields = (fieldsRaw || []).map((f) => {
     return {
       ...f,
-      manual_fill: gf?.manual_fill,
-      has_icon: gf?.has_icon,
-      has_color: gf?.has_color,
-      field_options: gf?.field_options || []
+      manual_fill: f.game_fields?.manual_fill,
+      has_icon: f.game_fields?.has_icon,
+      has_color: f.game_fields?.has_color,
+      field_options: f.game_fields?.field_options || []
     };
   });
 
-  const gameFieldsMap = new Map((fields || [])?.map(f => [f.game_field_id, f]));
+  const gameFieldsMap = new Map(fields.map(f => [f.game_field_id, f]));
 
-  const processedEntities: ProcessedEntity[] = (entities || []).map((entity: any) => {
-    const defaultSkin = entity.entity_skins?.[0];
-    const skinIconPath = defaultSkin?.entity_images?.find((img: any) => img.type === 'icon')?.image_path;
+  const processedEntities: ProcessedEntity[] = (entities || []).map((entity) => {
+    const defaultSkin = entity.entity_skins?.find((s) => s.is_default) || entity.entity_skins?.[0];
+    const skinIconPath = defaultSkin?.entity_images?.find((img) => img.type === 'icon')?.image_path;
     const iconPath = entity.icon_path || skinIconPath;
     
-    const publicIconUrl = getPublicUrl('games', iconPath) || "";
+    const publicIconUrl = iconPath ? getPublicUrl('games', iconPath) || "" : "";
 
     const fieldValuesMap: Record<string, { color?: string; iconUrl?: string }> = {};
     const allValues: Record<string, string[]> = {};
 
-    entity.entity_field_values?.forEach((val: any) => {
+    entity.entity_field_values?.forEach((val) => {
       const field = gameFieldsMap.get(val.game_field_id);
       if (!field) return;
       const fieldId = field.id;
@@ -190,7 +145,8 @@ export default async function SectionDetailPage({ params: paramsPromise }: PageP
       if (val.option_id) {
         allValues[fieldId].push(val.option_id);
       } else {
-        const translatedValue = getTranslatedField(val.value_text, currentLang, game.default_lang);
+        const valText = val.value_text as string | Record<string, string> | null;
+        const translatedValue = typeof valText === 'string' ? valText : getTranslatedField(valText || {}, currentLang, game.default_lang);
         if (translatedValue) {
           if (field?.is_multi) {
             const parts = translatedValue.split(',').filter(Boolean).map((p: string) => p.trim());
@@ -205,40 +161,53 @@ export default async function SectionDetailPage({ params: paramsPromise }: PageP
       if (opt) {
         fieldValuesMap[fieldId] = {
           color: opt.color || undefined,
-          iconUrl: getPublicUrl('games', opt.icon_path) || undefined,
+          iconUrl: opt.icon_path ? getPublicUrl('games', opt.icon_path) || undefined : undefined,
         };
       }
     });
 
-    return { ...entity, publicIconUrl, fieldValuesMap, allValues } as ProcessedEntity;
+    return { 
+      id: entity.id,
+      section_id: entity.section_id,
+      name: entity.name,
+      icon_path: entity.icon_path,
+      publicIconUrl, 
+      fieldValuesMap, 
+      allValues 
+    };
   });
 
   const filterFieldIds = displaySettings?.filter_field_ids || [];
   const filterFields =
-    (fields || [])
+    fields
       .filter((f) => filterFieldIds.includes(f.id))
       .map((f) => ({
         id: String(f.id),
         key: f.key,
         options: (f.field_options || [])
-          .sort((a: any, b: any) => a.order_index - b.order_index)
-          .map((opt: any) => ({
+          .sort((a, b) => a.order_index - b.order_index)
+          .map((opt) => ({
             id: String(opt.id),
             value_key: opt.value_key,
-            iconUrl: getPublicUrl('games', opt.icon_path) || undefined,
+            iconUrl: opt.icon_path ? getPublicUrl('games', opt.icon_path) || undefined : undefined,
             color: opt.color,
           })),
       })) || [];
 
-  const gameCoverUrl = getPublicUrl('games', game.cover_url);
+  const gameCoverUrl = game.cover_url ? getPublicUrl('games', game.cover_url) : null;
 
   return (
     <div className="relative flex flex-col min-h-screen bg-zinc-50 dark:bg-black font-sans overflow-x-hidden">
       <div className="fixed inset-0 pointer-events-none z-[1] overflow-hidden">
-        <div
-          className="absolute inset-0 bg-cover bg-center grayscale blur-md opacity-25 scale-105 transition-all duration-1000 ease-out"
-          style={{ backgroundImage: gameCoverUrl ? `url(${gameCoverUrl})` : "none" }}
-        />
+        {gameCoverUrl && (
+          <Image
+            src={gameCoverUrl}
+            alt=""
+            fill
+            className="object-cover grayscale blur-md opacity-25 scale-105"
+            priority
+          />
+        )}
         <div className="absolute inset-0 bg-zinc-50/60 dark:bg-black/80" />
       </div>
 
@@ -260,14 +229,15 @@ export default async function SectionDetailPage({ params: paramsPromise }: PageP
           <div className="max-w-7xl mx-auto space-y-12">
             <div className="flex items-center gap-6">
               {section.icon_path ? (
-                <Image
-                  src={getPublicUrl('games', section.icon_path)!}
-                  alt={getTranslatedField(section.key, currentLang, game.default_lang)}
-                  width={80}
-                  height={80}
-                  className="w-20 h-20 object-contain p-2 rounded-full shadow-lg border border-zinc-300 dark:border-zinc-700"
-                  style={{ backgroundColor: section.color || 'transparent' }}
-                />
+                <div className="relative w-20 h-20 rounded-full shadow-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden" style={{ backgroundColor: section.color || 'transparent' }}>
+                  <Image
+                    src={getPublicUrl('games', section.icon_path)!}
+                    alt={getTranslatedField(section.key, currentLang, game.default_lang)}
+                    fill
+                    sizes="80px"
+                    className="object-contain p-2"
+                  />
+                </div>
               ) : (
                 <div
                   className="w-20 h-20 flex items-center justify-center text-zinc-400 text-3xl border border-zinc-300 dark:border-zinc-700 rounded-full"

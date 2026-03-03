@@ -27,9 +27,18 @@ type Entity = {
   allValues: Record<string, string[]>;
 };
 
+type DisplaySettings = {
+  max_columns?: number;
+  bg_color_field_id?: string | null;
+  top_left_icon_field_id?: string | null;
+  top_right_icon_field_id?: string | null;
+  overlay_icon_field_id?: string | null;
+  filter_field_ids?: string[];
+};
+
 type Props = {
   entities: Entity[];
-  displaySettings: any;
+  displaySettings: DisplaySettings | null;
   filterFields: FilterField[];
   gameSlug: string;
   sectionId: string;
@@ -50,7 +59,7 @@ export default function EntityGridManager({
   gameDefaultLang,
   currentLang: browserLang,
 }: Props) {
-  const { displayLang, t } = useLocalizationParams() as any;
+  const { displayLang, t } = useLocalizationParams();
   const activeLang = displayLang || browserLang;
 
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});

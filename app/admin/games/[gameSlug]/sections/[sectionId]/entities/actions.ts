@@ -42,6 +42,20 @@ async function uploadImage(file: File, bucket: string, folder: string): Promise<
   return path;
 }
 
+interface FieldValueInput {
+  field_id: string;
+  values: string[];
+}
+
+interface FieldDefResult {
+  id: string;
+  is_multi: boolean;
+  game_field_id: string;
+  game_fields: {
+    manual_fill: boolean;
+  } | null;
+}
+
 /**
  * Upserts (creates or updates) an entity entry.
  */
@@ -58,7 +72,7 @@ export async function upsertEntityAction(
   const iconFile = formData.get("icon_file"); // File or null
   const existingIconPath = formData.get("existing_icon_path") as string | null;
   const fieldValuesJson = formData.get("field_values") as string;
-  const fieldValues = fieldValuesJson ? JSON.parse(fieldValuesJson) : [];
+  const fieldValues: FieldValueInput[] = fieldValuesJson ? JSON.parse(fieldValuesJson) : [];
 
 
   if (!rawName[gameDefaultLang]) {
@@ -157,7 +171,7 @@ export async function upsertEntityAction(
   }
 
   // OPTIMIZATION: Fetch all field definitions in one query to avoid N+1
-  const fieldIds = fieldValues.map((fv: any) => fv.field_id);
+  const fieldIds = fieldValues.map((fv) => fv.field_id);
   const { data: fieldDefs } = await supabase
     .from("section_fields")
     .select(`
@@ -168,11 +182,16 @@ export async function upsertEntityAction(
         manual_fill
       )
     `)
-    .in("id", fieldIds);
+    .in("id", fieldIds) as { data: FieldDefResult[] | null };
 
   const fieldDefMap = new Map(fieldDefs?.map(fd => [fd.id, fd]));
 
-  const valuesToInsert: any[] = [];
+  const valuesToInsert: {
+    entity_id: string;
+    game_field_id: string;
+    value_text: string | null;
+    option_id: string | null;
+  }[] = [];
 
   for (const fVal of fieldValues) {
     const { field_id, values } = fVal;
@@ -182,7 +201,7 @@ export async function upsertEntityAction(
     if (!fieldDef) continue;
 
     const gameFieldId = fieldDef.game_field_id;
-    const manualFill = (fieldDef.game_fields as any)?.manual_fill;
+    const manualFill = fieldDef.game_fields?.manual_fill || false;
 
     const processedOptionIds: string[] = [];
 

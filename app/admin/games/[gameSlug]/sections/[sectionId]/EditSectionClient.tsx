@@ -7,27 +7,32 @@ import ConfirmButton from '@/app/components/ConfirmButton';
 import LocalizedTextInput from '@/app/components/fields/LocalizedTextInput';
 import ImageInput from '@/app/components/ImageInput';
 import EntityGridManager from '@/app/components/EntityGridManager';
-import TeamBuilder from '@/app/components/TeamBuilder';
+import TeamBuilder, { TeamData, TeamEntity, TeamFieldOption } from '@/app/components/TeamBuilder';
 import { LocalizedString, getTranslatedField, GameLocalizationProvider, useLocalizationParams } from "@/lib/localization";
 import Link from "next/link";
 import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
+import { Game, Section, SectionDisplaySettings } from '@/lib/supabase/queries';
+import { ProcessedEntity } from '@/app/[gameSlug]/sections/[sectionId]/page';
 
-type Game = { id: string; name: LocalizedString; slug: string; default_lang: string; supported_languages: string[]; };
-type Section = { id: string; key: LocalizedString; game_id: string; icon_path: string | null; color: string | null; order_index: number; is_collectible: boolean; is_unique: boolean; max_dupes: number; dupe_name: LocalizedString; min_dupes: number; has_teams: boolean; max_team_size: number; };
 type FieldOption = { id: string; field_id: string; value_key: LocalizedString; icon_path: string | null; color: string | null; order_index: number; };
 type Field = { id: string; section_id: string; key: LocalizedString; required: boolean; manual_fill: boolean; has_icon: boolean; has_color: boolean; order_index: number; is_multi: boolean; category: string | null; field_options: FieldOption[] | null; };
-type ProcessedEntity = any;
-type DisplaySettings = { section_id: string; max_columns: number; bg_color_field_id: string | null; top_left_icon_field_id: string | null; top_right_icon_field_id: string | null; overlay_icon_field_id: string | null; filter_field_ids: string[]; };
 type FormState = { error?: string; };
 
 export default function EditSectionClient({
-  game, section, fields, gameFields, displaySettings, entities, filterFieldsData, currentLang: browserLang, updateDisplaySettingsAction, sectionTeams = []
+  game, section, fields, displaySettings, entities, filterFieldsData, currentLang: browserLang, updateDisplaySettingsAction, sectionTeams = []
 }: {
-  game: Game; section: Section; fields: Field[]; gameFields: any[]; displaySettings: DisplaySettings | null; entities: ProcessedEntity[]; filterFieldsData: any[]; currentLang: string; updateDisplaySettingsAction: (gameSlug: string, sectionId: string, formData: FormData) => Promise<{ error?: string }>;
-  sectionTeams: any[];
+  game: Game; 
+  section: Section; 
+  fields: Field[]; 
+  displaySettings: SectionDisplaySettings | null; 
+  entities: ProcessedEntity[]; 
+  filterFieldsData: { id: string; key: LocalizedString; options: { id: string; value_key: LocalizedString; iconUrl?: string; color?: string | null }[] }[]; 
+  currentLang: string; 
+  updateDisplaySettingsAction: (gameSlug: string, sectionId: string, formData: FormData) => Promise<{ error?: string }>;
+  sectionTeams: TeamData[];
 }) {
   const supabase = createClient();
-  const { displayLang, t } = useLocalizationParams() as any;
+  const { displayLang, t } = useLocalizationParams();
   const activeLang = displayLang || browserLang;
 
   const [localizedKey, setLocalizedKey] = useState<LocalizedString>(section.key);
@@ -51,7 +56,7 @@ export default function EditSectionClient({
   const [maxColumns, setMaxColumns] = useState<number>(displaySettings?.max_columns ?? 6);
 
   const [sectionState, sectionFormAction] = useActionState(
-    async (prevState: FormState, formData: FormData) => {
+    async (_prevState: FormState, formData: FormData) => {
       formData.set("id", section.id);
       formData.set("key", JSON.stringify(localizedKey));
       formData.set("color", color);
@@ -71,7 +76,7 @@ export default function EditSectionClient({
   );
 
   const [displaySettingsState, displaySettingsFormAction] = useActionState(
-    async (prevState: FormState, formData: FormData) => {
+    async (_prevState: FormState, formData: FormData) => {
       formData.set("max_columns", maxColumns.toString());
       formData.set("bg_color_field_id", bgColorFieldId);
       formData.set("top_left_icon_field_id", topLeftIconFieldId);
@@ -105,18 +110,18 @@ export default function EditSectionClient({
     return a.localeCompare(b);
   });
 
-  const fieldOptions = useMemo(() => {
-    return fields.flatMap(f => (f.field_options || []).map((o: any) => ({
+  const fieldOptions = useMemo<TeamFieldOption[]>(() => {
+    return fields.flatMap(f => (f.field_options || []).map((o) => ({
       ...o,
       field_name: getTranslatedField(f.key, activeLang, game.default_lang)
     })));
   }, [fields, activeLang, game.default_lang]);
 
-  const sectionEntities = useMemo(() => {
-    return entities.map((ent: any) => ({
+  const sectionEntities = useMemo<TeamEntity[]>(() => {
+    return entities.map((ent) => ({
       id: ent.id,
       name: ent.name,
-      icon_path: ent.icon_path
+      icon_path: ent.icon_path,
     }));
   }, [entities]);
 
@@ -126,7 +131,7 @@ export default function EditSectionClient({
     <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
       <main className="max-w-7xl mx-auto p-8 space-y-10">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
+          <h1 className="text-2xl font-bold flex items-center gap-2 text-white">
             {t('editSection')}: {getTranslatedField(section.key, activeLang, game.default_lang)}
             <MissingTranslationIndicator value={section.key} />
           </h1>
@@ -136,7 +141,7 @@ export default function EditSectionClient({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-10">
             <section className="space-y-6 border-b pb-10">
-              <h2 className="text-xl font-semibold">{t('generalInfo')}</h2>
+              <h2 className="text-xl font-semibold text-white">{t('generalInfo')}</h2>
               <form action={sectionFormAction} className="space-y-4">
                 <LocalizedTextInput id="key" label={t('sectionName')} value={localizedKey} onChange={setLocalizedKey} placeholder="Characters" />
                 <div className="flex flex-wrap gap-8 items-center">
@@ -150,7 +155,7 @@ export default function EditSectionClient({
                       onChange={(e) => setIsCollectible(e.target.checked)}
                       className="w-5 h-5 rounded border-zinc-800 bg-zinc-900 text-[#22c55e] focus:ring-[#22c55e]"
                     />
-                    <label htmlFor="is_collectible" className="text-xs font-bold text-zinc-500 uppercase tracking-widest cursor-pointer">
+                    <label htmlFor="is_collectible" className="text-xs font-bold text-zinc-500 uppercase tracking-widest cursor-pointer text-zinc-400">
                       {t('isCollectible')}
                     </label>
                   </div>
@@ -162,13 +167,13 @@ export default function EditSectionClient({
                       onChange={(e) => setHasTeams(e.target.checked)}
                       className="w-5 h-5 rounded border-zinc-800 bg-zinc-900 text-[#22c55e] focus:ring-[#22c55e]"
                     />
-                    <label htmlFor="has_teams" className="text-xs font-bold text-zinc-500 uppercase tracking-widest cursor-pointer">
+                    <label htmlFor="has_teams" className="text-xs font-bold text-zinc-500 uppercase tracking-widest cursor-pointer text-zinc-400">
                       Build Teams
                     </label>
                   </div>
                   {hasTeams && (
                     <div className="flex items-center gap-3 pt-6">
-                      <label htmlFor="max_team_size" className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
+                      <label htmlFor="max_team_size" className="text-xs font-bold text-zinc-500 uppercase tracking-widest text-zinc-400">
                         Max Team Size
                       </label>
                       <input 
@@ -193,12 +198,12 @@ export default function EditSectionClient({
                           onChange={(e) => setIsUnique(e.target.checked)}
                           className="w-5 h-5 rounded border-zinc-800 bg-zinc-900 text-[#22c55e] focus:ring-[#22c55e]"
                         />
-                        <label htmlFor="is_unique" className="text-xs font-bold text-zinc-500 uppercase tracking-widest cursor-pointer">
+                        <label htmlFor="is_unique" className="text-xs font-bold text-zinc-500 uppercase tracking-widest cursor-pointer text-zinc-400">
                           {t('isUnique')}
                         </label>
                       </div>
                       <div className="flex items-center gap-3">
-                        <label htmlFor="min_dupes" className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
+                        <label htmlFor="min_dupes" className="text-xs font-bold text-zinc-500 uppercase tracking-widest text-zinc-400">
                           {t('minDupes')}
                         </label>
                         <input 
@@ -210,7 +215,7 @@ export default function EditSectionClient({
                         />
                       </div>
                       <div className="flex items-center gap-3">
-                        <label htmlFor="max_dupes" className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
+                        <label htmlFor="max_dupes" className="text-xs font-bold text-zinc-500 uppercase tracking-widest text-zinc-400">
                           {t('maxDupes')}
                         </label>
                         <input 
@@ -237,14 +242,14 @@ export default function EditSectionClient({
               </form>
             </section>
             <section className="space-y-6 border-b pb-10">
-              <h2 className="text-xl font-semibold">{t('displaySettings')}</h2>
+              <h2 className="text-xl font-semibold text-white">{t('displaySettings')}</h2>
               <form action={displaySettingsFormAction} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium">{t('maxColumns')}</label>
+                  <label className="block text-sm font-medium text-zinc-400">{t('maxColumns')}</label>
                   <input name="max_columns" type="number" value={maxColumns} onChange={(e) => setMaxColumns(Number(e.target.value))} className="border p-2 w-full bg-zinc-900 text-white border-zinc-800 rounded" />
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium">{t('backgroundColorField')}</label>
+                  <label className="block text-sm font-medium text-zinc-400">{t('backgroundColorField')}</label>
                   <select name="bg_color_field_id" value={bgColorFieldId} onChange={(e) => setBgColorFieldId(e.target.value)} className="border p-2 w-full bg-zinc-900 text-white border-zinc-800 rounded">
                     <option value="">{t('none')}</option>
                     {fields.map(f => (
@@ -253,7 +258,7 @@ export default function EditSectionClient({
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium">{t('topLeftIconField')}</label>
+                  <label className="block text-sm font-medium text-zinc-400">{t('topLeftIconField')}</label>
                   <select name="top_left_icon_field_id" value={topLeftIconFieldId} onChange={(e) => setTopLeftIconFieldId(e.target.value)} className="border p-2 w-full bg-zinc-900 text-white border-zinc-800 rounded">
                     <option value="">{t('none')}</option>
                     {fields.map(f => (
@@ -262,7 +267,7 @@ export default function EditSectionClient({
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium">{t('topRightIconField')}</label>
+                  <label className="block text-sm font-medium text-zinc-400">{t('topRightIconField')}</label>
                   <select name="top_right_icon_field_id" value={topRightIconFieldId} onChange={(e) => setTopRightIconFieldId(e.target.value)} className="border p-2 w-full bg-zinc-900 text-white border-zinc-800 rounded">
                     <option value="">{t('none')}</option>
                     {fields.map(f => (
@@ -271,7 +276,7 @@ export default function EditSectionClient({
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium">{t('overlayIconField')}</label>
+                  <label className="block text-sm font-medium text-zinc-400">{t('overlayIconField')}</label>
                   <select name="overlay_icon_field_id" value={overlayIconFieldId} onChange={(e) => setOverlayIconFieldId(e.target.value)} className="border p-2 w-full bg-zinc-900 text-white border-zinc-800 rounded">
                     <option value="">{t('none')}</option>
                     {fields.map(f => (
@@ -280,7 +285,7 @@ export default function EditSectionClient({
                   </select>
                 </div>
                 <div className="space-y-2 md:col-span-2">
-                  <label className="block text-sm font-medium">{t('fieldsToFilterBy')}</label>
+                  <label className="block text-sm font-medium text-zinc-400">{t('fieldsToFilterBy')}</label>
                   <div className="flex flex-wrap gap-4 mt-2">
                     {fields?.map(f => (
                       <label key={f.id} className="flex items-center gap-2 cursor-pointer group">
@@ -295,19 +300,19 @@ export default function EditSectionClient({
             </section>
           </div>
           <aside className="space-y-4">
-            <div className="flex justify-between items-center"><h2 className="text-xl font-semibold">{t('fields')}</h2><Link href={`/admin/games/${game.slug}/sections/${section.id}/fields/new`} className="bg-[#22c55e] text-black font-bold px-2 py-1 text-sm rounded hover:bg-[#1da34a] transition">{t('add')} {t('field')}</Link></div>
+            <div className="flex justify-between items-center"><h2 className="text-xl font-semibold text-white">{t('fields')}</h2><Link href={`/admin/games/${game.slug}/sections/${section.id}/fields/new`} className="bg-[#22c55e] text-black font-bold px-2 py-1 text-sm rounded hover:bg-[#1da34a] transition">{t('add')} {t('field')}</Link></div>
             {sortedCategories.map(category => (
               <div key={category} className="space-y-1">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 border-b border-gray-800 pb-1">{category}</h3>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500 border-b border-zinc-800 pb-1">{category}</h3>
                 <div className="space-y-1">
                   {groupedFields[category]!.map(field => (
-                    <Link key={field.id} href={`/admin/games/${game.slug}/sections/${section.id}/fields/${field.id}`} className="block border rounded p-2 hover:bg-gray-800 transition text-sm">
+                    <Link key={field.id} href={`/admin/games/${game.slug}/sections/${section.id}/fields/${field.id}`} className="block border border-zinc-800 rounded p-2 hover:bg-zinc-800 transition text-sm">
                       <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium">{getTranslatedField(field.key, activeLang, game.default_lang)}</span>
+                          <span className="font-medium text-zinc-300">{getTranslatedField(field.key, activeLang, game.default_lang)}</span>
                           <MissingTranslationIndicator value={field.key} />
                         </div>
-                        <span className="text-xs text-gray-500">{field.category}</span>
+                        <span className="text-xs text-zinc-500">{field.category}</span>
                       </div>
                     </Link>
                   ))}

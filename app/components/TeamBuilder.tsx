@@ -1,16 +1,46 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { getTranslatedField, useLocalizationParams } from "@/lib/localization";
+import Image from "next/image";
+import { LocalizedString, getTranslatedField, useLocalizationParams } from "@/lib/localization";
 import { Plus, Trash2, X, Users, Search, ChevronRight, GripVertical } from "lucide-react";
 import { upsertTeamAction, deleteTeamAction } from "@/app/collections/team-actions";
-import { createClient } from "@/lib/supabase/client";
-
+import { getPublicUrl } from "@/lib/supabase/client";
 import Link from "next/link";
+
+export interface TeamMember {
+  id: string;
+  member_type: 'entity' | 'option';
+  entity_id: string | null;
+  option_id: string | null;
+  slot_index: number;
+  order_index: number;
+}
+
+export interface TeamData {
+  id: string;
+  name: LocalizedString;
+  section_id: string;
+  section_team_members: TeamMember[];
+}
+
+export interface TeamEntity {
+  id: string;
+  name: LocalizedString;
+  icon_path: string | null;
+}
+
+export interface TeamFieldOption {
+  id: string;
+  value_key: LocalizedString;
+  icon_path: string | null;
+  color: string | null;
+  field_name?: string;
+}
 
 type Member = { type: 'entity' | 'option'; id: string; name: string; icon_path: string | null; color?: string | null };
 type Slot = { members: Member[] };
-type Team = { id: string; name: any; slots: Slot[] };
+type Team = { id: string; name: LocalizedString; slots: Slot[] };
 
 export default function TeamBuilder({
   sectionId,
@@ -25,32 +55,30 @@ export default function TeamBuilder({
 }: {
   sectionId: string;
   gameSlug: string;
-  sectionEntities: any[];
-  fieldOptions: any[];
+  sectionEntities: TeamEntity[];
+  fieldOptions: TeamFieldOption[];
   maxTeamSize: number;
-  existingTeams: any[];
+  existingTeams: TeamData[];
   gameDefaultLang: string;
   isAdmin?: boolean;
   currentEntityId?: string | null;
 }) {
-  const supabase = createClient();
-  const { currentLang } = useLocalizationParams() as any;
+  const { currentLang } = useLocalizationParams();
 
   const processedTeams: Team[] = existingTeams.map(t => {
     const slotMap: Record<number, Member[]> = {};
-    // Ensure members are sorted by order_index so "Best" (0) comes first
     const members = [...(t.section_team_members || [])].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
     
-    members.forEach((m: any) => {
+    members.forEach((m) => {
       const sIdx = m.slot_index ?? 0;
       if (!slotMap[sIdx]) slotMap[sIdx] = [];
       
-      if (m.member_type === 'entity') {
+      if (m.member_type === 'entity' && m.entity_id) {
         const ent = sectionEntities.find(e => e.id === m.entity_id);
-        slotMap[sIdx].push({ type: 'entity', id: m.entity_id, name: getTranslatedField(ent?.name, currentLang, gameDefaultLang), icon_path: ent?.icon_path });
-      } else {
+        slotMap[sIdx].push({ type: 'entity', id: m.entity_id, name: getTranslatedField(ent?.name || {}, currentLang, gameDefaultLang), icon_path: ent?.icon_path || null });
+      } else if (m.member_type === 'option' && m.option_id) {
         const opt = fieldOptions.find(o => o.id === m.option_id);
-        slotMap[sIdx].push({ type: 'option', id: m.option_id, name: getTranslatedField(opt?.value_key, currentLang, gameDefaultLang), icon_path: opt?.icon_path, color: opt?.color });
+        slotMap[sIdx].push({ type: 'option', id: m.option_id, name: getTranslatedField(opt?.value_key || {}, currentLang, gameDefaultLang), icon_path: opt?.icon_path || null, color: opt?.color });
       }
     });
 
@@ -69,6 +97,7 @@ export default function TeamBuilder({
   const [isSelectingMember, setIsSelectingMember] = useState(false);
   const [selectionType, setSelectionType] = useState<'entity' | 'option' | null>(null);
   const [entitySearchTerm, setEntitySearchTerm] = useState("");
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
 
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
@@ -148,13 +177,8 @@ export default function TeamBuilder({
     _currentSlots.splice(dragOverItem.current, 0, draggedItemContent);
     dragItem.current = null;
     dragOverItem.current = null;
+    setDraggingIndex(null);
     setCurrentSlots(_currentSlots);
-  };
-
-  const getPublicUrl = (path: string | null) => {
-    if (!path) return null;
-    if (path.startsWith("http")) return path;
-    return supabase.storage.from("games").getPublicUrl(path).data.publicUrl;
   };
 
   const filteredEntities = sectionEntities.filter(ent => {
@@ -167,7 +191,7 @@ export default function TeamBuilder({
   return (
     <div className="space-y-8 mt-12 pt-12 border-t border-zinc-200/20 dark:border-white/5">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-black uppercase tracking-widest italic flex items-center gap-4">
+        <h2 className="text-2xl font-black uppercase tracking-widest italic flex items-center gap-4 text-black dark:text-zinc-50">
           <span className="w-8 h-1 bg-green-500" />
           Recommended Teams
         </h2>
@@ -203,14 +227,12 @@ export default function TeamBuilder({
             <div className="flex flex-nowrap items-start gap-10 overflow-x-auto pb-4 pt-32 scrollbar-hide">
               {team.slots.map((slot, sIdx) => {
                 const selfIdx = slot.members.findIndex(m => m.id === currentEntityId);
-                // Each item is 5rem (h-20) + 1rem (gap-4) = 6rem
                 const verticalOffset = selfIdx > 0 ? `-${selfIdx * 6}rem` : '0';
 
                 return (
                   <div key={sIdx} className="flex items-start gap-10">
                     {sIdx > 0 && <ChevronRight className="text-zinc-800 mt-6" size={28} />}
                     
-                    {/* Vertical Slot Stack */}
                     <div 
                       className="flex flex-col gap-4 min-w-[80px] transition-transform duration-500 ease-out"
                       style={{ transform: `translateY(${verticalOffset})` }}
@@ -219,9 +241,8 @@ export default function TeamBuilder({
                         const isSelf = member.id === currentEntityId;
                         const isBest = mIdx === 0;
                         const hasSelfInSlot = selfIdx !== -1;
-                        
-                        // Only show 'Best' as prominent if the current character isn't already in this slot
                         const isProminent = isSelf || (isBest && !hasSelfInSlot);
+                        const iconUrl = getPublicUrl('games', member.icon_path);
 
                         const memberContent = (
                           <div 
@@ -230,8 +251,8 @@ export default function TeamBuilder({
                                 ? (isSelf ? 'border-green-500 ring-4 ring-green-500/20 z-10' : 'border-zinc-600') + ' scale-100 opacity-100 hover:scale-110' 
                                 : 'border-zinc-800 opacity-40 scale-75 hover:opacity-100 hover:scale-90'}`}
                           >
-                            {getPublicUrl(member.icon_path) ? (
-                              <img src={getPublicUrl(member.icon_path)!} alt={member.name} className="w-full h-full object-cover" />
+                            {iconUrl ? (
+                              <Image src={iconUrl} alt={member.name} fill sizes="80px" className="object-cover" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-[8px] font-bold uppercase p-2 text-center" style={{ backgroundColor: member.color || 'transparent' }}>
                                 {member.name}
@@ -303,60 +324,65 @@ export default function TeamBuilder({
               <div className="space-y-8">
                 <label className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 ml-1">Team Matrix (Horizontal Slots / Vertical Alternatives)</label>
                 <div className="flex flex-nowrap items-start gap-12 overflow-x-auto pb-8 min-h-[400px]">
-                  {Array.from({ length: maxTeamSize }).map((_, sIdx) => (
-                    <div 
-                      key={sIdx} 
-                      className="flex items-start gap-12"
-                      draggable={!!currentSlots[sIdx]}
-                      onDragStart={() => (dragItem.current = sIdx)}
-                      onDragEnter={() => (dragOverItem.current = sIdx)}
-                      onDragEnd={handleSort}
-                      onDragOver={(e) => e.preventDefault()}
-                    >
-                      {sIdx > 0 && <ChevronRight className="text-zinc-800 mt-10" size={32} />}
-                      
-                      <div className={`flex flex-col items-center gap-6 p-6 rounded-[2.5rem] border-2 transition-all ${dragItem.current === sIdx ? 'bg-green-500/10 border-green-500/50' : 'border-transparent bg-zinc-950/30'}`}>
-                        {/* Vertical Stack in Configurator */}
-                        <div className="flex flex-col gap-4">
-                          {currentSlots[sIdx]?.members.map((member, mIdx) => (
-                            <div key={mIdx} className="relative group">
-                              <div className={`w-24 h-24 rounded-[2rem] overflow-hidden border-2 bg-zinc-950 transition-all shadow-2xl ${mIdx === 0 ? 'border-zinc-600' : 'border-zinc-800 scale-90 opacity-70'}`}>
-                                {getPublicUrl(member.icon_path) ? (
-                                  <img src={getPublicUrl(member.icon_path)!} alt={member.name} className="w-full h-full object-cover" />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center text-[9px] font-bold uppercase p-3 text-center" style={{ backgroundColor: member.color || 'transparent' }}>
-                                    {member.name}
+                  {Array.from({ length: maxTeamSize }).map((_, sIdx) => {
+                    const isDragging = draggingIndex === sIdx;
+                    return (
+                      <div 
+                        key={sIdx} 
+                        className="flex items-start gap-12"
+                        draggable={!!currentSlots[sIdx]}
+                        onDragStart={() => { dragItem.current = sIdx; setDraggingIndex(sIdx); }}
+                        onDragEnter={() => (dragOverItem.current = sIdx)}
+                        onDragEnd={handleSort}
+                        onDragOver={(e) => e.preventDefault()}
+                      >
+                        {sIdx > 0 && <ChevronRight className="text-zinc-800 mt-10" size={32} />}
+                        
+                        <div className={`flex flex-col items-center gap-6 p-6 rounded-[2.5rem] border-2 transition-all ${isDragging ? 'bg-green-500/10 border-green-500/50' : 'border-transparent bg-zinc-950/30'}`}>
+                          <div className="flex flex-col gap-4">
+                            {currentSlots[sIdx]?.members.map((member, mIdx) => {
+                              const mIconUrl = getPublicUrl('games', member.icon_path);
+                              return (
+                                <div key={mIdx} className="relative group">
+                                  <div className={`w-24 h-24 rounded-[2rem] overflow-hidden border-2 bg-zinc-950 transition-all shadow-2xl ${mIdx === 0 ? 'border-zinc-600' : 'border-zinc-800 scale-90 opacity-70'}`}>
+                                    {mIconUrl ? (
+                                      <Image src={mIconUrl} alt={member.name} fill sizes="96px" className="object-cover" />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center text-[9px] font-bold uppercase p-3 text-center" style={{ backgroundColor: member.color || 'transparent' }}>
+                                        {member.name}
+                                      </div>
+                                    )}
+                                    <button 
+                                      onClick={() => removeMemberFromSlot(sIdx, mIdx)}
+                                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all shadow-xl z-20"
+                                    >
+                                      <X size={14} />
+                                    </button>
+                                    {mIdx === 0 && <div className="absolute top-0 left-0 bg-zinc-800 text-[6px] font-black px-1 py-0.5 rounded-br text-zinc-400">BEST</div>}
                                   </div>
-                                )}
-                                <button 
-                                  onClick={() => removeMemberFromSlot(sIdx, mIdx)}
-                                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all shadow-xl z-20"
-                                >
-                                  <X size={14} />
-                                </button>
-                                {mIdx === 0 && <div className="absolute top-0 left-0 bg-zinc-800 text-[6px] font-black px-1 py-0.5 rounded-br text-zinc-400">BEST</div>}
-                              </div>
-                            </div>
-                          ))}
-                          
-                          <button 
-                            onClick={() => openSelection(sIdx)}
-                            className="w-24 h-24 rounded-[2rem] border-2 border-dashed border-zinc-800 flex flex-col items-center justify-center text-zinc-700 hover:text-green-500 hover:border-green-500/50 hover:bg-green-500/5 transition-all group active:scale-95 shadow-inner"
-                          >
-                            <Plus size={32} />
-                            <span className="text-[8px] font-black uppercase tracking-tighter mt-1">{currentSlots[sIdx] ? 'Add Alternative' : 'Add Slot'}</span>
-                          </button>
-                        </div>
-
-                        {currentSlots[sIdx] && (
-                          <div className="flex items-center gap-2 text-zinc-600 cursor-grab active:cursor-grabbing hover:text-zinc-400 transition-colors">
-                            <GripVertical size={18} />
-                            <span className="text-[10px] font-black uppercase tracking-widest">Reorder</span>
+                                </div>
+                              );
+                            })}
+                            
+                            <button 
+                              onClick={() => openSelection(sIdx)}
+                              className="w-24 h-24 rounded-[2rem] border-2 border-dashed border-zinc-800 flex flex-col items-center justify-center text-zinc-700 hover:text-green-500 hover:border-green-500/50 hover:bg-green-500/5 transition-all group active:scale-95 shadow-inner"
+                            >
+                              <Plus size={32} />
+                              <span className="text-[8px] font-black uppercase tracking-tighter mt-1">{currentSlots[sIdx] ? 'Add Alternative' : 'Add Slot'}</span>
+                            </button>
                           </div>
-                        )}
+
+                          {currentSlots[sIdx] && (
+                            <div className="flex items-center gap-2 text-zinc-600 cursor-grab active:cursor-grabbing hover:text-zinc-400 transition-colors">
+                              <GripVertical size={18} />
+                              <span className="text-[10px] font-black uppercase tracking-widest">Reorder</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -410,51 +436,59 @@ export default function TeamBuilder({
                       </div>
                       
                       <div className="grid grid-cols-4 gap-6">
-                        {filteredEntities.map(ent => (
-                          <button 
-                            key={ent.id} 
-                            onClick={() => {
-                              addMemberToSlot({ type: 'entity', id: ent.id, name: getTranslatedField(ent.name, currentLang, gameDefaultLang), icon_path: ent.icon_path });
-                              setEntitySearchTerm("");
-                            }}
-                            className="flex flex-col items-center gap-3 group"
-                          >
-                            <div className="w-full aspect-square rounded-[2rem] overflow-hidden border-2 border-zinc-800 group-hover:border-green-500 transition-all group-hover:scale-105 shadow-xl bg-zinc-950">
-                              {getPublicUrl(ent.icon_path) ? (
-                                <img src={getPublicUrl(ent.icon_path)!} className="w-full h-full object-cover" />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-[8px] font-black uppercase text-zinc-600 p-2 text-center">{getTranslatedField(ent.name, currentLang, gameDefaultLang)}</div>
-                              )}
-                            </div>
-                            <span className="text-[10px] font-black text-zinc-500 uppercase text-center truncate w-full group-hover:text-green-400 transition-colors tracking-tight">
-                              {getTranslatedField(ent.name, currentLang, gameDefaultLang)}
-                            </span>
-                          </button>
-                        ))}
+                        {filteredEntities.map(ent => {
+                          const entIconUrl = getPublicUrl('games', ent.icon_path);
+                          return (
+                            <button 
+                              key={ent.id} 
+                              onClick={() => {
+                                addMemberToSlot({ type: 'entity', id: ent.id, name: getTranslatedField(ent.name, currentLang, gameDefaultLang), icon_path: ent.icon_path });
+                                setEntitySearchTerm("");
+                              }}
+                              className="flex flex-col items-center gap-3 group"
+                            >
+                              <div className="w-full aspect-square rounded-[2rem] overflow-hidden border-2 border-zinc-800 group-hover:border-green-500 transition-all group-hover:scale-105 shadow-xl bg-zinc-950 relative">
+                                {entIconUrl ? (
+                                  <Image src={entIconUrl} alt="" fill sizes="120px" className="object-cover" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-[8px] font-black uppercase text-zinc-600 p-2 text-center">{getTranslatedField(ent.name, currentLang, gameDefaultLang)}</div>
+                                )}
+                              </div>
+                              <span className="text-[10px] font-black text-zinc-500 uppercase text-center truncate w-full group-hover:text-green-400 transition-colors tracking-tight">
+                                {getTranslatedField(ent.name, currentLang, gameDefaultLang)}
+                              </span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
 
                   {selectionType === 'option' && (
                     <div className="grid grid-cols-1 gap-4">
-                      {fieldOptions.map(opt => (
-                        <button 
-                          key={opt.id} 
-                          onClick={() => addMemberToSlot({ type: 'option', id: opt.id, name: getTranslatedField(opt.value_key, currentLang, gameDefaultLang), icon_path: opt.icon_path, color: opt.color })}
-                          className="w-full flex items-center gap-6 p-6 rounded-[2rem] bg-zinc-950 border border-zinc-800 hover:border-green-500 transition-all text-left group"
-                        >
-                          {getPublicUrl(opt.icon_path) ? (
-                            <img src={getPublicUrl(opt.icon_path)!} className="w-14 h-14 object-contain" />
-                          ) : (
-                            <div className="w-14 h-14 rounded-2xl shadow-inner border border-zinc-800" style={{ backgroundColor: opt.color || '#111' }} />
-                          )}
-                          <div className="flex-1">
-                            <div className="text-lg font-black text-white uppercase italic tracking-widest group-hover:text-green-400 transition-colors">{getTranslatedField(opt.value_key, currentLang, gameDefaultLang)}</div>
-                            <div className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] mt-1">{opt.field_name}</div>
-                          </div>
-                          <ChevronRight className="text-zinc-800 group-hover:text-green-500 transition-colors" />
-                        </button>
-                      ))}
+                      {fieldOptions.map(opt => {
+                        const optIconUrl = getPublicUrl('games', opt.icon_path);
+                        return (
+                          <button 
+                            key={opt.id} 
+                            onClick={() => addMemberToSlot({ type: 'option', id: opt.id, name: getTranslatedField(opt.value_key, currentLang, gameDefaultLang), icon_path: opt.icon_path, color: opt.color })}
+                            className="w-full flex items-center gap-6 p-6 rounded-[2rem] bg-zinc-950 border border-zinc-800 hover:border-green-500 transition-all text-left group"
+                          >
+                            {optIconUrl ? (
+                              <div className="relative w-14 h-14">
+                                <Image src={optIconUrl} alt="" fill sizes="56px" className="object-contain" />
+                              </div>
+                            ) : (
+                              <div className="w-14 h-14 rounded-2xl shadow-inner border border-zinc-800" style={{ backgroundColor: opt.color || '#111' }} />
+                            )}
+                            <div className="flex-1">
+                              <div className="text-lg font-black text-white uppercase italic tracking-widest group-hover:text-green-400 transition-colors">{getTranslatedField(opt.value_key, currentLang, gameDefaultLang)}</div>
+                              <div className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] mt-1">{opt.field_name}</div>
+                            </div>
+                            <ChevronRight className="text-zinc-800 group-hover:text-green-500 transition-colors" />
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

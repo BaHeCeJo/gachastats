@@ -10,7 +10,7 @@ import MissingTranslationIndicator from '@/app/components/MissingTranslationIndi
 
 type GameData = { id: string; name: LocalizedString; slug: string; default_lang: string; supported_languages: string[]; };
 type SectionData = { id: string; key: LocalizedString; game_id: string; };
-type FieldData = { id: string; section_id: string; key: LocalizedString; category: string | null; required: boolean; manual_fill: boolean; is_multi: boolean; has_icon: boolean; has_color: boolean; order_index: number; };
+type FieldData = { id: string; section_id: string; game_field_id: string; key: LocalizedString; category: string | null; required: boolean; manual_fill: boolean; is_multi: boolean; has_icon: boolean; has_color: boolean; order_index: number; };
 type FormState = { error?: string; };
 
 export default function EditFieldClient({ game, section, field, categories, currentLang }: {
@@ -20,7 +20,7 @@ export default function EditFieldClient({ game, section, field, categories, curr
   categories: string[];
   currentLang: string;
 }) {
-  const { displayLang, t } = useLocalizationParams() as any;
+  const { displayLang, t } = useLocalizationParams();
   const activeLang = displayLang || currentLang;
 
   const [localizedKey, setLocalizedKey] = useState<LocalizedString>(field.key);
@@ -33,9 +33,9 @@ export default function EditFieldClient({ game, section, field, categories, curr
   const [hasColor, setHasColor] = useState<boolean>(field.has_color);
 
   const [state, formAction] = useActionState(
-    async (prevState: FormState, formData: FormData) => {
+    async (_prevState: FormState, formData: FormData) => {
       formData.set("id", field.id);
-      formData.set("game_field_id", (field as any).game_field_id);
+      formData.set("game_field_id", field.game_field_id);
       formData.set("key", JSON.stringify(localizedKey));
       formData.set("category", category);
       formData.set("order_index", orderIndex.toString());
@@ -48,8 +48,6 @@ export default function EditFieldClient({ game, section, field, categories, curr
     },
     {} as FormState
   );
-
-  const canHaveOptions = !manualFill;
 
   return (
     <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>

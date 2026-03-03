@@ -3,8 +3,25 @@ import { redirect } from 'next/navigation';
 import { headers } from "next/headers";
 import { getTranslatedField } from "@/lib/localization-utils";
 import EditFieldClient from './EditFieldClient';
+import { LocalizedString, Game, Section } from '@/lib/supabase/queries';
 
 type PageProps = { params: Promise<{ gameSlug: string; sectionId: string; fieldId: string }>; };
+
+interface FieldRaw {
+  id: string;
+  section_id: string;
+  key: LocalizedString;
+  category: string | null;
+  required: boolean;
+  is_multi: boolean;
+  order_index: number;
+  game_field_id: string;
+  game_fields: {
+    manual_fill: boolean;
+    has_icon: boolean;
+    has_color: boolean;
+  } | null;
+}
 
 export async function generateMetadata({ params }: PageProps) {
   const { gameSlug, sectionId, fieldId } = await params;
@@ -40,17 +57,15 @@ export default async function EditFieldPage({ params: paramsPromise }: PageProps
       )
     `)
     .eq('id', fieldId)
-    .single();
+    .single() as { data: FieldRaw | null };
 
   if (!fieldRaw) redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields`);
 
-  // Flatten the result for the client component
-  const gf = Array.isArray(fieldRaw.game_fields) ? fieldRaw.game_fields[0] : fieldRaw.game_fields;
   const field = {
     ...fieldRaw,
-    manual_fill: gf?.manual_fill,
-    has_icon: gf?.has_icon,
-    has_color: gf?.has_color,
+    manual_fill: fieldRaw.game_fields?.manual_fill ?? false,
+    has_icon: fieldRaw.game_fields?.has_icon ?? false,
+    has_color: fieldRaw.game_fields?.has_color ?? false,
   };
 
   const { data: existingFields } = await supabase.from('section_fields').select('category').eq('section_id', sectionId);
@@ -59,5 +74,5 @@ export default async function EditFieldPage({ params: paramsPromise }: PageProps
   const headersList = await headers();
   const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
-  return <EditFieldClient game={game} section={section} field={field as any} categories={categories} currentLang={currentLang} />;
+  return <EditFieldClient game={game as Game} section={section as Section} field={field} categories={categories} currentLang={currentLang} />;
 }
