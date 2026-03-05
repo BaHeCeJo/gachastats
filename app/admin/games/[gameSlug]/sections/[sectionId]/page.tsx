@@ -154,12 +154,13 @@ export default async function EditSectionPage({ params: paramsPromise }: PagePro
         }
       }
 
-      const opt = val.field_options; 
-      if (opt) { 
-        fieldValuesMap[fieldId] = { 
-          color: opt.color || undefined, 
-          iconUrl: opt.icon_path ? getPublicUrl('games', opt.icon_path) || undefined : undefined
-        }; 
+      const optRaw = val.field_options;
+      const opt = Array.isArray(optRaw) ? optRaw[0] : optRaw;
+      if (opt) {
+        fieldValuesMap[fieldId] = {
+          color: opt.color || undefined,
+          iconUrl: opt.icon_path ? getPublicUrl('games', opt.icon_path) || undefined : undefined, 
+        };
       } 
     });
     return { 
@@ -186,7 +187,7 @@ export default async function EditSectionPage({ params: paramsPromise }: PagePro
           id: String(opt.id), 
           value_key: opt.value_key, 
           iconUrl: opt.icon_path ? getPublicUrl('games', opt.icon_path) || undefined : undefined, 
-          color: opt.color 
+          color: opt.color || undefined 
         })) 
     })) || [];
 

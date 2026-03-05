@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { LocalizedString } from "@/lib/localization";
 import { v4 as uuidv4 } from "uuid";
@@ -138,6 +138,9 @@ export async function upsertGameAction(formData: FormData) {
     }
   }
 
+  const slug = gameId ? formData.get("slug") as string : slugify(rawName[defaultLang]);
+  if (slug) updateTag(`game-${slug}`);
+  
   revalidatePath("/admin/games");
   revalidatePath("/"); // Revalidate home page to show new/updated games
   redirect("/admin/games");
@@ -157,7 +160,7 @@ export async function deleteGameAction(gameId: string) {
   // 1. Fetch all asset paths for cleanup in parallel BEFORE deleting the records
   const [sectionsRes, gameRes] = await Promise.all([
     supabase.from("game_sections").select("id, icon_path").eq("game_id", gameId),
-    supabase.from("games").select("cover_url").eq("id", gameId).single()
+    supabase.from("games").select("slug, cover_url").eq("id", gameId).single()
   ]);
 
   const sections = sectionsRes.data || [];
@@ -206,6 +209,10 @@ export async function deleteGameAction(gameId: string) {
     console.error("Error deleting game:", error);
     throw new Error(error.message);
   }
+
+  // Revalidate tags for all deleted sections
+  sectionIds.forEach(id => updateTag(`section-${id}`));
+  if (game?.slug) updateTag(`game-${game.slug}`);
 
   revalidatePath("/admin/games");
   revalidatePath("/");

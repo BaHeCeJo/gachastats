@@ -9,6 +9,7 @@ import GSBackground from "@/app/components/GSBackground";
 import { LocalizedString, getTranslatedField, getTranslation } from "@/lib/localization-utils";
 import { GameLocalizationProvider } from "@/lib/localization";
 
+// Enable ISR
 export const revalidate = 3600;
 
 export async function generateStaticParams() {

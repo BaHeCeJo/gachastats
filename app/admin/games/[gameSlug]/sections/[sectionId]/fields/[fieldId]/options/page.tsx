@@ -26,7 +26,9 @@ interface FieldData {
   game_field_id: string;
   game_fields: {
     manual_fill: boolean;
-  } | null;
+  } | {
+    manual_fill: boolean;
+  }[] | null;
 }
 
 export default async function FieldOptionsPage({ params: paramsPromise }: PageProps) {
@@ -52,11 +54,11 @@ export default async function FieldOptionsPage({ params: paramsPromise }: PagePr
         )
       `)
       .eq('id', fieldId)
-      .single() as Promise<{ data: FieldData | null }>,
+      .single(),
     headers()
   ]);
 
-  const fieldData = fieldRes.data;
+  const fieldData = fieldRes.data as unknown as FieldData;
   const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
   if (!fieldData) {
@@ -64,10 +66,14 @@ export default async function FieldOptionsPage({ params: paramsPromise }: PagePr
   }
 
   const gameFieldId = fieldData.game_field_id;
+  const manualFill = Array.isArray(fieldData.game_fields) 
+    ? fieldData.game_fields[0]?.manual_fill 
+    : fieldData.game_fields?.manual_fill;
+
   const field = {
     id: fieldData.id,
     key: fieldData.key,
-    manual_fill: fieldData.game_fields?.manual_fill ?? false
+    manual_fill: manualFill ?? false
   };
 
   const { data: options } = await supabase

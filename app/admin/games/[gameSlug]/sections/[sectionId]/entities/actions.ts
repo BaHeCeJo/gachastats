@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { LocalizedString } from "@/lib/localization";
 import { v4 as uuidv4 } from "uuid";
@@ -263,6 +263,8 @@ export async function upsertEntityAction(
     }
   }
 
+  updateTag(`entity-${currentEntityId}`);
+  updateTag(`section-entities-${sectionId}`);
 
   revalidatePath(`/admin/games/${gameSlug}/sections/${sectionId}/entities`);
   revalidatePath(`/admin/games/${gameSlug}/sections/${sectionId}/entities/${currentEntityId}`); // Revalidate specific entity page
@@ -306,6 +308,9 @@ export async function deleteEntityAction(
     console.error("Error deleting entity:", error);
     throw new Error(error.message);
   }
+
+  updateTag(`entity-${entityId}`);
+  updateTag(`section-entities-${sectionId}`);
 
   revalidatePath(`/admin/games/${gameSlug}/sections/${sectionId}/entities`);
   redirect(`/admin/games/${gameSlug}/sections/${sectionId}/entities`);

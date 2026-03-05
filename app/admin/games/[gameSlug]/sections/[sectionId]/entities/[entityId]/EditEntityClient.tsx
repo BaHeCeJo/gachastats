@@ -8,16 +8,22 @@ import CreatableTagInput from '@/app/components/fields/CreatableTagInput';
 import ImageInput from '@/app/components/ImageInput';
 import ConfirmButton from '@/app/components/ConfirmButton';
 import SkinManager from "@/app/components/skins/SkinManager";
-import TeamBuilder, { TeamData, TeamEntity, TeamFieldOption } from "@/app/components/TeamBuilder";
+import dynamic from "next/dynamic";
+const TeamBuilder = dynamic(() => import("@/app/components/TeamBuilder"), { 
+  ssr: false, 
+  loading: () => <div className="h-64 animate-pulse bg-zinc-100 dark:bg-zinc-900 rounded-xl flex items-center justify-center text-zinc-400">Loading Team Builder...</div>
+});
+
+import { TeamData, TeamEntity, TeamFieldOption } from "@/app/components/TeamBuilder";
 import { upsertEntityAction, deleteEntityAction } from '../actions';
 import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
 import Image from 'next/image';
 
 type GameData = { id: string; name: LocalizedString; slug: string; default_lang: string; supported_languages: string[]; };
 type SectionData = { id: string; key: LocalizedString; game_id: string; };
-type FieldOption = { id: string; field_id: string; value_key: LocalizedString; icon_path: string | null; color: string | null; order_index: number; };
+type FieldOption = { id: string; game_field_id: string; value_key: LocalizedString; icon_path: string | null; color: string | null; order_index: number; };
 type FieldData = { id: string; game_field_id: string; key: LocalizedString; required: boolean; manual_fill: boolean; is_multi: boolean; has_icon: boolean; has_color: boolean; order_index: number; category: string | null; field_options: FieldOption[] | null; };
-type EntityFieldValueData = { id?: string; entity_id: string; game_field_id: string; value_text: string | LocalizedString | null; option_id: string | null; };
+type EntityFieldValueData = { id?: string; entity_id?: string; game_field_id: string; value_text: string | LocalizedString | null; option_id: string | null; };
 type EntitySkinData = { id: string; entity_id: string; name: LocalizedString; is_default: boolean; entity_images: { id: string; type: string; image_path: string; publicUrl?: string; }[]; };
 type EntityData = { id: string; section_id: string; name: LocalizedString; icon_path: string | null; entity_skins: EntitySkinData[]; entity_field_values: EntityFieldValueData[]; };
 type FormState = { error?: string; };

@@ -8,7 +8,7 @@ import { createServerClient } from '@supabase/ssr'
  * 2. Immediately returns for public routes to avoid object overhead.
  * 3. Only performs heavy auth logic for /admin, /profile, and /auth.
  */
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const pathname = req.nextUrl.pathname
   
   // 1. FAST PATH: Identify routes that REQUIRE auth logic

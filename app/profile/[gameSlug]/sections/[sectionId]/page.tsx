@@ -107,13 +107,13 @@ export default async function SectionCollectionPage({ params: paramsPromise }: P
     .eq("section_id", sectionId)
     .eq("user_entities.user_id", user.id)
     .eq("entity_skins.is_default", true)
-    .order(`name->>${game.default_lang}`, { ascending: true }) as Promise<{ data: EntityWithOwnership[] | null }>
+    .order(`name->>${game.default_lang}`, { ascending: true })
   ]);
 
   const section = sectionRes.data as Section | null;
   const fieldsRaw = fieldsRes.data as unknown as SectionField[];
   const displaySettings = settingsRes.data as SectionDisplaySettings | null;
-  const entities = entitiesRes.data || [];
+  const entities = entitiesRes.data as unknown as EntityWithOwnership[] || [];
 
   if (!section || section.game_id !== game.id || !section.is_collectible) redirect(`/profile/${gameSlug}`);
 
@@ -176,13 +176,14 @@ export default async function SectionCollectionPage({ params: paramsPromise }: P
           else allValues[fieldId].push(translated);
         }
       }
-      if (val.field_options) {
+      const optRaw = val.field_options;
+      const opt = Array.isArray(optRaw) ? optRaw[0] : optRaw;
+      if (opt) {
         fieldValuesMap[fieldId] = {
-          color: val.field_options.color || undefined,
-          iconUrl: val.field_options.icon_path ? getPublicUrl('games', val.field_options.icon_path) || undefined : undefined,
+          color: opt.color || undefined,
+          iconUrl: opt.icon_path ? getPublicUrl('games', opt.icon_path) || undefined : undefined, 
         };
-      }
-    });
+      }    });
 
     return { 
       id: entity.id,
@@ -207,7 +208,7 @@ export default async function SectionCollectionPage({ params: paramsPromise }: P
           id: String(opt.id),
           value_key: opt.value_key,
           iconUrl: opt.icon_path ? getPublicUrl('games', opt.icon_path) || undefined : undefined,
-          color: opt.color,
+          color: opt.color || undefined,
         })),
     }));
 

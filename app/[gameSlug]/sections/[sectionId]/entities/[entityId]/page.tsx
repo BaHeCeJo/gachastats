@@ -11,9 +11,9 @@ import {
   SectionField,
   EntityFieldValue,
   SectionEntity,
-  TeamFieldOption,
   SectionDisplaySettings,
 } from "@/lib/supabase/queries";
+import TeamBuilder, { TeamEntity, TeamData, TeamFieldOption } from "@/app/components/TeamBuilder";
 import { redirect } from "next/navigation";
 import Image from "next/image";
 import Header from "@/app/components/Header";
@@ -21,7 +21,6 @@ import GSBackground from "@/app/components/GSBackground";
 import { getTranslatedField, getTranslation } from "@/lib/localization-utils";
 import { GameLocalizationProvider } from "@/lib/localization";
 import CollectionToggle from "@/app/components/CollectionToggle";
-import TeamBuilder, { TeamEntity, TeamData } from "@/app/components/TeamBuilder";
 import { getPublicUrl } from "@/lib/supabase/client";
 
 // Enable ISR

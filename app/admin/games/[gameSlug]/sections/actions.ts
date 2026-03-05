@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { LocalizedString } from "@/lib/localization";
 import { v4 as uuidv4 } from "uuid";
@@ -158,6 +158,8 @@ export async function upsertSectionAction(
     }
   }
 
+  if (sectionId) updateTag(`section-${sectionId}`);
+  
   revalidatePath(`/admin/games/${gameSlug}/sections`);
   redirect(`/admin/games/${gameSlug}/sections`);
 }
@@ -214,6 +216,7 @@ export async function deleteSectionAction(
     throw new Error(error.message);
   }
 
+  updateTag(`section-${sectionId}`);
   revalidatePath(`/admin/games/${gameSlug}/sections`);
   redirect(`/admin/games/${gameSlug}/sections`);
 }

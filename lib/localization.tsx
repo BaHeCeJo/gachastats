@@ -6,9 +6,9 @@ import { uiTranslations, UITranslationKey } from "./i18n/translations";
 
 type LocalizationContextType = {
   currentLang: string;
-  adminSelectedLang: string;
+  adminSelectedLang: string | null;
   userSelectedLang: string | null;
-  setAdminSelectedLang: (lang: string) => void;
+  setAdminSelectedLang: (lang: string | null) => void;
   setUserSelectedLang: (lang: string | null) => void;
   displayLang: string;
   t: (key: UITranslationKey) => string;
@@ -27,14 +27,14 @@ export function LocalizationProvider({
   children: ReactNode;
   currentLang: string;
 }) {
-  const [adminSelectedLang, setAdminSelectedLangState] = useState<string>("");
+  const [adminSelectedLang, setAdminSelectedLangState] = useState<string | null>(null);
   const [userSelectedLang, setUserSelectedLangState] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMounted(true);
-    const savedAdminLang = sessionStorage.getItem('admin_preview_lang') || "";
+    const savedAdminLang = sessionStorage.getItem('admin_preview_lang') || null;
     if (savedAdminLang) setAdminSelectedLangState(savedAdminLang);
 
     const cookies = document.cookie.split('; ');
@@ -58,9 +58,12 @@ export function LocalizationProvider({
   const fd = useCallback((d: Date | string, options?: Intl.DateTimeFormatOptions) => 
     formatDate(d, displayLang, options), [displayLang]);
 
-  const setAdminSelectedLang = useCallback((lang: string) => {
+  const setAdminSelectedLang = useCallback((lang: string | null) => {
     setAdminSelectedLangState(lang);
-    if (typeof window !== 'undefined') sessionStorage.setItem('admin_preview_lang', lang);
+    if (typeof window !== 'undefined') {
+      if (lang) sessionStorage.setItem('admin_preview_lang', lang);
+      else sessionStorage.removeItem('admin_preview_lang');
+    }
   }, []);
 
   const setUserSelectedLang = useCallback((lang: string | null) => {
@@ -166,4 +169,4 @@ export function useLocalizationParams() {
   return context;
 }
 
-export { getTranslatedField, isMissingTranslation, formatNumber, formatDate } from "./localization-utils";
+export { getTranslatedField, isMissingTranslation, formatNumber, formatDate, type LocalizedString } from "./localization-utils";

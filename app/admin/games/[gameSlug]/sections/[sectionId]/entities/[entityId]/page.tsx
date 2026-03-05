@@ -87,7 +87,7 @@ export default async function EntityPage({ params: paramsPromise }: PageProps) {
     for (const skin of entity.entity_skins) {
       for (const image of skin.entity_images) {
         if (image.image_path) {
-          (image as EntityImage & { publicUrl?: string }).publicUrl = getPublicUrl('games', image.image_path);
+          (image as EntityImage & { publicUrl?: string }).publicUrl = getPublicUrl('games', image.image_path) || undefined;
         }
       }
     }

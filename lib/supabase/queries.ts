@@ -27,6 +27,7 @@ export interface Section {
   dupe_name: LocalizedString;
   has_teams: boolean;
   max_team_size: number;
+  order_index: number;
 }
 
 export interface FieldOption {
@@ -65,7 +66,11 @@ export interface EntityFieldValue {
     color: string | null;
     icon_path: string | null;
     value_key: LocalizedString;
-  };
+  } | {
+    color: string | null;
+    icon_path: string | null;
+    value_key: LocalizedString;
+  }[];
 }
 
 export interface EntityImage {
@@ -132,7 +137,7 @@ export const getSectionById = cache(async (sectionId: string) => {
       const supabase = createPublicClient();
       return supabase
         .from("game_sections")
-        .select("id, key, game_id, icon_path, color, is_collectible, is_unique, min_dupes, max_dupes, dupe_name, has_teams, max_team_size")
+        .select("id, key, game_id, icon_path, color, is_collectible, is_unique, min_dupes, max_dupes, dupe_name, has_teams, max_team_size, order_index")
         .eq("id", sectionId)
         .single();
     },
@@ -207,13 +212,18 @@ export const getSectionEntities = cache(async (
 
       return supabase.from("section_entities").select(`
         id, 
+        section_id,
         name, 
         icon_path,
         entity_skins!left ( 
+          id,
+          entity_id,
+          name,
           is_default,
-          entity_images ( image_path, type ) 
+          entity_images ( id, type, key, image_path, width, height, order_index ) 
         ),
         entity_field_values ( 
+          id,
           game_field_id, 
           value_text, 
           option_id, 
@@ -238,7 +248,7 @@ export const getEntityById = cache(async (entityId: string) => {
     async () => {
       const supabase = createPublicClient();
       return supabase.from("section_entities")
-        .select(`*, entity_skins (id, is_default, name, entity_images (image_path, type))`)
+        .select(`*, entity_skins (id, entity_id, is_default, name, entity_images (id, type, key, image_path, width, height, order_index))`)
         .eq("id", entityId)
         .single();
     },

@@ -14,7 +14,7 @@ import MissingTranslationIndicator from '@/app/components/MissingTranslationIndi
 import { Game, Section, SectionDisplaySettings } from '@/lib/supabase/queries';
 import { ProcessedEntity } from '@/app/[gameSlug]/sections/[sectionId]/page';
 
-type FieldOption = { id: string; field_id: string; value_key: LocalizedString; icon_path: string | null; color: string | null; order_index: number; };
+type FieldOption = { id: string; game_field_id: string; value_key: LocalizedString; icon_path: string | null; color: string | null; order_index: number; };
 type Field = { id: string; section_id: string; key: LocalizedString; required: boolean; manual_fill: boolean; has_icon: boolean; has_color: boolean; order_index: number; is_multi: boolean; category: string | null; field_options: FieldOption[] | null; };
 type FormState = { error?: string; };
 
@@ -26,9 +26,9 @@ export default function EditSectionClient({
   fields: Field[]; 
   displaySettings: SectionDisplaySettings | null; 
   entities: ProcessedEntity[]; 
-  filterFieldsData: { id: string; key: LocalizedString; options: { id: string; value_key: LocalizedString; iconUrl?: string; color?: string | null }[] }[]; 
+  filterFieldsData: { id: string; key: LocalizedString; options: { id: string; value_key: LocalizedString; iconUrl?: string; color?: string }[] }[]; 
   currentLang: string; 
-  updateDisplaySettingsAction: (gameSlug: string, sectionId: string, formData: FormData) => Promise<{ error?: string }>;
+  updateDisplaySettingsAction: (formData: FormData) => Promise<{ error?: string }>;
   sectionTeams: TeamData[];
 }) {
   const supabase = createClient();
@@ -85,7 +85,7 @@ export default function EditSectionClient({
 
       formData.delete("filter_field_ids");
       filterFieldIds.forEach(id => formData.append("filter_field_ids", id));
-      return await updateDisplaySettingsAction(game.slug, section.id, formData);
+      return await updateDisplaySettingsAction(formData);
     },
     {} as FormState
   );

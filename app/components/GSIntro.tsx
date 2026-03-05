@@ -63,11 +63,9 @@ export default function GSIntro() {
           viewBox="0 0 800 400"
           className="w-full h-full fill-none stroke-[28] overflow-visible"
           strokeLinejoin="miter"
-          style={{ 
-            // @ts-expect-error custom css variables
+          style={{
             "--s-length": sPathLength,
-            // @ts-expect-error custom css variables
-            "--g-length": gPathLength 
+            "--g-length": gPathLength
           } as React.CSSProperties}
         >
           {/* Path 1: The "G" Body (White) */}
