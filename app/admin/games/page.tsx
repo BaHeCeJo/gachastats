@@ -5,7 +5,9 @@ import { getTranslation } from "@/lib/localization-utils";
 import { headers } from "next/headers";
 import { Game } from '@/lib/supabase/queries';
 
-export default async function AdminGamesPage() {
+import AdminHeader from '@/app/admin/components/AdminHeader';
+
+export default async function AdminGamesPage({ params }: { params: Promise<Record<string, string>> }) {
   const supabase = await createClient()
   
   // 1. Parallelize all initial data fetching
@@ -22,7 +24,9 @@ export default async function AdminGamesPage() {
   const currentLang = acceptLanguage ? acceptLanguage.split(',')[0].split('-')[0].toLowerCase() : 'en';
 
   return (
-    <main className="p-8 space-y-6">
+    <>
+      <AdminHeader params={params} />
+      <main className="p-8 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">{getTranslation('games', currentLang)}</h1>
         <Link
@@ -43,5 +47,6 @@ export default async function AdminGamesPage() {
         <p className="text-gray-400">{getTranslation('noGames', currentLang)}</p>
       )}
     </main>
+    </>
   )
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { createContext, useContext, ReactNode, useState, useCallback, useEffect } from "react";
-import { formatNumber, formatDate } from "./localization-utils";
+import { createContext, useContext, ReactNode, useState, useCallback, useEffect, useMemo } from "react";
+import { formatNumber as fnUtils, formatDate as fdUtils } from "./localization-utils";
 import { uiTranslations, UITranslationKey } from "./i18n/translations";
 
 type LocalizationContextType = {
@@ -20,6 +20,24 @@ type LocalizationContextType = {
 
 const LocalizationContext = createContext<LocalizationContextType | undefined>(undefined);
 
+/**
+ * Common logic for translation and formatting based on a given language code.
+ */
+function useLocalizationCore(displayLang: string) {
+  const t = useCallback((key: UITranslationKey): string => {
+    const translations = uiTranslations[displayLang as keyof typeof uiTranslations] || uiTranslations.en;
+    return translations[key] || uiTranslations.en[key] || key;
+  }, [displayLang]);
+
+  const formatNumber = useCallback((n: number, options?: Intl.NumberFormatOptions) => 
+    fnUtils(n, displayLang, options), [displayLang]);
+    
+  const formatDate = useCallback((d: Date | string, options?: Intl.DateTimeFormatOptions) => 
+    fdUtils(d, displayLang, options), [displayLang]);
+
+  return { t, formatNumber, formatDate };
+}
+
 export function LocalizationProvider({ 
   children, 
   currentLang: initialLang 
@@ -29,6 +47,9 @@ export function LocalizationProvider({
 }) {
   const [adminSelectedLang, setAdminSelectedLangState] = useState<string | null>(null);
   const [userSelectedLang, setUserSelectedLangState] = useState<string | null>(null);
+
+  // Use a lazy initializer for isMounted to avoid triggering an immediate re-render if possible,
+  // but for hydration safety, we must start at false and move to true.
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -42,21 +63,14 @@ export function LocalizationProvider({
     if (userLangCookie) setUserSelectedLangState(userLangCookie);
   }, []);
 
-  // During hydration, we must use the initialLang from server to match HTML
-  const displayLang = isMounted 
-    ? (adminSelectedLang || userSelectedLang || initialLang || 'en')
-    : (initialLang || 'en');
+  const displayLang = useMemo(() => {
+    // During SSR and first mount, use initialLang
+    if (!isMounted) return initialLang || 'en';
+    // After mount, we can use client-side state
+    return adminSelectedLang || userSelectedLang || initialLang || 'en';
+  }, [isMounted, adminSelectedLang, userSelectedLang, initialLang]);
 
-  const t = useCallback((key: UITranslationKey): string => {
-    const translations = uiTranslations[displayLang as keyof typeof uiTranslations] || uiTranslations.en;
-    return translations[key] || uiTranslations.en[key] || key;
-  }, [displayLang]);
-
-  const fn = useCallback((n: number, options?: Intl.NumberFormatOptions) => 
-    formatNumber(n, displayLang, options), [displayLang]);
-    
-  const fd = useCallback((d: Date | string, options?: Intl.DateTimeFormatOptions) => 
-    formatDate(d, displayLang, options), [displayLang]);
+  const { t, formatNumber, formatDate } = useLocalizationCore(displayLang);
 
   const setAdminSelectedLang = useCallback((lang: string | null) => {
     setAdminSelectedLangState(lang);
@@ -85,8 +99,8 @@ export function LocalizationProvider({
     setUserSelectedLang,
     displayLang,
     t,
-    formatNumber: fn,
-    formatDate: fd,
+    formatNumber,
+    formatDate,
     gameDefaultLang: 'en',
     gameSupportedLanguages: ['en']
   };
@@ -98,7 +112,6 @@ export function LocalizationProvider({
   );
 }
 
-// Separate provider for Game-specific logic
 export function GameLocalizationProvider({ 
   children,
   gameDefaultLang,
@@ -110,29 +123,20 @@ export function GameLocalizationProvider({
 }) {
   const base = useLocalizationParams();
   
-  // Logic here should also be hydration-safe
-  const rawDisplayLang = base.displayLang;
-  const displayLang = gameSupportedLanguages.includes(rawDisplayLang) 
-    ? rawDisplayLang 
-    : gameDefaultLang;
+  const displayLang = useMemo(() => {
+    return gameSupportedLanguages.includes(base.displayLang) 
+      ? base.displayLang 
+      : gameDefaultLang;
+  }, [base.displayLang, gameSupportedLanguages, gameDefaultLang]);
 
-  const t = useCallback((key: UITranslationKey): string => {
-    const translations = uiTranslations[displayLang as keyof typeof uiTranslations] || uiTranslations.en;
-    return translations[key] || uiTranslations.en[key] || key;
-  }, [displayLang]);
-
-  const fn = useCallback((n: number, options?: Intl.NumberFormatOptions) => 
-    formatNumber(n, displayLang, options), [displayLang]);
-    
-  const fd = useCallback((d: Date | string, options?: Intl.DateTimeFormatOptions) => 
-    formatDate(d, displayLang, options), [displayLang]);
+  const { t, formatNumber, formatDate } = useLocalizationCore(displayLang);
 
   const value = {
     ...base,
     displayLang,
     t,
-    formatNumber: fn,
-    formatDate: fd,
+    formatNumber,
+    formatDate,
     gameDefaultLang,
     gameSupportedLanguages
   };
@@ -149,8 +153,8 @@ export function useLocalizationParams() {
   if (context === undefined) {
     const displayLang = 'en';
     const t = (key: UITranslationKey) => uiTranslations.en[key] || key;
-    const fn = (n: number, options?: Intl.NumberFormatOptions) => formatNumber(n, displayLang, options);
-    const fd = (d: Date | string, options?: Intl.DateTimeFormatOptions) => formatDate(d, displayLang, options);
+    const formatNumber = (n: number, options?: Intl.NumberFormatOptions) => fnUtils(n, displayLang, options);
+    const formatDate = (d: Date | string, options?: Intl.DateTimeFormatOptions) => fdUtils(d, displayLang, options);
     
     return {
       currentLang: 'en',
@@ -160,8 +164,8 @@ export function useLocalizationParams() {
       setUserSelectedLang: () => {},
       displayLang,
       t,
-      formatNumber: fn,
-      formatDate: fd,
+      formatNumber,
+      formatDate,
       gameDefaultLang: 'en',
       gameSupportedLanguages: ['en']
     };

@@ -7,6 +7,7 @@ import { GameLocalizationProvider } from "@/lib/localization";
 import { headers } from "next/headers";
 import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
 import AdminOptionList from './AdminOptionList';
+import AdminHeader from '@/app/admin/components/AdminHeader';
 
 type PageProps = {
   params: Promise<{ gameSlug: string; sectionId: string; fieldId: string }>
@@ -83,8 +84,10 @@ export default async function FieldOptionsPage({ params: paramsPromise }: PagePr
     .order('order_index', { ascending: true }) as { data: Option[] | null };
 
   return (
-    <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
-      <main className="p-8 space-y-6">
+    <>
+      <AdminHeader params={paramsPromise} />
+      <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
+        <main className="p-8 space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold flex items-center gap-2">
             {getTranslation('options', currentLang)} — {getTranslatedField(field.key, currentLang, game.default_lang)}
@@ -113,5 +116,6 @@ export default async function FieldOptionsPage({ params: paramsPromise }: PagePr
         )}
       </main>
     </GameLocalizationProvider>
+    </>
   )
 }

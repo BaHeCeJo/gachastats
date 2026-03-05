@@ -86,30 +86,30 @@ export async function generateMetadata({ params: paramsPromise }: PageProps) {
 export default async function SectionDetailPage({ params: paramsPromise }: PageProps) {
   const { gameSlug, sectionId } = await paramsPromise;
 
-  // 1. Fetch game (cached)
-  const { data: gameRaw, error: gameError } = await getGameBySlug(gameSlug);
-  const game = gameRaw as Game | null;
-
-  if (gameError || !game) {
-    redirect("/");
-  }
-
-  // 2. Fetch everything else in parallel (all cached)
-  const [sectionRes, fieldsRes, settingsRes, entitiesRes] = await Promise.all([
+  // Fetch all core data in parallel to avoid waterfalls
+  const [gameRes, sectionRes, fieldsRes, settingsRes] = await Promise.all([
+    getGameBySlug(gameSlug),
     getSectionById(sectionId),
     getSectionFields(sectionId),
     getSectionDisplaySettings(sectionId),
-    getSectionEntities(sectionId, game.default_lang)
   ]);
 
+  const game = gameRes.data as Game | null;
   const section = sectionRes.data as Section | null;
-  const fieldsRaw = fieldsRes.data as unknown as SectionField[];
-  const displaySettings = settingsRes.data as SectionDisplaySettings | null;
-  const entities = entitiesRes.data as unknown as SectionEntity[];
+
+  if (!game) {
+    redirect("/");
+  }
 
   if (!section) {
     redirect(`/${gameSlug}`);
   }
+
+  // Now fetch entities using the game's default lang
+  const { data: entities } = await getSectionEntities(sectionId, game.default_lang);
+
+  const fieldsRaw = fieldsRes.data as unknown as SectionField[];
+  const displaySettings = settingsRes.data as SectionDisplaySettings | null;
 
   const currentLang = game.default_lang;
 
@@ -121,6 +121,14 @@ export default async function SectionDetailPage({ params: paramsPromise }: PageP
       has_color: f.game_fields?.has_color,
       field_options: f.game_fields?.field_options || []
     };
+  });
+
+  // Create a flat map of all options across all fields for fast lookup
+  const allOptionsMap = new Map();
+  fields.forEach(f => {
+    f.field_options?.forEach(opt => {
+      allOptionsMap.set(String(opt.id), opt);
+    });
   });
 
   const gameFieldsMap = new Map(fields.map(f => [f.game_field_id, f]));
@@ -143,7 +151,16 @@ export default async function SectionDetailPage({ params: paramsPromise }: PageP
       if (!allValues[fieldId]) allValues[fieldId] = [];
 
       if (val.option_id) {
-        allValues[fieldId].push(val.option_id);
+        allValues[fieldId].push(String(val.option_id));
+        
+        // In-memory lookup of the option data
+        const opt = allOptionsMap.get(String(val.option_id));
+        if (opt) {
+          fieldValuesMap[fieldId] = {
+            color: opt.color || undefined,
+            iconUrl: opt.icon_path ? getPublicUrl('games', opt.icon_path) || undefined : undefined, 
+          };
+        }
       } else {
         const valText = val.value_text as string | Record<string, string> | null;
         const translatedValue = typeof valText === 'string' ? valText : getTranslatedField(valText || {}, currentLang, game.default_lang);
@@ -155,15 +172,6 @@ export default async function SectionDetailPage({ params: paramsPromise }: PageP
             allValues[fieldId].push(translatedValue);
           }
         }
-      }
-
-      const optRaw = val.field_options;
-      const opt = Array.isArray(optRaw) ? optRaw[0] : optRaw;
-      if (opt) {
-        fieldValuesMap[fieldId] = {
-          color: opt.color || undefined,
-          iconUrl: opt.icon_path ? getPublicUrl('games', opt.icon_path) || undefined : undefined, 
-        };
       }
     });
 

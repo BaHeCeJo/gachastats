@@ -15,7 +15,10 @@ type Crumb = {
 // This function builds the breadcrumb array by fetching data based on URL params
 export async function generateBreadcrumbs(params: Params): Promise<Crumb[]> {
   const supabase = await createClient();
-  const crumbs: Crumb[] = [{ href: '/admin/games', label: 'Games' }];
+  const crumbs: Crumb[] = [
+    { href: '/admin', label: 'Admin' },
+    { href: '/admin/games', label: 'Games' }
+  ];
 
   if (!params.gameSlug) return crumbs;
 

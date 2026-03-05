@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { getTranslatedField } from "@/lib/localization-utils";
 import EditFieldClient from './EditFieldClient';
 import { LocalizedString, Game, Section } from '@/lib/supabase/queries';
+import AdminHeader from '@/app/admin/components/AdminHeader';
 
 type PageProps = { params: Promise<{ gameSlug: string; sectionId: string; fieldId: string }>; };
 
@@ -74,5 +75,10 @@ export default async function EditFieldPage({ params: paramsPromise }: PageProps
   const headersList = await headers();
   const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
-  return <EditFieldClient game={game as Game} section={section as Section} field={field} categories={categories} currentLang={currentLang} />;
+  return (
+    <>
+      <AdminHeader params={paramsPromise} />
+      <EditFieldClient game={game as Game} section={section as Section} field={field} categories={categories} currentLang={currentLang} />
+    </>
+  );
 }

@@ -60,7 +60,27 @@ The system handles fallbacks to the game's `default_lang` and respects user-sele
 - **Role Protection:** A database trigger `tr_protect_user_role` prevents any non-admin from updating their own `role` field in the `profiles` table.
 - **Path Isolation:** RLS policies in Supabase Storage ensure users can only `INSERT`, `UPDATE`, or `DELETE` files within their unique `users/[user_id]/` path.
 
-## 4. Database Schema Highlights
+## 4. Database Performance Tuning (Advanced)
+
+To achieve sub-100ms response times, the following database-level optimizations are recommended:
+
+### 4.1. Recommended Indexes
+Execute these in the Supabase SQL Editor:
+```sql
+-- Speed up collection tracking
+CREATE INDEX idx_user_entities_lookup ON user_entities(user_id, entity_id);
+
+-- Speed up section browsing
+CREATE INDEX idx_section_entities_section ON section_entities(section_id);
+
+-- Speed up field value filtering
+CREATE INDEX idx_entity_field_values_composite ON entity_field_values(entity_id, game_field_id);
+```
+
+### 4.2. Connection Pooling
+Always use the Supabase Transaction Pooler (Port 6543) in production `.env` files to minimize connection handshake latency.
+
+## 5. Database Schema Highlights
 
 -   **profiles:** Extends auth.users with `nickname`, `avatar_url`, and `role`.
 -   **user_games:** Tracks which games a user has added to their collection.

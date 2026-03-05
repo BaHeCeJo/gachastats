@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { getTranslatedField } from "@/lib/localization-utils";
 import NewOptionClient from './NewOptionClient';
 import { LocalizedString, Game } from '@/lib/supabase/queries';
+import AdminHeader from '@/app/admin/components/AdminHeader';
 
 type PageProps = { params: Promise<{ gameSlug: string; sectionId: string; fieldId: string }>; };
 
@@ -64,5 +65,10 @@ export default async function NewFieldOptionPage({ params: paramsPromise }: Page
   const headersList = await headers();
   const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
-  return <NewOptionClient game={game as Game} field={field} sectionId={sectionId} currentLang={currentLang} />;
+  return (
+    <>
+      <AdminHeader params={paramsPromise} />
+      <NewOptionClient game={game as Game} field={field} sectionId={sectionId} currentLang={currentLang} />
+    </>
+  );
 }

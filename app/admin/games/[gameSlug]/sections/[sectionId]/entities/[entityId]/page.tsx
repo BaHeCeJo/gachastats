@@ -20,6 +20,7 @@ import { headers } from "next/headers";
 import { getTranslatedField } from "@/lib/localization-utils";
 import EditEntityClient from './EditEntityClient';
 import { TeamData, TeamEntity } from '@/app/components/TeamBuilder';
+import AdminHeader from '@/app/admin/components/AdminHeader';
 
 type PageProps = {
   params: Promise<{ gameSlug: string; sectionId: string; entityId: string }>;
@@ -123,16 +124,19 @@ export default async function EntityPage({ params: paramsPromise }: PageProps) {
   const relevantTeams = (teamsRes.data || []) as TeamData[];
 
   return (
-    <EditEntityClient 
-      game={game} 
-      section={section} 
-      entity={{ ...entity, entity_field_values: entityValues || [] }} 
-      fields={fields} 
-      currentLang={currentLang}
-      hasTeams={section.has_teams}
-      maxTeamSize={section.max_team_size}
-      sectionTeams={relevantTeams}
-      sectionEntities={processedSectionEntities}
-    />
+    <>
+      <AdminHeader params={paramsPromise} />
+      <EditEntityClient 
+        game={game} 
+        section={section} 
+        entity={{ ...entity, entity_field_values: entityValues || [] }} 
+        fields={fields} 
+        currentLang={currentLang}
+        hasTeams={section.has_teams}
+        maxTeamSize={section.max_team_size}
+        sectionTeams={relevantTeams}
+        sectionEntities={processedSectionEntities}
+      />
+    </>
   );
 }

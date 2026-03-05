@@ -4,43 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { LocalizedString } from "@/lib/localization";
-import { v4 as uuidv4 } from "uuid";
 import { slugify } from "@/lib/utils/slugify";
-
-/**
- * Extracts the storage path from a public URL.
- */
-function extractPathFromUrl(url: string, bucket: string): string {
-  if (!url) return "";
-  if (!url.startsWith("http")) return url;
-  
-  const searchStr = `/${bucket}/`;
-  if (!url.includes(searchStr)) return ""; 
-  
-  const parts = url.split(searchStr);
-  return parts[parts.length - 1];
-}
-
-/**
- * Handles uploading an image file to Supabase storage.
- */
-async function uploadImage(file: File, bucket: string, folder: string): Promise<string> {
-  const supabase = await createClient();
-  const fileExtension = file.name.split(".").pop();
-  const path = `${folder}/${uuidv4()}.${fileExtension}`;
-
-  const { error } = await supabase.storage.from(bucket).upload(path, file, {
-    cacheControl: "3600",
-    upsert: false,
-  });
-
-  if (error) {
-    console.error("Error uploading image:", error);
-    throw new Error(`Failed to upload image: ${error.message}`);
-  }
-
-  return path;
-}
+import { uploadImage, extractPathFromUrl } from "@/lib/supabase/storage-utils";
 
 interface FieldValueInput {
   field_id: string;

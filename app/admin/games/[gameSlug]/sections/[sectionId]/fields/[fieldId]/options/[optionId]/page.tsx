@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { getTranslatedField } from "@/lib/localization-utils";
 import EditOptionClient from './EditOptionClient';
 import { LocalizedString, Game } from '@/lib/supabase/queries';
+import AdminHeader from '@/app/admin/components/AdminHeader';
 
 type PageProps = { params: Promise<{ gameSlug: string; sectionId: string; fieldId: string; optionId: string }>; };
 
@@ -78,5 +79,10 @@ export default async function EditFieldOptionPage({ params: paramsPromise }: Pag
   const headersList = await headers();
   const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
-  return <EditOptionClient game={game as Game} field={field} option={option} sectionId={sectionId} currentLang={currentLang} />;
+  return (
+    <>
+      <AdminHeader params={paramsPromise} />
+      <EditOptionClient game={game as Game} field={field} option={option} sectionId={sectionId} currentLang={currentLang} />
+    </>
+  );
 }

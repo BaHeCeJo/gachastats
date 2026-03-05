@@ -30,11 +30,31 @@ export default function HeaderClient({
   const adminHref = (() => {
     if (pathname === "/") return "/admin"
     if (isAdminRoute) return pathname 
+    
+    // If we are on a game-specific public route (e.g., /honkai-star-rail/...)
+    // Public: /[gameSlug]/sections/[sectionId]/entities/[entityId]
+    // Admin: /admin/games/[gameSlug]/sections/[sectionId]/entities/[entityId]
+    
+    // We check if the first segment is likely a game slug (not profile, auth, etc.)
+    const segments = pathname.split('/').filter(Boolean);
+    const reservedPaths = ['profile', 'auth', 'collections'];
+    
+    if (segments.length > 0 && !reservedPaths.includes(segments[0])) {
+      return `/admin/games/${segments.join('/')}`;
+    }
+
     return `/admin${pathname}`
   })()
 
   const publicHref = (() => {
     if (!isAdminRoute) return pathname
+    
+    // Map /admin/games/[gameSlug] -> /[gameSlug]
+    if (pathname.startsWith("/admin/games")) {
+      return pathname.replace("/admin/games", "") || "/"
+    }
+    
+    // Fallback for other admin pages
     const publicPath = pathname.replace(/^\/admin/, "") || "/"
     return publicPath
   })()

@@ -19,6 +19,7 @@ import { revalidatePath } from 'next/cache';
 import { getTranslatedField } from "@/lib/localization-utils";
 import EditSectionClient from './EditSectionClient';
 import { ProcessedEntity } from '@/app/[gameSlug]/sections/[sectionId]/page';
+import AdminHeader from '@/app/admin/components/AdminHeader';
 
 type PageProps = { params: Promise<{ gameSlug: string; sectionId: string }>; };
 
@@ -191,5 +192,10 @@ export default async function EditSectionPage({ params: paramsPromise }: PagePro
         })) 
     })) || [];
 
-  return <EditSectionClient game={game} section={section} fields={fields} displaySettings={displaySettings} entities={processedEntities} filterFieldsData={filterFieldsData} currentLang={currentLang} updateDisplaySettingsAction={updateDisplaySettingsAction.bind(null, gameSlug, sectionId)} sectionTeams={sectionTeams} />;
+  return (
+    <>
+      <AdminHeader params={paramsPromise} />
+      <EditSectionClient game={game} section={section} fields={fields} displaySettings={displaySettings} entities={processedEntities} filterFieldsData={filterFieldsData} currentLang={currentLang} updateDisplaySettingsAction={updateDisplaySettingsAction.bind(null, gameSlug, sectionId)} sectionTeams={sectionTeams} />
+    </>
+  );
 }

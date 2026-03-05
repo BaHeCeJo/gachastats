@@ -12,11 +12,10 @@ export async function proxy(req: NextRequest) {
   const pathname = req.nextUrl.pathname
   
   // 1. FAST PATH: Identify routes that REQUIRE auth logic
+  // Immediately return for public routes to avoid object overhead and cookie parsing
   const isProtected = pathname.startsWith('/admin') || pathname.startsWith('/profile')
   const isAuthPage = pathname.startsWith('/auth')
 
-  // If it's not a protected route and not an auth management page, exit immediately.
-  // This covers the Landing Page, Game Pages, Sections, and Entities.
   if (!isProtected && !isAuthPage) {
     return NextResponse.next()
   }

@@ -8,6 +8,7 @@ import { getTranslatedField, getTranslation } from "@/lib/localization-utils";
 import { GameLocalizationProvider } from "@/lib/localization";
 import { headers } from "next/headers";
 import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
+import AdminHeader from '@/app/admin/components/AdminHeader';
 
 type PageProps = {
   params: Promise<{ gameSlug: string }>
@@ -37,8 +38,10 @@ export default async function SectionsPage({ params: paramsPromise }: PageProps)
   const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
   return (
-    <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
-      <main className="p-8 space-y-6">
+    <>
+      <AdminHeader params={paramsPromise} />
+      <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
+        <main className="p-8 space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold flex items-center gap-2">
             {getTranslatedField(game.name, currentLang, game.default_lang)}
@@ -91,5 +94,6 @@ export default async function SectionsPage({ params: paramsPromise }: PageProps)
         </div>
       </main>
     </GameLocalizationProvider>
+    </>
   )
 }

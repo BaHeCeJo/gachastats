@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import { getTranslatedField } from "@/lib/localization-utils";
 import NewEntityClient from './NewEntityClient';
 import { Game, Section, SectionField, FieldOption } from '@/lib/supabase/queries';
+import AdminHeader from '@/app/admin/components/AdminHeader';
 
 type PageProps = { params: Promise<{ gameSlug: string; sectionId: string }>; };
 
@@ -58,5 +59,10 @@ export default async function NewEntityPage({ params: paramsPromise }: PageProps
     };
   });
 
-  return <NewEntityClient game={game as Game} section={section as Section} fields={fields} currentLang={currentLang} />;
+  return (
+    <>
+      <AdminHeader params={paramsPromise} />
+      <NewEntityClient game={game as Game} section={section as Section} fields={fields} currentLang={currentLang} />
+    </>
+  );
 }

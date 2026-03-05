@@ -6,6 +6,7 @@ import { GameLocalizationProvider } from "@/lib/localization";
 import { headers } from "next/headers";
 import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
 import { getGameBySlug, getSectionById, LocalizedString } from '@/lib/supabase/queries';
+import AdminHeader from '@/app/admin/components/AdminHeader';
 
 type Field = {
   id: string;
@@ -66,8 +67,10 @@ export default async function FieldsPage({ params: paramsPromise }: PageProps) {
   })
 
   return (
-    <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
-      <main className="max-w-3xl p-8 space-y-6 mx-auto">
+    <>
+      <AdminHeader params={paramsPromise} />
+      <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
+        <main className="max-w-3xl p-8 space-y-6 mx-auto">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold">
             {getTranslatedField(section.key, currentLang, game.default_lang)} — {getTranslation('fields', currentLang)}
@@ -116,5 +119,6 @@ export default async function FieldsPage({ params: paramsPromise }: PageProps) {
         )}
       </main>
     </GameLocalizationProvider>
+    </>
   )
 }

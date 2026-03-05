@@ -147,6 +147,50 @@ export const getSectionById = cache(async (sectionId: string) => {
 });
 
 /**
+ * Fetch a section by game ID and its English key (natural lookup).
+ */
+export const getSectionByNames = cache(async (gameId: string, sectionKey: string) => {
+  return unstable_cache(
+    async () => {
+      const supabase = createPublicClient();
+      return supabase
+        .from("game_sections")
+        .select("*")
+        .eq("game_id", gameId)
+        .eq("key->>en", sectionKey) // Using JSONB lookup
+        .single();
+    },
+    [`section-${gameId}-${sectionKey}`],
+    { revalidate: 3600, tags: [`section-${gameId}-${sectionKey}`] }
+  )();
+});
+
+/**
+ * Fetch an entity by section ID and its English name (natural lookup).
+ */
+export const getEntityByNames = cache(async (sectionId: string, entityName: string) => {
+  return unstable_cache(
+    async () => {
+      const supabase = createPublicClient();
+      return supabase
+        .from("section_entities")
+        .select(`
+          *,
+          entity_skins (
+            *,
+            entity_images (*)
+          )
+        `)
+        .eq("section_id", sectionId)
+        .eq("name->>en", entityName) // Using JSONB lookup
+        .single();
+    },
+    [`entity-${sectionId}-${entityName}`],
+    { revalidate: 3600, tags: [`entity-${sectionId}-${entityName}`] }
+  )();
+});
+
+/**
  * Cached fetch for section fields.
  */
 export const getSectionFields = cache(async (sectionId: string) => {
@@ -226,8 +270,7 @@ export const getSectionEntities = cache(async (
           id,
           game_field_id, 
           value_text, 
-          option_id, 
-          field_options ( color, icon_path, value_key ) 
+          option_id
         )
       `)
       .eq("section_id", sectionId)

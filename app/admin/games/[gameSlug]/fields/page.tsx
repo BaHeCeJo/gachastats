@@ -6,6 +6,7 @@ import { GameLocalizationProvider } from '@/lib/localization';
 import Link from 'next/link';
 import { LocalizedString } from '@/lib/supabase/queries';
 import { PostgrestError } from '@supabase/supabase-js';
+import AdminHeader from '@/app/admin/components/AdminHeader';
 
 type PageProps = { params: Promise<{ gameSlug: string }> };
 
@@ -66,8 +67,10 @@ export default async function GameFieldsPage({ params }: PageProps) {
   const fieldsCount = gameFields?.length || 0;
 
   return (
-    <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
-      <main className="max-w-5xl p-8 space-y-8 mx-auto">
+    <>
+      <AdminHeader params={params} />
+      <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
+        <main className="max-w-5xl p-8 space-y-8 mx-auto">
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-white">
@@ -137,5 +140,6 @@ export default async function GameFieldsPage({ params }: PageProps) {
         </div>
       </main>
     </GameLocalizationProvider>
+    </>
   );
 }

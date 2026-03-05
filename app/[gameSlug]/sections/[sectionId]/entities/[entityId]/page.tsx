@@ -82,32 +82,32 @@ export async function generateMetadata({ params: paramsPromise }: PageProps) {
 export default async function EntityDetailPage({ params: paramsPromise }: PageProps) {
   const { gameSlug, sectionId, entityId } = await paramsPromise;
 
-  // 1. Fetch basic details in parallel (all cached via public client)
-  const [gameRes, sectionRes, entityRes, settingsRes, fieldsRes, valuesRes] = await Promise.all([
+  // 1. Fetch core data in parallel
+  const [gameRes, sectionRes, entityRes, settingsRes, fieldsRes, valuesRes, teamsRes] = await Promise.all([
     getGameBySlug(gameSlug),
     getSectionById(sectionId),
     getEntityById(entityId),
     getSectionDisplaySettings(sectionId),
     getSectionFields(sectionId),
-    getEntityFieldValues(entityId)
+    getEntityFieldValues(entityId),
+    getEntityTeams(entityId)
   ]);
 
   const game = gameRes.data;
   const section = sectionRes.data;
   const entity = entityRes.data as unknown as SectionEntity;
-  const displaySettings = settingsRes.data as SectionDisplaySettings | null;
-  const fieldsRaw = fieldsRes.data as unknown as SectionField[];
-  const entityValues = valuesRes.data as unknown as EntityFieldValue[];
 
   if (!game) redirect("/");
   if (!section || !entity) redirect(`/${gameSlug}`);
 
-  // 2. Fetch feature data (cached)
-  const [teamsRes, sectionEntitiesRes] = await Promise.all([
-    getEntityTeams(entityId),
-    section.has_teams ? getSectionEntities(sectionId, game.default_lang) : Promise.resolve({ data: [] }),
-  ]);
+  // 2. Fetch section entities only if needed (for team building)
+  const sectionEntitiesRes = section.has_teams 
+    ? await getSectionEntities(sectionId, game.default_lang)
+    : { data: [] };
 
+  const displaySettings = settingsRes.data as SectionDisplaySettings | null;
+  const fieldsRaw = fieldsRes.data as unknown as SectionField[];
+  const entityValues = valuesRes.data as unknown as EntityFieldValue[];
   const relevantTeams = (teamsRes.data || []) as unknown as TeamData[];
   const rawSectionEntities = sectionEntitiesRes.data as unknown as SectionEntity[] || [];
 

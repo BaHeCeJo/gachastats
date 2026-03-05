@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { getTranslatedField } from '@/lib/localization-utils';
 import EditGameClient from './EditGameClient';
+import AdminHeader from '@/app/admin/components/AdminHeader';
 
 type PageProps = { params: Promise<{ gameSlug: string }> };
 
@@ -22,8 +23,8 @@ export async function generateMetadata({ params: paramsPromise }: PageProps) {
   };
 }
 
-export default async function ServerAdminGamePage({ params: paramsPromise }: PageProps) {
-  const { gameSlug } = await paramsPromise;
+export default async function ServerAdminGamePage({ params }: PageProps) {
+  const { gameSlug } = await params;
   const [gameRes, headersList] = await Promise.all([
     getGameBySlug(gameSlug),
     headers()
@@ -34,5 +35,10 @@ export default async function ServerAdminGamePage({ params: paramsPromise }: Pag
 
   if (!game) redirect('/admin/games');
 
-  return <EditGameClient game={game} currentLang={currentLang} />;
+  return (
+    <>
+      <AdminHeader params={params} />
+      <EditGameClient game={game} currentLang={currentLang} />
+    </>
+  );
 }
