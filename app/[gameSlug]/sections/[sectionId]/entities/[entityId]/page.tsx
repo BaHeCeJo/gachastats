@@ -242,7 +242,7 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
           ]}
         />
 
-        <main className="flex-1 px-8 py-6 z-10 relative">
+        <main className="flex-1 px-8 pt-24 pb-12 z-10 relative">
           <div className="max-w-7xl mx-auto">
             <div className="flex flex-col lg:flex-row gap-8 items-end justify-between mb-0">
               <div className="flex-1 space-y-6 w-full pb-4">
@@ -284,20 +284,18 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
                 </div>
               </div>
               {splashartUrl && (
-                <div className="lg:w-[75%] flex justify-end">
-                  <div className="relative group w-full aspect-square lg:aspect-auto lg:h-[600px]">
+                <div className="lg:w-[75%] flex justify-end relative lg:-mt-32">
+                  <div className="relative group w-full aspect-square lg:aspect-auto lg:h-[calc(100vh-100px)] min-h-[600px] flex items-end justify-end pointer-events-none">
                     <div className="absolute -inset-20 bg-gradient-to-tr from-[#22c55e]/20 to-transparent blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
                     
-                    <div className="relative w-full h-full transform lg:scale-150 origin-bottom pointer-events-none">
-                      <Image 
-                        src={splashartUrl} 
-                        alt={translatedEntityName} 
-                        fill
-                        priority
-                        sizes="(max-width: 1024px) 100vw, 75vw"
-                        className="object-contain object-bottom transition-all duration-1000 group-hover:scale-[1.05]" 
-                      />
-                    </div>
+                    <Image 
+                      src={splashartUrl} 
+                      alt={translatedEntityName} 
+                      fill
+                      priority
+                      sizes="(max-width: 1024px) 100vw, 75vw"
+                      className="object-contain object-bottom transition-all duration-1000 group-hover:scale-[1.02]" 
+                    />
                   </div>
                 </div>
               )}
