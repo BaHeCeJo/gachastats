@@ -16,7 +16,7 @@ export default function NewFieldClient({ game, section, categories, gameFields }
   categories: string[],
   gameFields: GameField[]
 }) {
-  const { currentLang, displayLang, t } = useLocalizationParams() as any;
+  const { currentLang, displayLang, t } = useLocalizationParams();
   const activeLang = displayLang || currentLang;
   const [selectedGameFieldId, setSelectedGameFieldId] = useState<string>("");
   const [localizedKey, setLocalizedKey] = useState<LocalizedString>({ [game.default_lang]: "" });
@@ -46,7 +46,7 @@ export default function NewFieldClient({ game, section, categories, gameFields }
   };
 
   const [state, formAction] = useActionState(
-    async (prevState: FormState, formData: FormData) => {
+    async (_prevState: FormState, formData: FormData) => {
       formData.set("game_field_id", selectedGameFieldId);
       formData.set("key", JSON.stringify(localizedKey));
       formData.set("category", category);
@@ -69,7 +69,7 @@ export default function NewFieldClient({ game, section, categories, gameFields }
         <form action={formAction} className="space-y-4">
           <div className="space-y-1">
             <label htmlFor="game_field_select" className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">
-              {t('reuseExistingField') || 'Reuse Existing Field'} ({gameFields.length})
+              {t('reuseExistingField')} ({gameFields.length})
             </label>
             <select
               id="game_field_select"
@@ -78,7 +78,7 @@ export default function NewFieldClient({ game, section, categories, gameFields }
               disabled={gameFields.length === 0}
               className="block w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <option value="">-- {t('createNewField') || 'Create New Field'} --</option>
+              <option value="">-- {t('createNewField')} --</option>
               {gameFields.map(gf => (
                 <option key={gf.id} value={gf.id}>{gf.internal_name}</option>
               ))}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Image from "next/image";
 import { useLocalizationParams } from "@/lib/localization";
 
@@ -21,35 +21,26 @@ export default function ImageInput({
   className,
   label,
 }: Props) {
-  const { t } = useLocalizationParams() as any;
+  const { t } = useLocalizationParams();
   const [file, setFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  
+  // Create object URL only when file changes
+  const objectUrl = useMemo(() => {
+    if (!file) return null;
+    return URL.createObjectURL(file);
+  }, [file]);
+
+  // Clean up object URL
+  useEffect(() => {
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [objectUrl]);
+
+  // Derived preview URL to avoid setState in effect
+  const previewUrl = objectUrl || existingImageUrl;
 
   const displayLabel = label || t('upload');
-
-  // Effect to handle existing image URL changes
-  useEffect(() => {
-    if (existingImageUrl) {
-      setPreviewUrl(existingImageUrl);
-      setFile(null); // Clear any pending new file if an existing one is set
-    } else {
-      setPreviewUrl(null);
-    }
-  }, [existingImageUrl]);
-
-  // Effect to create and revoke object URLs for new file previews
-  useEffect(() => {
-    if (!file) {
-      if (!existingImageUrl) setPreviewUrl(null); // Only clear preview if no existing URL
-      return;
-    }
-
-    const objectUrl = URL.createObjectURL(file);
-    setPreviewUrl(objectUrl);
-
-    // Free memory when ever this component is unmounted
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [file, existingImageUrl]);
 
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -61,11 +52,10 @@ export default function ImageInput({
   );
 
   const handleRemoveClick = useCallback(() => {
-    setFile(null); // Clear selected file
-    setPreviewUrl(null); // Clear preview
-    onFileChange(null); // Notify parent no new file
+    setFile(null);
+    onFileChange(null);
     if (onRemoveExisting) {
-      onRemoveExisting(); // Notify parent to remove existing image
+      onRemoveExisting();
     }
   }, [onFileChange, onRemoveExisting]);
 
@@ -75,24 +65,9 @@ export default function ImageInput({
         {displayLabel}
       </label>
       <div className="mt-1 flex items-center space-x-4">
-        {(previewUrl && !file) && ( // Display existing image or previous file preview
+        {previewUrl && (
           <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-zinc-700 bg-zinc-800 flex-shrink-0">
-            <Image src={previewUrl} alt={t('imagePreview')} layout="fill" objectFit="cover" />
-            <button
-              type="button"
-              onClick={handleRemoveClick}
-              className="absolute top-1 right-1 bg-black/60 hover:bg-red-600 text-white rounded-full p-1 transition-colors z-10"
-              title={t('removeImage')}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-            </button>
-          </div>
-        )}
-        {(file && previewUrl && existingImageUrl !== previewUrl) && ( // Display new file preview
-          <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-zinc-700 bg-zinc-800 flex-shrink-0">
-            <Image src={previewUrl} alt={t('imagePreview')} layout="fill" objectFit="cover" />
+            <Image src={previewUrl} alt={t('imagePreview')} fill className="object-cover" />
             <button
               type="button"
               onClick={handleRemoveClick}

@@ -16,7 +16,7 @@ export default function NewOptionClient({ game, field, sectionId, currentLang: b
   sectionId: string;
   currentLang: string;
 }) {
-  const { displayLang, t } = useLocalizationParams() as any;
+  const { displayLang, t } = useLocalizationParams();
   const activeLang = displayLang || browserLang;
   const [localizedValueKey, setLocalizedValueKey] = useState<LocalizedString>({ [game.default_lang]: "" });
   const [color, setColor] = useState<string | null>(null);
@@ -24,7 +24,7 @@ export default function NewOptionClient({ game, field, sectionId, currentLang: b
   const [orderIndex, setOrderIndex] = useState<number>(0);
 
   const [state, formAction] = useActionState(
-    async (prevState: FormState, formData: FormData) => {
+    async (_prevState: FormState, formData: FormData) => {
       formData.set("value_key", JSON.stringify(localizedValueKey));
       formData.set("color", color || "");
       formData.set("order_index", orderIndex.toString());

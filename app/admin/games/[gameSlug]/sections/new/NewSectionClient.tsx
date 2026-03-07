@@ -10,7 +10,7 @@ type GameData = { id: string; name: LocalizedString; slug: string; default_lang:
 type FormState = { error?: string; };
 
 export default function NewSectionClient({ game }: { game: GameData }) {
-  const { currentLang, displayLang, t } = useLocalizationParams() as any;
+  const { currentLang, displayLang, t } = useLocalizationParams();
   const activeLang = displayLang || currentLang;
   const [localizedKey, setLocalizedKey] = useState<LocalizedString>({ [game.default_lang]: "" });
   const [color, setColor] = useState<string>("#ffffff");
@@ -24,7 +24,7 @@ export default function NewSectionClient({ game }: { game: GameData }) {
   const [iconFile, setIconFile] = useState<File | null>(null);
 
   const [state, formAction] = useActionState(
-    async (prevState: FormState, formData: FormData) => {
+    async (_prevState: FormState, formData: FormData) => {
       formData.set("key", JSON.stringify(localizedKey));
       formData.set("color", color);
       formData.set("order_index", orderIndex.toString());

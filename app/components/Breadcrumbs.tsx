@@ -9,17 +9,19 @@ type Breadcrumb = {
 };
 
 type Props = {
-  crumbs: Breadcrumb[];
+  items?: Breadcrumb[];
 };
 
-export default function Breadcrumbs({ crumbs }: Props) {
+export default function Breadcrumbs({ items = [] }: Props) {
   const { currentLang, gameDefaultLang } = useLocalizationParams(); // Use localization params
+
+  if (!items || items.length === 0) return null;
 
   return (
     <nav className="text-sm text-gray-400" aria-label="Breadcrumb">
       <ol className="list-none p-0 inline-flex">
-        {crumbs.map((crumb, index) => {
-          const isLast = index === crumbs.length - 1;
+        {items.map((crumb, index) => {
+          const isLast = index === items.length - 1;
           const displayLabel = typeof crumb.label === 'string'
             ? crumb.label
             : getTranslatedField(crumb.label, currentLang, gameDefaultLang);

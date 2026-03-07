@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { getTranslatedField } from "@/lib/localization-utils";
 import NewEntityClient from './NewEntityClient';
+import { Game, Section, SectionField, FieldOption } from '@/lib/supabase/queries';
+import AdminHeader from '@/app/admin/components/AdminHeader';
 
 type PageProps = { params: Promise<{ gameSlug: string; sectionId: string }>; };
 
@@ -38,16 +40,16 @@ export default async function NewEntityPage({ params: paramsPromise }: PageProps
       )
     `)
     .eq('section_id', sectionId)
-    .order('order_index', { ascending: true });
+    .order('order_index', { ascending: true }) as { data: SectionField[] | null };
 
   const gameFieldIds = (fieldsRaw || []).map(f => f.game_field_id).filter(Boolean);
   const { data: allOptions } = gameFieldIds.length > 0
-    ? await supabase.from('field_options').select('id, game_field_id, value_key, icon_path, color, order_index').in('game_field_id', gameFieldIds)
+    ? await supabase.from('field_options').select('id, game_field_id, value_key, icon_path, color, order_index').in('game_field_id', gameFieldIds) as { data: FieldOption[] | null }
     : { data: [] };
 
   const fields = (fieldsRaw || []).map(f => {
-    const gf = Array.isArray(f.game_fields) ? f.game_fields[0] : f.game_fields;
-    const options = (allOptions || []).filter((opt: any) => opt.game_field_id === f.game_field_id);
+    const gf = f.game_fields;
+    const options = (allOptions || []).filter((opt) => opt.game_field_id === f.game_field_id);
     return {
       ...f,
       manual_fill: gf?.manual_fill,
@@ -57,5 +59,10 @@ export default async function NewEntityPage({ params: paramsPromise }: PageProps
     };
   });
 
-  return <NewEntityClient game={game} section={section} fields={fields || []} currentLang={currentLang} />;
+  return (
+    <>
+      <AdminHeader params={paramsPromise} />
+      <NewEntityClient game={game as Game} section={section as Section} fields={fields} currentLang={currentLang} />
+    </>
+  );
 }

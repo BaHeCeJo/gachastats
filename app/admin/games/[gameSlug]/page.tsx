@@ -1,32 +1,20 @@
-import { createClient as createServerClient } from '@/lib/supabase/server';
+import { getGameBySlug, Game } from "@/lib/supabase/queries";
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
-import { getTranslatedField, LocalizedString } from '@/lib/localization-utils';
+import { getTranslatedField } from '@/lib/localization-utils';
 import EditGameClient from './EditGameClient';
-
-type GameData = {
-  id: string;
-  name: LocalizedString;
-  slug: string;
-  description: LocalizedString;
-  cover_url: string | null;
-  default_lang: string;
-  supported_languages: string[];
-};
+import AdminHeader from '@/app/admin/components/AdminHeader';
 
 type PageProps = { params: Promise<{ gameSlug: string }> };
 
-export async function generateMetadata({ params }: PageProps) {
-  const { gameSlug } = await params;
-  const supabase = await createServerClient();
-  const headersList = await headers();
+export async function generateMetadata({ params: paramsPromise }: PageProps) {
+  const { gameSlug } = await paramsPromise;
+  const [gameRes, headersList] = await Promise.all([
+    getGameBySlug(gameSlug),
+    headers()
+  ]);
+  const game = gameRes.data as Game | null;
   const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
-
-  const { data: game } = await supabase
-    .from('games')
-    .select('name, default_lang')
-    .eq('slug', gameSlug)
-    .single();
 
   const gameName = game?.name ? getTranslatedField(game.name, currentLang, game.default_lang || 'en') : 'Game';
 
@@ -37,17 +25,20 @@ export async function generateMetadata({ params }: PageProps) {
 
 export default async function ServerAdminGamePage({ params }: PageProps) {
   const { gameSlug } = await params;
-  const supabase = await createServerClient();
-  const headersList = await headers();
-  const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
+  const [gameRes, headersList] = await Promise.all([
+    getGameBySlug(gameSlug),
+    headers()
+  ]);
 
-  const { data: game } = await supabase
-    .from('games')
-    .select('id, name, slug, description, cover_url, default_lang, supported_languages')
-    .eq('slug', gameSlug)
-    .single<GameData>();
+  const game = gameRes.data as Game | null;
+  const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
   if (!game) redirect('/admin/games');
 
-  return <EditGameClient game={game} currentLang={currentLang} />;
+  return (
+    <>
+      <AdminHeader params={params} />
+      <EditGameClient game={game} currentLang={currentLang} />
+    </>
+  );
 }

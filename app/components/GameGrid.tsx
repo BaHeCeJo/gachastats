@@ -2,16 +2,17 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { LocalizedString, getTranslatedField, useLocalizationParams } from "@/lib/localization";
 
 type Game = {
   id: string;
   name: LocalizedString;
   slug: string;
-  description: LocalizedString; // Add description
+  description: LocalizedString;
   cover_url: string | null;
-  default_lang: string; // Add default_lang
-  supported_languages: string[]; // Add supported_languages
+  default_lang: string;
+  supported_languages: string[];
 };
 
 type Props = {
@@ -22,7 +23,7 @@ type Props = {
 
 export default function GameGrid({ games, supabaseUrl, onHoverChange }: Props) {
   const [hoveredCover, setHoveredCover] = useState<string | null>(null);
-  const { currentLang, t } = useLocalizationParams() as any; // Get current language and t function
+  const { currentLang, t } = useLocalizationParams();
 
   const handleHover = (url: string | null) => {
     setHoveredCover(url);
@@ -31,14 +32,16 @@ export default function GameGrid({ games, supabaseUrl, onHoverChange }: Props) {
 
   return (
     <>
-      {/* Dynamic Background Layer - Placed above page background but below content */}
       <div className="fixed inset-0 pointer-events-none z-[1] overflow-hidden">
-        <div
-          className={`absolute inset-0 bg-cover bg-center grayscale transition-all duration-[1500ms] ease-in-out transform ${
-            hoveredCover ? "opacity-20 scale-100" : "opacity-0 scale-105"
-          }`}
-          style={{ backgroundImage: hoveredCover ? `url(${hoveredCover})` : 'none' }}
-        />
+        {hoveredCover && (
+          <Image
+            src={hoveredCover}
+            alt=""
+            fill
+            className="object-cover grayscale opacity-20 transition-all duration-700"
+            priority
+          />
+        )}
       </div>
 
       <main className="flex-1 px-8 py-24 z-10 relative">
@@ -48,7 +51,7 @@ export default function GameGrid({ games, supabaseUrl, onHoverChange }: Props) {
           </h1>
 
           <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-10">
-            {games.map((game) => {
+            {games.map((game, index) => {
               const coverUrl = game.cover_url
                 ? `${supabaseUrl}/storage/v1/object/public/games/${game.cover_url}`
                 : null;
@@ -61,13 +64,16 @@ export default function GameGrid({ games, supabaseUrl, onHoverChange }: Props) {
                   onMouseLeave={() => handleHover(null)}
                 >
                   <Link href={`/${game.slug}`} className="block">
-                    {/* Game Cover Card */}
                     <div className="relative aspect-[3/4] w-full border border-zinc-200 dark:border-zinc-800 rounded-2xl bg-white/50 dark:bg-zinc-900/50 backdrop-blur-md overflow-hidden shadow-sm group-hover:shadow-2xl group-hover:shadow-[#22c55e]/20 group-hover:-translate-y-2 transition-all duration-500 group-hover:border-[#22c55e]/50">
                       {coverUrl ? (
-                        <img
+                        <Image
                           src={coverUrl}
                           alt={getTranslatedField(game.name, currentLang, game.default_lang)}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                          fill
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                          className="object-cover group-hover:scale-105 transition-transform duration-700"
+                          priority={index < 8}
+                          loading={index < 8 ? "eager" : "lazy"}
                         />
                       ) : (
                         <div className="w-full h-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-zinc-400">
@@ -75,11 +81,9 @@ export default function GameGrid({ games, supabaseUrl, onHoverChange }: Props) {
                         </div>
                       )}
 
-                      {/* Hover Overlay */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                     </div>
 
-                    {/* Game Name Under the Card */}
                     <div className="mt-4 text-center">
                       <h3 className="font-bold text-xl text-black dark:text-zinc-50 group-hover:text-[#22c55e] transition-colors uppercase tracking-wide">
                         {getTranslatedField(game.name, currentLang, game.default_lang)}

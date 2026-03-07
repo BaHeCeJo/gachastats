@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { LocalizedString } from "@/lib/localization";
-import { useGameLocalizationParams } from "@/lib/localization"; // To get game supported languages
+import { LocalizedString, useLocalizationParams } from "@/lib/localization";
 
 type LocalizedTextInputProps = {
   id: string;
@@ -23,19 +22,23 @@ export default function LocalizedTextInput({
   className,
   textarea = false,
 }: LocalizedTextInputProps) {
-  const { gameSupportedLanguages, gameDefaultLang } = useGameLocalizationParams();
+  const { gameSupportedLanguages, gameDefaultLang } = useLocalizationParams();
   const [activeTab, setActiveTab] = useState(gameDefaultLang);
 
   // Initialize value if null, ensuring default language is present
   useEffect(() => {
     if (!value) {
       onChange({ [gameDefaultLang]: "" });
-      setActiveTab(gameDefaultLang);
     } else if (gameDefaultLang && !(gameDefaultLang in value) && gameSupportedLanguages.includes(gameDefaultLang)) {
       // Ensure default language has an entry if it's missing but supported
       onChange({ ...value, [gameDefaultLang]: "" });
     }
   }, [value, onChange, gameDefaultLang, gameSupportedLanguages]);
+
+  // Sync activeTab with gameDefaultLang if it changes
+  useEffect(() => {
+    setActiveTab(gameDefaultLang);
+  }, [gameDefaultLang]);
 
   const handleChange = (lang: string, text: string) => {
     onChange({

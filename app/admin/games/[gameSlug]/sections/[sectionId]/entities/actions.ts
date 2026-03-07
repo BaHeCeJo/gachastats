@@ -1,45 +1,24 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { LocalizedString } from "@/lib/localization";
-import { v4 as uuidv4 } from "uuid";
 import { slugify } from "@/lib/utils/slugify";
+import { uploadImage, extractPathFromUrl } from "@/lib/supabase/storage-utils";
 
-/**
- * Extracts the storage path from a public URL.
- */
-function extractPathFromUrl(url: string, bucket: string): string {
-  if (!url) return "";
-  if (!url.startsWith("http")) return url;
-  
-  const searchStr = `/${bucket}/`;
-  if (!url.includes(searchStr)) return ""; 
-  
-  const parts = url.split(searchStr);
-  return parts[parts.length - 1];
+interface FieldValueInput {
+  field_id: string;
+  values: string[];
 }
 
-/**
- * Handles uploading an image file to Supabase storage.
- */
-async function uploadImage(file: File, bucket: string, folder: string): Promise<string> {
-  const supabase = await createClient();
-  const fileExtension = file.name.split(".").pop();
-  const path = `${folder}/${uuidv4()}.${fileExtension}`;
-
-  const { error } = await supabase.storage.from(bucket).upload(path, file, {
-    cacheControl: "3600",
-    upsert: false,
-  });
-
-  if (error) {
-    console.error("Error uploading image:", error);
-    throw new Error(`Failed to upload image: ${error.message}`);
-  }
-
-  return path;
+interface FieldDefResult {
+  id: string;
+  is_multi: boolean;
+  game_field_id: string;
+  game_fields: {
+    manual_fill: boolean;
+  } | null;
 }
 
 /**
@@ -58,7 +37,7 @@ export async function upsertEntityAction(
   const iconFile = formData.get("icon_file"); // File or null
   const existingIconPath = formData.get("existing_icon_path") as string | null;
   const fieldValuesJson = formData.get("field_values") as string;
-  const fieldValues = fieldValuesJson ? JSON.parse(fieldValuesJson) : [];
+  const fieldValues: FieldValueInput[] = fieldValuesJson ? JSON.parse(fieldValuesJson) : [];
 
 
   if (!rawName[gameDefaultLang]) {
@@ -156,44 +135,51 @@ export async function upsertEntityAction(
     return { error: `Failed to clear old field values: ${deleteValuesError.message}` };
   }
 
-  // Then, insert new/updated values
-  // fieldValues is now expected to be an array of { field_id, values: string[] }
-  const valuesToInsert: any[] = [];
+  // OPTIMIZATION: Fetch all field definitions in one query to avoid N+1
+  const fieldIds = fieldValues.map((fv) => fv.field_id);
+  const { data: fieldDefs } = await supabase
+    .from("section_fields")
+    .select(`
+      id,
+      is_multi,
+      game_field_id,
+      game_fields (
+        manual_fill
+      )
+    `)
+    .in("id", fieldIds) as { data: FieldDefResult[] | null };
+
+  const fieldDefMap = new Map(fieldDefs?.map(fd => [fd.id, fd]));
+
+  const valuesToInsert: {
+    entity_id: string;
+    game_field_id: string;
+    value_text: string | null;
+    option_id: string | null;
+  }[] = [];
 
   for (const fVal of fieldValues) {
     const { field_id, values } = fVal;
     if (!values || values.length === 0) continue;
 
-    // Fetch field definition to check rules (Join with game_fields)
-    const { data: fieldDef } = await supabase
-      .from("section_fields")
-      .select(`
-        is_multi,
-        game_field_id,
-        game_fields (
-          manual_fill
-        )
-      `)
-      .eq("id", field_id)
-      .single();
-
+    const fieldDef = fieldDefMap.get(field_id);
     if (!fieldDef) continue;
 
     const gameFieldId = fieldDef.game_field_id;
-    const manualFill = (fieldDef.game_fields as any)?.manual_fill;
+    const manualFill = fieldDef.game_fields?.manual_fill || false;
 
     const processedOptionIds: string[] = [];
 
     for (const val of values) {
       if (!val) continue;
 
-      // Check if val is a UUID
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 
       if (isUuid) {
         processedOptionIds.push(val);
       } else if (manualFill) {
-        // Create new option
+        // This is still sequential because we need the new ID, 
+        // but it's much better than fetching the field definition in a loop.
         const { data: newOpt, error: optError } = await supabase
           .from("field_options")
           .insert({
@@ -215,7 +201,6 @@ export async function upsertEntityAction(
     if (processedOptionIds.length === 0) continue;
 
     if (fieldDef.is_multi) {
-      // Store as comma-separated IDs in value_text
       valuesToInsert.push({
         entity_id: currentEntityId,
         game_field_id: gameFieldId,
@@ -223,7 +208,6 @@ export async function upsertEntityAction(
         option_id: null
       });
     } else {
-      // Store single ID in option_id
       valuesToInsert.push({
         entity_id: currentEntityId,
         game_field_id: gameFieldId,
@@ -244,6 +228,8 @@ export async function upsertEntityAction(
     }
   }
 
+  updateTag(`entity-${currentEntityId}`);
+  updateTag(`section-entities-${sectionId}`);
 
   revalidatePath(`/admin/games/${gameSlug}/sections/${sectionId}/entities`);
   revalidatePath(`/admin/games/${gameSlug}/sections/${sectionId}/entities/${currentEntityId}`); // Revalidate specific entity page
@@ -287,6 +273,9 @@ export async function deleteEntityAction(
     console.error("Error deleting entity:", error);
     throw new Error(error.message);
   }
+
+  updateTag(`entity-${entityId}`);
+  updateTag(`section-entities-${sectionId}`);
 
   revalidatePath(`/admin/games/${gameSlug}/sections/${sectionId}/entities`);
   redirect(`/admin/games/${gameSlug}/sections/${sectionId}/entities`);

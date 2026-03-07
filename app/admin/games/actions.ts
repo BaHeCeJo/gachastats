@@ -1,61 +1,11 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { LocalizedString } from "@/lib/localization";
-import { v4 as uuidv4 } from "uuid";
 import { slugify } from "@/lib/utils/slugify";
-
-type GameFormData = {
-  id?: string; // Optional for new games
-  name: LocalizedString;
-  description: LocalizedString;
-  cover_image?: File | string | null; // Can be a File object for new upload, string for existing path, or null/undefined
-  default_lang: string;
-  supported_languages: string[];
-};
-
-/**
- * Extracts the storage path from a public URL.
- * Supabase URLs are typically: https://[project].supabase.co/storage/v1/object/public/[bucket]/[path]
- */
-function extractPathFromUrl(url: string, bucket: string): string {
-  if (!url) return "";
-  // If it's already a relative path (doesn't start with http), return as is
-  if (!url.startsWith("http")) return url;
-
-  const searchStr = `/${bucket}/`;
-  if (!url.includes(searchStr)) return "";
-
-  const parts = url.split(searchStr);
-  return parts[parts.length - 1];
-}
-
-/**
- * Handles uploading an image file to Supabase storage.
- * @param file The image file to upload.
- * @param bucket The storage bucket name.
- * @param folder The folder within the bucket.
- * @returns The path to the uploaded file within the bucket/folder.
- */
-async function uploadImage(file: File, bucket: string, folder: string): Promise<string> {
-  const supabase = await createClient();
-  const fileExtension = file.name.split(".").pop();
-  const path = `${folder}/${uuidv4()}.${fileExtension}`;
-
-  const { error } = await supabase.storage.from(bucket).upload(path, file, {
-    cacheControl: "3600",
-    upsert: false,
-  });
-
-  if (error) {
-    console.error("Error uploading image:", error);
-    throw new Error(`Failed to upload image: ${error.message}`);
-  }
-
-  return path;
-}
+import { uploadImage, extractPathFromUrl } from "@/lib/supabase/storage-utils";
 
 /**
  * Upserts (creates or updates) a game entry.
@@ -147,6 +97,9 @@ export async function upsertGameAction(formData: FormData) {
     }
   }
 
+  const slug = gameId ? formData.get("slug") as string : slugify(rawName[defaultLang]);
+  if (slug) updateTag(`game-${slug}`);
+  
   revalidatePath("/admin/games");
   revalidatePath("/"); // Revalidate home page to show new/updated games
   redirect("/admin/games");
@@ -163,16 +116,21 @@ export async function upsertGameAction(formData: FormData) {
 export async function deleteGameAction(gameId: string) {
   const supabase = await createClient();
 
-  // 1. Fetch all asset paths for cleanup BEFORE deleting the records
-  // We need to clean up Section icons and Entity images from storage
-  const { data: sections } = await supabase
-    .from("game_sections")
-    .select("icon_path");
+  // 1. Fetch all asset paths for cleanup in parallel BEFORE deleting the records
+  const [sectionsRes, gameRes] = await Promise.all([
+    supabase.from("game_sections").select("id, icon_path").eq("game_id", gameId),
+    supabase.from("games").select("slug, cover_url").eq("id", gameId).single()
+  ]);
 
+  const sections = sectionsRes.data || [];
+  const sectionIds = sections.map(s => s.id);
+  const game = gameRes.data;
+
+  // 2. Fetch entities and then their images
   const { data: entities } = await supabase
     .from("section_entities")
     .select("id")
-    .in("section_id", (await supabase.from("game_sections").select("id").eq("game_id", gameId)).data?.map(s => s.id) || []);
+    .in("section_id", sectionIds);
 
   const entityIds = entities?.map(e => e.id) || [];
   
@@ -181,18 +139,12 @@ export async function deleteGameAction(gameId: string) {
     .select("image_path")
     .in("entity_id", entityIds);
 
-  const { data: game } = await supabase
-    .from("games")
-    .select("cover_url")
-    .eq("id", gameId)
-    .single();
-
-  // 2. Prepare paths for storage cleanup
+  // 3. Prepare paths for storage cleanup
   const pathsToDelete: string[] = [];
   
   if (game?.cover_url) pathsToDelete.push(extractPathFromUrl(game.cover_url, "games"));
   
-  sections?.forEach(s => {
+  sections.forEach(s => {
     if (s.icon_path) pathsToDelete.push(extractPathFromUrl(s.icon_path, "games"));
   });
 
@@ -202,12 +154,11 @@ export async function deleteGameAction(gameId: string) {
 
   const validPaths = pathsToDelete.filter(Boolean);
 
-  // 3. Delete from storage
+  // 4. Delete from storage and DB in parallel (storage first to be safe, or both)
   if (validPaths.length > 0) {
     await supabase.storage.from("games").remove(validPaths);
   }
 
-  // 4. Finally delete the game - database CASCADE handles the rest (sections, entities, fields, etc.)
   const { error } = await supabase
     .from("games")
     .delete()
@@ -218,6 +169,11 @@ export async function deleteGameAction(gameId: string) {
     throw new Error(error.message);
   }
 
+  // Revalidate tags for all deleted sections
+  sectionIds.forEach(id => updateTag(`section-${id}`));
+  if (game?.slug) updateTag(`game-${game.slug}`);
+
   revalidatePath("/admin/games");
+  revalidatePath("/");
   redirect("/admin/games");
 }

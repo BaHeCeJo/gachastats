@@ -1,83 +1,65 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/server'
+import { getGameBySlug, getSectionById, SectionEntity } from "@/lib/supabase/queries";
+import { getPublicUrl } from "@/lib/supabase/client";
 import { redirect } from 'next/navigation'
-import { LocalizedString, getTranslatedField, getTranslation } from "@/lib/localization-utils";
+import { getTranslatedField, getTranslation } from "@/lib/localization-utils";
 import { GameLocalizationProvider } from "@/lib/localization";
 import { headers } from "next/headers";
 import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
-
-type Game = {
-  id: string;
-  name: LocalizedString;
-  slug: string;
-  default_lang: string;
-  supported_languages: string[];
-}
-
-type Section = {
-  id: string;
-  key: LocalizedString;
-  game_id: string;
-}
-
-type Entity = {
-  id: string;
-  name: LocalizedString;
-  entity_images: {
-    id: string;
-    type: string;
-    image_path: string;
-  }[];
-}
+import AdminHeader from '@/app/admin/components/AdminHeader';
 
 type PageProps = {
   params: Promise<{ gameSlug: string; sectionId: string }>
 }
 
-export default async function EntitiesPage({ params }: PageProps) {
-  const { gameSlug, sectionId } = await params
+export default async function EntitiesPage({ params: paramsPromise }: PageProps) {
+  const { gameSlug, sectionId } = await paramsPromise
   if (!gameSlug || !sectionId) redirect('/admin/games')
 
   const supabase = await createClient()
 
-  const { data: game } = await supabase
-    .from('games')
-    .select('id, name, slug, default_lang, supported_languages')
-    .eq('slug', gameSlug)
-    .single<Game>();
-
+  // 1. Fetch game (cached)
+  const { data: game } = await getGameBySlug(gameSlug);
   if (!game) redirect('/admin/games')
 
-  const { data: section } = await supabase
-    .from('game_sections')
-    .select('id, key, game_id')
-    .eq('id', sectionId)
-    .single<Section>()
+  // 2. Parallelize everything else
+  const [sectionRes, entitiesRes, headersList] = await Promise.all([
+    getSectionById(sectionId),
+    supabase
+      .from('section_entities')
+      .select(`
+        id,
+        name,
+        entity_skins (
+          is_default,
+          entity_images (
+            id,
+            type,
+            image_path
+          )
+        )
+      `)
+      .eq('section_id', sectionId)
+      .eq('entity_skins.is_default', true)
+      .order(`name->>${game.default_lang}`, { ascending: true }),
+    headers()
+  ]);
+
+  const section = sectionRes.data;
+  const entities = entitiesRes.data as unknown as SectionEntity[] | null;
+  const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
   if (!section) redirect(`/admin/games/${gameSlug}/sections`)
 
-  const { data: entities } = await supabase
-    .from('section_entities')
-    .select(`
-      id,
-      name,
-      entity_images (
-        id,
-        type,
-        image_path
-      )
-    `)
-    .eq('section_id', sectionId)
-    .order('name->>${game.default_lang}', { ascending: true }) as { data: Entity[] | null }; // Order by localized name
-
-  const headersList = await headers();
-  const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
-
   return (
-    <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
-      <main className="p-8 space-y-6">
+    <>
+      <AdminHeader params={paramsPromise} />
+      <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
+        <main className="p-8 space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold">
+          <h1 className="text-2xl font-bold text-white">
             {getTranslatedField(section.key, currentLang, game.default_lang)} — {getTranslation('entities', currentLang)}
           </h1>
 
@@ -93,31 +75,31 @@ export default async function EntitiesPage({ params }: PageProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {entities?.length ? (
             entities.map(entity => {
-              const icon = entity.entity_images?.find(i => i.type === 'icon')
-
-              const iconUrl = icon
-                ? supabase.storage
-                    .from('games')
-                    .getPublicUrl(icon.image_path).data.publicUrl
-                : null
+              const defaultSkin = entity.entity_skins?.find(s => s.is_default);
+              const icon = defaultSkin?.entity_images?.find(i => i.type === 'icon');
+              const iconUrl = icon ? getPublicUrl('games', icon.image_path) : null;
 
               return (
                 <Link
                   key={entity.id}
                   href={`/admin/games/${gameSlug}/sections/${sectionId}/entities/${entity.id}`}
-                  className="border rounded p-4 flex items-center gap-4 hover:bg-zinc-800 border-zinc-800 bg-zinc-900/50"
+                  className="border rounded-xl p-4 flex items-center gap-4 hover:bg-zinc-800 border-zinc-800 bg-zinc-900/50 transition-colors"
                 >
-                  {iconUrl && (
-                    <img
-                      src={iconUrl}
-                      alt={getTranslatedField(entity.name, currentLang, game.default_lang)}
-                      width={48}
-                      height={48}
-                      className="w-12 h-12 object-cover rounded"
-                    />
-                  )}
+                  <div className="relative w-12 h-12 flex-shrink-0 bg-black/40 rounded-lg overflow-hidden border border-zinc-800">
+                    {iconUrl ? (
+                      <Image
+                        src={iconUrl}
+                        alt={getTranslatedField(entity.name, currentLang, game.default_lang)}
+                        fill
+                        sizes="48px"
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-zinc-700 text-xs font-black">?</div>
+                    )}
+                  </div>
 
-                  <span className="font-medium flex items-center gap-2">
+                  <span className="font-medium flex items-center gap-2 text-zinc-200">
                     {getTranslatedField(entity.name, currentLang, game.default_lang)}
                     <MissingTranslationIndicator value={entity.name} />
                   </span>
@@ -130,5 +112,6 @@ export default async function EntitiesPage({ params }: PageProps) {
         </div>
       </main>
     </GameLocalizationProvider>
+    </>
   )
 }

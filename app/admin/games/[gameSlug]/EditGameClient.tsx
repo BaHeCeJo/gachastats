@@ -1,26 +1,18 @@
 "use client";
 
-import { useActionState, useState, useEffect } from "react";
-import { createClient } from '@/lib/supabase/client';
-import { deleteGameAction, upsertGameAction } from '@/app/admin/games/actions';
+import { useActionState, useState } from "react";
+import { deleteGameAction, upsertGameAction } from '@/lib/actions/admin/game';
 import ConfirmButton from '@/app/components/ConfirmButton';
 import LocalizedTextInput from '@/app/components/fields/LocalizedTextInput';
 import ImageInput from '@/app/components/ImageInput';
-import { LocalizedString, getTranslatedField } from '@/lib/localization-utils';
+import { getTranslatedField } from '@/lib/localization-utils';
 import { GameLocalizationProvider, useLocalizationParams } from '@/lib/localization';
 import { languages } from "@/lib/constants/languages";
 import Link from "next/link";
 import MissingTranslationIndicator from "@/app/components/MissingTranslationIndicator";
-
-type GameData = {
-  id: string;
-  name: LocalizedString;
-  slug: string;
-  description: LocalizedString;
-  cover_url: string | null;
-  default_lang: string;
-  supported_languages: string[];
-};
+import { getPublicUrl } from "@/lib/supabase/client";
+import { LocalizedString, Game } from "@/lib/supabase/queries";
+import { UITranslationKey } from "@/lib/i18n/translations";
 
 type FormState = {
   error?: string;
@@ -33,24 +25,32 @@ type FormState = {
 };
 
 type AdminGamePageProps = {
-  game: GameData;
+  game: Game;
   currentLang: string;
 };
 
 export default function EditGameClient({ game, currentLang: browserLang }: AdminGamePageProps) {
-  const supabase = createClient();
-  const { displayLang, t } = useLocalizationParams() as any;
+  const { displayLang, t } = useLocalizationParams();
   const activeLang = displayLang || browserLang;
 
   const [localizedName, setLocalizedName] = useState<LocalizedString>(game.name);
   const [localizedDescription, setLocalizedDescription] = useState<LocalizedString>(game.description || {});
-  const [defaultLang, setDefaultLang] = useState<string>(game.default_lang);
   const [supportedLangs, setSupportedLangs] = useState<string[]>(game.supported_languages);
+  
+  // Use state initializer to ensure defaultLang is valid from the first render
+  const [defaultLang, setDefaultLang] = useState<string>(() => {
+    if (game.supported_languages.includes(game.default_lang)) {
+      return game.default_lang;
+    }
+    return game.supported_languages[0] || 'en';
+  });
+
   const [coverImageFile, setCoverImageFile] = useState<File | null>(null);
-  const [currentCoverUrl, setCurrentCoverUrl] = useState<string | null>(game.cover_url ? supabase.storage.from('games').getPublicUrl(game.cover_url).data.publicUrl : null);
+  const [currentCoverUrl, setCurrentCoverUrl] = useState<string | null>(() => getPublicUrl('games', game.cover_url));
 
   const [state, formAction] = useActionState(
-    async (prevState: FormState, formData: FormData) => {
+    async (prevState: FormState) => {
+      const formData = new FormData();
       formData.set("id", game.id);
       formData.set("name", JSON.stringify(localizedName));
       formData.set("description", JSON.stringify(localizedDescription));
@@ -61,8 +61,6 @@ export default function EditGameClient({ game, currentLang: browserLang }: Admin
         formData.set("cover_image", coverImageFile);
       } else if (currentCoverUrl) {
         formData.set("cover_image", game.cover_url || "");
-      } else {
-        formData.delete("cover_image");
       }
 
       const result = await upsertGameAction(formData);
@@ -109,17 +107,11 @@ export default function EditGameClient({ game, currentLang: browserLang }: Admin
     setDefaultLang(newDefault);
   };
 
-  useEffect(() => {
-    if (!supportedLangs.includes(defaultLang)) {
-      setDefaultLang(supportedLangs[0] || 'en');
-    }
-  }, [supportedLangs, defaultLang]);
-
   return (
     <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
       <main className="max-w-3xl p-8 space-y-10 mx-auto">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold flex items-center gap-2">
+          <h1 className="text-3xl font-bold flex items-center gap-2 text-white">
             {getTranslatedField(localizedName, activeLang, game.default_lang)}
             <MissingTranslationIndicator value={localizedName} />
           </h1>
@@ -135,7 +127,7 @@ export default function EditGameClient({ game, currentLang: browserLang }: Admin
         )}
 
         <section className="space-y-4">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
+          <h2 className="text-xl font-semibold flex items-center gap-2 text-white">
             {t('gameDescription')}
             <MissingTranslationIndicator value={localizedDescription} />
           </h2>
@@ -143,7 +135,7 @@ export default function EditGameClient({ game, currentLang: browserLang }: Admin
             <LocalizedTextInput id="name" label={t('gameName')} value={localizedName} onChange={setLocalizedName} placeholder="e.g., Zenless Zone Zero" />
             <LocalizedTextInput id="description" label={t('description')} value={localizedDescription} onChange={setLocalizedDescription} placeholder="A brief overview of the game..." textarea />
             <div>
-              <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{t('cover_url' as any) || 'Cover'} {t('icon')}</label>
+              <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{t('cover_url' as UITranslationKey) || 'Cover'} {t('icon')}</label>
               <ImageInput name="cover_image" onFileChange={setCoverImageFile} existingImageUrl={currentCoverUrl} onRemoveExisting={() => { setCurrentCoverUrl(null); setCoverImageFile(null); }} />
             </div>
             <div>
@@ -171,16 +163,16 @@ export default function EditGameClient({ game, currentLang: browserLang }: Admin
         </section>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <section className="border rounded p-4 space-y-3">
-            <h2 className="text-xl font-semibold">{t('sections')}</h2>
+          <section className="border rounded p-4 space-y-3 bg-zinc-900/50 border-zinc-800">
+            <h2 className="text-xl font-semibold text-white">{t('sections')}</h2>
             <p className="text-sm text-gray-400">{t('gameSectionsDesc')}</p>
             <Link href={`/admin/games/${game.slug}/sections`} className="inline-block bg-indigo-600 text-white px-4 py-2 rounded">{t('manageSections')} →</Link>
           </section>
 
-          <section className="border rounded p-4 space-y-3">
-            <h2 className="text-xl font-semibold">{t('sharedFields') || 'Shared Fields'}</h2>
-            <p className="text-sm text-gray-400">{t('sharedFieldsDesc') || 'Manage fields that can be reused across different sections of this game.'}</p>
-            <Link href={`/admin/games/${game.slug}/fields`} className="inline-block bg-blue-600 text-white px-4 py-2 rounded">{t('manageSharedFields') || 'Manage Shared Fields'} →</Link>
+          <section className="border rounded p-4 space-y-3 bg-zinc-900/50 border-zinc-800">
+            <h2 className="text-xl font-semibold text-white">{t('sharedFields' as UITranslationKey) || 'Shared Fields'}</h2>
+            <p className="text-sm text-gray-400">{t('sharedFieldsDesc' as UITranslationKey) || 'Manage fields that can be reused across different sections of this game.'}</p>
+            <Link href={`/admin/games/${game.slug}/fields`} className="inline-block bg-blue-600 text-white px-4 py-2 rounded">{t('manageSharedFields' as UITranslationKey) || 'Manage Shared Fields'} →</Link>
           </section>
         </div>
       </main>

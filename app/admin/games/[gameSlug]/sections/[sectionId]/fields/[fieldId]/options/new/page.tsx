@@ -3,8 +3,20 @@ import { redirect } from 'next/navigation';
 import { headers } from "next/headers";
 import { getTranslatedField } from "@/lib/localization-utils";
 import NewOptionClient from './NewOptionClient';
+import { LocalizedString, Game } from '@/lib/supabase/queries';
+import AdminHeader from '@/app/admin/components/AdminHeader';
 
 type PageProps = { params: Promise<{ gameSlug: string; sectionId: string; fieldId: string }>; };
+
+interface SectionFieldWithGameField {
+  id: string;
+  key: LocalizedString;
+  game_fields: {
+    manual_fill: boolean;
+    has_icon: boolean;
+    has_color: boolean;
+  } | null;
+}
 
 export async function generateMetadata({ params }: PageProps) {
   const { gameSlug, sectionId, fieldId } = await params;
@@ -38,20 +50,25 @@ export default async function NewFieldOptionPage({ params: paramsPromise }: Page
       )
     `)
     .eq('id', fieldId)
-    .single();
+    .single() as { data: SectionFieldWithGameField | null };
 
   if (!fieldRaw) redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields`);
 
   const field = {
     id: fieldRaw.id,
     key: fieldRaw.key,
-    manual_fill: (fieldRaw.game_fields as any)?.manual_fill,
-    has_icon: (fieldRaw.game_fields as any)?.has_icon,
-    has_color: (fieldRaw.game_fields as any)?.has_color,
+    manual_fill: fieldRaw.game_fields?.manual_fill ?? false,
+    has_icon: fieldRaw.game_fields?.has_icon ?? false,
+    has_color: fieldRaw.game_fields?.has_color ?? false,
   };
 
   const headersList = await headers();
   const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
-  return <NewOptionClient game={game} field={field} sectionId={sectionId} currentLang={currentLang} />;
+  return (
+    <>
+      <AdminHeader params={paramsPromise} />
+      <NewOptionClient game={game as Game} field={field} sectionId={sectionId} currentLang={currentLang} />
+    </>
+  );
 }

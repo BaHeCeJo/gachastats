@@ -3,9 +3,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
-/**
- * Toggles an entity in the user's collection.
- */
 export async function toggleCollectionEntityAction(entityId: string, isOwned: boolean) {
   const supabase = await createClient();
   
@@ -13,8 +10,6 @@ export async function toggleCollectionEntityAction(entityId: string, isOwned: bo
   if (!user) return { error: "User not authenticated" };
 
   if (isOwned) {
-    // For now, removing still deletes all instances or the specific one. 
-    // Usually, in a toggle UI, we delete the unique instance.
     const { error } = await supabase
       .from("user_entities")
       .delete()
@@ -23,7 +18,6 @@ export async function toggleCollectionEntityAction(entityId: string, isOwned: bo
       
     if (error) return { error: error.message };
   } else {
-    // Add to collection using the smart RPC function
     const { error } = await supabase
       .rpc("add_entity_to_user", { 
         p_user_id: user.id, 
@@ -33,13 +27,13 @@ export async function toggleCollectionEntityAction(entityId: string, isOwned: bo
     if (error) return { error: error.message };
   }
 
-  revalidatePath("/", "layout");
+  await Promise.all([
+    revalidatePath(`/[gameSlug]/sections/[sectionId]`, "page"),
+    revalidatePath("/profile")
+  ]);
   return { success: true };
 }
 
-/**
- * Updates the dupes count for a specific user_entity instance.
- */
 export async function updateEntityDupesAction(instanceId: string, dupes: number) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -53,13 +47,10 @@ export async function updateEntityDupesAction(instanceId: string, dupes: number)
 
   if (error) return { error: error.message };
   
-  revalidatePath("/", "layout");
+  revalidatePath("/profile");
   return { success: true };
 }
 
-/**
- * Removes a specific user_entity instance.
- */
 export async function removeUserEntityAction(instanceId: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -73,13 +64,10 @@ export async function removeUserEntityAction(instanceId: string) {
 
   if (error) return { error: error.message };
   
-  revalidatePath("/", "layout");
+  revalidatePath("/profile");
   return { success: true };
 }
 
-/**
- * Toggles a game in the user's "Played Games" list.
- */
 export async function toggleUserGameAction(gameId: string, isPlaying: boolean) {
   const supabase = await createClient();
   
@@ -87,7 +75,6 @@ export async function toggleUserGameAction(gameId: string, isPlaying: boolean) {
   if (!user) return { error: "User not authenticated" };
 
   if (isPlaying) {
-    // Remove (Stop playing)
     const { error } = await supabase
       .from("user_games")
       .delete()
@@ -96,7 +83,6 @@ export async function toggleUserGameAction(gameId: string, isPlaying: boolean) {
       
     if (error) return { error: error.message };
   } else {
-    // Add (Start playing)
     const { error } = await supabase
       .from("user_games")
       .insert({ user_id: user.id, game_id: gameId });
@@ -109,9 +95,6 @@ export async function toggleUserGameAction(gameId: string, isPlaying: boolean) {
   return { success: true };
 }
 
-/**
- * Updates user profile information, including avatar upload to the 'users' bucket.
- */
 export async function updateProfileAction(formData: FormData) {
   const supabase = await createClient();
   
@@ -122,12 +105,10 @@ export async function updateProfileAction(formData: FormData) {
   const avatarFile = formData.get("avatar_file") as File | null;
   let avatar_url = formData.get("existing_avatar_url") as string || null;
 
-  // Handle Avatar Upload
   if (avatarFile && avatarFile.size > 0) {
     const fileExt = avatarFile.name.split('.').pop();
     const filePath = `${user.id}/avatar.${fileExt}`;
 
-    // Upload/Overwrite the avatar in the 'users' bucket
     const { error: uploadError } = await supabase.storage
       .from('users')
       .upload(filePath, avatarFile, {
@@ -137,7 +118,6 @@ export async function updateProfileAction(formData: FormData) {
 
     if (uploadError) return { error: `Upload failed: ${uploadError.message}` };
 
-    // Get the public URL
     const { data: { publicUrl } } = supabase.storage.from('users').getPublicUrl(filePath);
     avatar_url = publicUrl;
   }

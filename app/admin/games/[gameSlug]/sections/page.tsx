@@ -1,57 +1,47 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/server'
+import { getGameBySlug, Section } from "@/lib/supabase/queries";
+import { getPublicUrl } from "@/lib/supabase/client";
 import { redirect } from 'next/navigation'
-import { LocalizedString, getTranslatedField, getTranslation } from "@/lib/localization-utils";
+import { getTranslatedField, getTranslation } from "@/lib/localization-utils";
 import { GameLocalizationProvider } from "@/lib/localization";
 import { headers } from "next/headers";
 import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
-
-type Game = {
-  id: string;
-  name: LocalizedString;
-  slug: string;
-  default_lang: string;
-  supported_languages: string[];
-}
-
-type Section = {
-  id: string;
-  key: LocalizedString;
-  icon_path: string | null;
-}
+import AdminHeader from '@/app/admin/components/AdminHeader';
 
 type PageProps = {
   params: Promise<{ gameSlug: string }>
 }
 
-export default async function SectionsPage({ params }: PageProps) {
-  const { gameSlug } = await params
+export default async function SectionsPage({ params: paramsPromise }: PageProps) {
+  const { gameSlug } = await paramsPromise
   if (!gameSlug) redirect('/admin/games')
 
   const supabase = await createClient()
 
-  // Fetch game (including language settings)
-  const { data: game } = await supabase
-    .from('games')
-    .select('id, name, slug, default_lang, supported_languages') // Select language fields
-    .eq('slug', gameSlug)
-    .single<Game>();
-
+  // 1. Fetch game (cached)
+  const { data: game } = await getGameBySlug(gameSlug);
   if (!game) redirect('/admin/games')
 
-  // Fetch sections
-  const { data: sections } = await supabase
-    .from('game_sections')
-    .select('id, key, icon_path') // Select key as LocalizedString
-    .eq('game_id', game.id)
-    .order('order_index', { ascending: true });
+  // 2. Fetch sections and headers in parallel
+  const [sectionsRes, headersList] = await Promise.all([
+    supabase
+      .from('game_sections')
+      .select('id, key, icon_path')
+      .eq('game_id', game.id)
+      .order('order_index', { ascending: true }),
+    headers()
+  ]);
 
-  const headersList = await headers();
+  const sections = sectionsRes.data as Section[] | null;
   const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
   return (
-    <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
-      <main className="p-8 space-y-6">
+    <>
+      <AdminHeader params={paramsPromise} />
+      <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
+        <main className="p-8 space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold flex items-center gap-2">
             {getTranslatedField(game.name, currentLang, game.default_lang)}
@@ -71,27 +61,27 @@ export default async function SectionsPage({ params }: PageProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {sections && sections.length > 0 ? (
             sections.map(section => {
-              const iconUrl = section.icon_path
-                ? supabase.storage
-                    .from('games')
-                    .getPublicUrl(section.icon_path).data.publicUrl
-                : null
+              const iconUrl = getPublicUrl('games', section.icon_path);
 
               return (
                 <Link
                   key={section.id}
                   href={`/admin/games/${gameSlug}/sections/${section.id}`}
                   prefetch={false}
-                  className="border rounded p-4 hover:bg-gray-800 transition-colors flex items-center gap-4"
+                  className="border rounded p-4 border-zinc-800 hover:bg-zinc-800 transition-colors flex items-center gap-4"
                 >
                   {iconUrl && (
-                    <img
-                      src={iconUrl}
-                      alt={getTranslatedField(section.key, currentLang, game.default_lang)}
-                      className="w-12 h-12 object-cover rounded"
-                    />
+                    <div className="relative w-12 h-12 flex-shrink-0">
+                      <Image
+                        src={iconUrl}
+                        alt={getTranslatedField(section.key, currentLang, game.default_lang)}
+                        fill
+                        sizes="48px"
+                        className="object-cover rounded"
+                      />
+                    </div>
                   )}
-                  <span className="font-medium flex items-center gap-2">
+                  <span className="font-medium flex items-center gap-2 text-zinc-200">
                     {getTranslatedField(section.key, currentLang, game.default_lang)}
                     <MissingTranslationIndicator value={section.key} />
                   </span>
@@ -104,5 +94,6 @@ export default async function SectionsPage({ params }: PageProps) {
         </div>
       </main>
     </GameLocalizationProvider>
+    </>
   )
 }

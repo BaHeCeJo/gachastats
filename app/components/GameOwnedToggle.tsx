@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { toggleUserGameAction } from "@/app/collections/actions";
+import { useTransition } from "react";
+import { toggleUserGameAction } from "@/lib/actions/collection";
 import { useLocalizationParams } from "@/lib/localization";
 import { X, Loader2 } from "lucide-react";
 
@@ -15,7 +15,7 @@ export default function GameOwnedToggle({
   isPlaying: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
-  const { t } = useLocalizationParams() as any;
+  const { t } = useLocalizationParams();
 
   const handleToggle = () => {
     if (isPlaying) {

@@ -1,4 +1,4 @@
-import { uiTranslations, TranslationKey } from "./i18n/translations";
+import { uiTranslations, UITranslationKey } from "./i18n/translations";
 
 export type LocalizedString = {
   [langCode: string]: string;
@@ -7,7 +7,7 @@ export type LocalizedString = {
 /**
  * Helper for server components to get translations.
  */
-export function getTranslation(key: TranslationKey, lang: string): string {
+export function getTranslation(key: UITranslationKey, lang: string): string {
   const translation = uiTranslations[lang]?.[key] || uiTranslations['en']?.[key] || key;
   return translation;
 }

@@ -38,15 +38,57 @@ The system handles fallbacks to the game's `default_lang` and respects user-sele
     -   **Security Trigger:** Database-level protection preventing users from promoting themselves to 'admin'.
 -   **Storage Security:** Advanced RLS policies ensuring users can only manage files in their own `users/[user_id]/` folder.
 -   **Responsive & Immersive UI:** High-impact visual design using `lucide-react` icons, blurred backdrops, and massive game icons.
+-   **Recommended Teams:** A powerful builder for admins to showcase optimal character combinations.
 
-## 3. Database Schema Highlights
+## 3. Technical Architecture & Optimizations
 
--   **profiles:** Extends auth.users with `nickname`, `avatar_url`, and `role`. Protected by `tr_protect_user_role` trigger.
--   **user_games:** Many-to-many join table for users and games played.
--   **user_entities:** Many-to-many join table for users and specific collectibles owned.
--   **game_sections:** Includes `is_collectible` boolean to drive UI logic.
+### 3.1. Tech Stack
+- **Framework:** Next.js 16 (App Router / Turbopack)
+- **State Management:** React 19 (Server Actions, `useActionState`, `useTransition`)
+- **Backend:** Supabase (Auth, PostgreSQL, Storage)
+- **Styling:** Tailwind CSS 4
+- **Icons:** Lucide React (Surgically imported for tree-shaking)
 
-## 4. Future Roadmap
+### 3.2. Performance Optimizations
+- **Next.js 16 Proxy Middleware:** Migrated from `middleware.ts` to the optimized `proxy.ts` convention for faster request handling.
+- **Server Action Caching:** Replaced `revalidateTag` with the preferred `updateTag` API for fine-grained, efficient cache invalidation.
+- **Dynamic Imports:** Heavy components like the `TeamBuilder` are loaded dynamically (`next/dynamic`) to reduce the initial bundle size and speed up page loads.
+- **Incremental Static Regeneration (ISR):** Public pages are pre-rendered with a 1-hour revalidation window (`export const revalidate = 3600`), ensuring fast delivery while keeping data fresh.
+- **Optimistic UI:** Ownership toggles update instantly on the client while the database request completes in the background.
+
+### 3.3. Security Implementation
+- **Role Protection:** A database trigger `tr_protect_user_role` prevents any non-admin from updating their own `role` field in the `profiles` table.
+- **Path Isolation:** RLS policies in Supabase Storage ensure users can only `INSERT`, `UPDATE`, or `DELETE` files within their unique `users/[user_id]/` path.
+
+## 4. Database Performance Tuning (Advanced)
+
+To achieve sub-100ms response times, the following database-level optimizations are recommended:
+
+### 4.1. Recommended Indexes
+Execute these in the Supabase SQL Editor:
+```sql
+-- Speed up collection tracking
+CREATE INDEX idx_user_entities_lookup ON user_entities(user_id, entity_id);
+
+-- Speed up section browsing
+CREATE INDEX idx_section_entities_section ON section_entities(section_id);
+
+-- Speed up field value filtering
+CREATE INDEX idx_entity_field_values_composite ON entity_field_values(entity_id, game_field_id);
+```
+
+### 4.2. Connection Pooling
+Always use the Supabase Transaction Pooler (Port 6543) in production `.env` files to minimize connection handshake latency.
+
+## 5. Database Schema Highlights
+
+-   **profiles:** Extends auth.users with `nickname`, `avatar_url`, and `role`.
+-   **user_games:** Tracks which games a user has added to their collection.
+-   **user_entities:** Tracks specific collectibles (characters/weapons) owned by a user.
+-   **game_sections:** Defines the categories within a game (e.g., "Agents", "W-Engines").
+-   **section_entities:** The actual collectible items.
+
+## 5. Future Roadmap
 
 ### Phase 2: Enhanced Content & Visualization
 -   **Skill/Ability Breakdown:** Structured scaling tables for character abilities.

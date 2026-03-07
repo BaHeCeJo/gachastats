@@ -1,10 +1,15 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { updateProfileAction } from "@/app/collections/actions";
+import { useState, useActionState } from "react";
+import { updateProfileAction } from "@/lib/actions/collection";
 import { useLocalizationParams } from "@/lib/localization";
 import { Loader2, Save } from "lucide-react";
 import ImageInput from "@/app/components/ImageInput";
+
+interface FormResult {
+  success?: boolean;
+  error?: string;
+}
 
 export default function ProfileForm({ 
   initialProfile 
@@ -14,16 +19,13 @@ export default function ProfileForm({
   const [nickname, setNickname] = useState(initialProfile.nickname || "");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [existingAvatarUrl, setExistingAvatarUrl] = useState<string | null>(initialProfile.avatar_url);
-  const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState("");
-  const { t } = useLocalizationParams() as any;
+  const { t } = useLocalizationParams();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setMessage("");
-    
-    startTransition(async () => {
-      const formData = new FormData();
+  const [, formAction, isPending] = useActionState(
+    async (_prevState: FormResult | null, formData: FormData): Promise<FormResult> => {
+      setMessage("");
+      // Ensure state values are in formData
       formData.set("nickname", nickname);
       if (avatarFile) {
         formData.set("avatar_file", avatarFile);
@@ -31,17 +33,21 @@ export default function ProfileForm({
       formData.set("existing_avatar_url", existingAvatarUrl || "");
       
       const result = await updateProfileAction(formData);
+      
       if (result.success) {
         setMessage(t('profileUpdated'));
         setTimeout(() => setMessage(""), 3000);
-      } else {
+      } else if (result.error) {
         alert(result.error);
       }
-    });
-  };
+
+      return result;
+    },
+    null
+  );
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 p-8 rounded-2xl shadow-2xl">
+    <form action={formAction} className="space-y-6 bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 p-8 rounded-2xl shadow-2xl">
       <div className="space-y-6">
         {/* Avatar Upload */}
         <div className="space-y-2">
@@ -65,6 +71,7 @@ export default function ProfileForm({
           </label>
           <input
             type="text"
+            name="nickname"
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
             className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-[#22c55e]/50 focus:border-[#22c55e] transition-all"

@@ -1,24 +1,12 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { LocalizedString, getTranslatedField, getTranslation } from "@/lib/localization-utils";
+import { getTranslatedField, getTranslation } from "@/lib/localization-utils";
 import { GameLocalizationProvider } from "@/lib/localization";
 import { headers } from "next/headers";
 import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
-
-type Game = {
-  id: string;
-  name: LocalizedString;
-  slug: string;
-  default_lang: string;
-  supported_languages: string[];
-}
-
-type Section = {
-  id: string;
-  key: LocalizedString;
-  game_id: string;
-}
+import { getGameBySlug, getSectionById, LocalizedString } from '@/lib/supabase/queries';
+import AdminHeader from '@/app/admin/components/AdminHeader';
 
 type Field = {
   id: string;
@@ -35,31 +23,30 @@ type PageProps = {
 /* ===========================
    Server Component — List Fields
 =========================== */
-export default async function FieldsPage({ params }: PageProps) {
-  const { gameSlug, sectionId } = await params
-  const supabase = await createClient()
+export default async function FieldsPage({ params: paramsPromise }: PageProps) {
+  const { gameSlug, sectionId } = await paramsPromise;
+  const supabase = await createClient();
 
-  const { data: game } = await supabase
-    .from('games')
-    .select('id, name, slug, default_lang, supported_languages')
-    .eq('slug', gameSlug)
-    .single<Game>();
-
+  // 1. Fetch game (cached)
+  const { data: game } = await getGameBySlug(gameSlug);
   if (!game) redirect('/admin/games')
 
-  const { data: section } = await supabase
-    .from('game_sections')
-    .select('id, key, game_id')
-    .eq('id', sectionId)
-    .single<Section>()
+  // 2. Parallelize everything else
+  const [sectionRes, fieldsRes, headersList] = await Promise.all([
+    getSectionById(sectionId),
+    supabase
+      .from('section_fields')
+      .select('id, key, category, order_index')
+      .eq('section_id', sectionId)
+      .order('order_index', { ascending: true }),
+    headers()
+  ]);
+
+  const section = sectionRes.data;
+  const fields = fieldsRes.data as Field[] | null;
+  const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
 
   if (!section) redirect(`/admin/games/${gameSlug}/sections`)
-
-  const { data: fields } = await supabase
-    .from('section_fields')
-    .select('id, key, category, order_index') // Select key as LocalizedString
-    .eq('section_id', sectionId)
-    .order('order_index', { ascending: true }) as { data: Field[] | null };
 
   // Group fields by category and sort them
   const groupedFields: Record<string, Field[]> = {}
@@ -79,13 +66,11 @@ export default async function FieldsPage({ params }: PageProps) {
     return a.localeCompare(b)
   })
 
-  const headersList = await headers();
-  const currentLang = headersList.get('Accept-Language')?.split(',')[0].split('-')[0].toLowerCase() || 'en';
-
-
   return (
-    <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
-      <main className="max-w-3xl p-8 space-y-6 mx-auto">
+    <>
+      <AdminHeader params={paramsPromise} />
+      <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
+        <main className="max-w-3xl p-8 space-y-6 mx-auto">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold">
             {getTranslatedField(section.key, currentLang, game.default_lang)} — {getTranslation('fields', currentLang)}
@@ -110,7 +95,7 @@ export default async function FieldsPage({ params }: PageProps) {
                   {groupedFields[category]!.map(f => (
                     <li
                       key={f.id}
-                      className="border p-3 rounded flex justify-between items-center bg-zinc-900/50 border-zinc-800"
+                      className="border border-zinc-800 p-3 rounded flex justify-between items-center bg-zinc-900/50"
                     >
                       <span className="flex items-center gap-2">
                         {getTranslatedField(f.key, currentLang, game.default_lang)}
@@ -134,5 +119,6 @@ export default async function FieldsPage({ params }: PageProps) {
         )}
       </main>
     </GameLocalizationProvider>
+    </>
   )
 }

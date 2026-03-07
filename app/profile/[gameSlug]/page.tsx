@@ -77,8 +77,8 @@ export default async function GameCollectionPage({ params: paramsPromise }: Page
           <div className="max-w-7xl mx-auto space-y-16">
             <div className="flex flex-col md:flex-row items-center gap-10 text-center md:text-left">
               {coverUrl && (
-                <div className="w-48 h-48 rounded-[2rem] overflow-hidden border-4 border-zinc-800 shadow-2xl bg-zinc-900">
-                  <img src={coverUrl} alt="" className="w-full h-full object-cover" />
+                <div className="relative w-48 h-48 rounded-[2rem] overflow-hidden border-4 border-zinc-800 shadow-2xl bg-zinc-900">
+                  <Image src={coverUrl} alt="" fill sizes="192px" className="object-cover" priority />
                 </div>
               )}
               <div className="space-y-4">
@@ -114,11 +114,15 @@ export default async function GameCollectionPage({ params: paramsPromise }: Page
                         
                         <div className="relative z-10 w-20 h-20 rounded-2xl bg-black/60 flex items-center justify-center border border-zinc-700 group-hover:border-[#22c55e]/30 transition-colors">
                           {sectionIconUrl ? (
-                            <img
-                              src={sectionIconUrl}
-                              alt=""
-                              className="w-12 h-12 object-contain filter grayscale group-hover:grayscale-0 transition-all duration-500 group-hover:scale-110"
-                            />
+                            <div className="relative w-12 h-12">
+                              <Image
+                                src={sectionIconUrl}
+                                alt=""
+                                fill
+                                sizes="48px"
+                                className="object-contain filter grayscale group-hover:grayscale-0 transition-all duration-500 group-hover:scale-110"
+                              />
+                            </div>
                           ) : (
                             <span className="text-3xl font-bold text-zinc-600">?</span>
                           )}

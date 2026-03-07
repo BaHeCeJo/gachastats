@@ -8,10 +8,11 @@ import CreatableTagInput from '@/app/components/fields/CreatableTagInput';
 import ImageInput from '@/app/components/ImageInput';
 import { upsertEntityAction } from '../actions';
 import Link from "next/link";
+import Image from 'next/image';
 
 type GameData = { id: string; name: LocalizedString; slug: string; default_lang: string; supported_languages: string[]; };
 type SectionData = { id: string; key: LocalizedString; game_id: string; };
-type FieldOption = { id: string; field_id: string; value_key: LocalizedString; icon_path: string | null; color: string | null; };
+type FieldOption = { id: string; game_field_id: string; value_key: LocalizedString; icon_path: string | null; color: string | null; };
 type FieldData = {
   id: string;
   key: LocalizedString;
@@ -26,6 +27,11 @@ type FieldData = {
 };
 type FormState = { error?: string; };
 
+interface FieldValueState {
+  field_id: string;
+  values: string[];
+}
+
 export default function NewEntityClient({ game, section, fields, currentLang: browserLang }: {
   game: GameData;
   section: SectionData;
@@ -33,12 +39,12 @@ export default function NewEntityClient({ game, section, fields, currentLang: br
   currentLang: string;
 }) {
   const supabase = createClient();
-  const { displayLang, t } = useLocalizationParams() as any;
+  const { displayLang, t } = useLocalizationParams();
   const activeLang = displayLang || browserLang;
 
   const [localizedName, setLocalizedName] = useState<LocalizedString>({ [game.default_lang]: "" });
   const [iconFile, setIconFile] = useState<File | null>(null);
-  const [entityFieldValues, setEntityFieldValues] = useState<any[]>(() =>
+  const [entityFieldValues, setEntityFieldValues] = useState<FieldValueState[]>(() =>
     fields.map(field => ({
       field_id: field.id,
       values: []
@@ -46,7 +52,7 @@ export default function NewEntityClient({ game, section, fields, currentLang: br
   );
 
   const [state, formAction] = useActionState(
-    async (prevState: FormState, formData: FormData) => {
+    async (_prevState: FormState, formData: FormData) => {
       formData.set("name", JSON.stringify(localizedName));
       formData.set("section_id", section.id);
       if (iconFile) formData.set("icon_file", iconFile); else formData.delete("icon_file");
@@ -159,11 +165,15 @@ export default function NewEntityClient({ game, section, fields, currentLang: br
                                     }`}
                                   >
                                     {option.icon_path && (
-                                      <img 
-                                        src={supabase.storage.from('games').getPublicUrl(option.icon_path).data.publicUrl} 
-                                        className="w-5 h-5 object-contain" 
-                                        alt="" 
-                                      />
+                                      <div className="relative w-5 h-5">
+                                        <Image 
+                                          src={supabase.storage.from('games').getPublicUrl(option.icon_path).data.publicUrl} 
+                                          fill
+                                          sizes="20px"
+                                          className="object-contain" 
+                                          alt="" 
+                                        />
+                                      </div>
                                     )}
                                     <span className="truncate">{optionLabel}</span>
                                   </button>
