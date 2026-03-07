@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { deleteGameAction, upsertGameAction } from '@/app/admin/games/actions';
+import { deleteGameAction, upsertGameAction } from '@/lib/actions/admin/game';
 import ConfirmButton from '@/app/components/ConfirmButton';
 import LocalizedTextInput from '@/app/components/fields/LocalizedTextInput';
 import ImageInput from '@/app/components/ImageInput';

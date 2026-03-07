@@ -38,6 +38,7 @@ type SkinManagerProps = {
   sectionId: string;
   gameDefaultLang: string;
   activeLang: string;
+  skinImageTypes?: string[];
 };
 
 type FormState = {
@@ -51,6 +52,7 @@ export default function SkinManager({
   sectionId,
   gameDefaultLang,
   activeLang: browserLang,
+  skinImageTypes = ["icon", "splashart"],
 }: SkinManagerProps) {
   const { displayLang, t } = useLocalizationParams();
   const activeLang = displayLang || browserLang;
@@ -135,8 +137,6 @@ export default function SkinManager({
 
       <div className="grid grid-cols-1 gap-6">
         {skins.map((skin) => {
-          const icon = skin.entity_images.find((img) => img.type === 'icon');
-          const splash = skin.entity_images.find((img) => img.type === 'splashart');
           const isEditing = editingSkinId === skin.id;
 
           return (
@@ -185,70 +185,47 @@ export default function SkinManager({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">{t('icon')}</label>
-                  {icon?.publicUrl ? (
-                    <div className="relative w-32 h-32 group">
-                      <Image
-                        src={icon.publicUrl}
-                        alt="Icon"
-                        fill
-                        sizes="128px"
-                        className="object-cover rounded-2xl border-2 border-zinc-800 bg-black shadow-xl"
-                      />
-                      <ConfirmButton
-                        action={deleteImageAction.bind(null, icon.id, icon.image_path)}
-                        buttonClassName="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                      >
-                        <CloseIcon size={12}/>
-                      </ConfirmButton>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                {skinImageTypes.map((imageType) => {
+                  const image = skin.entity_images.find(img => img.type === imageType);
+                  const isSplash = imageType === "splashart" || imageType === "fullart";
+                  
+                  return (
+                    <div key={imageType} className={isSplash ? "sm:col-span-2 space-y-3" : "space-y-3"}>
+                      <label className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">
+                        {imageType === "icon" ? t('icon') : imageType === "splashart" || imageType === "fullart" ? t('fullArt') : imageType}
+                      </label>
+                      {image?.publicUrl ? (
+                        <div className={`relative w-full ${isSplash ? "aspect-video" : "aspect-square"} group`}>
+                          <Image
+                            src={image.publicUrl}
+                            alt={imageType}
+                            fill
+                            sizes={isSplash ? "(max-width: 768px) 100vw, 50vw" : "128px"}
+                            className="object-contain rounded-2xl border-2 border-zinc-800 bg-black shadow-xl"
+                          />
+                          <ConfirmButton
+                            action={deleteImageAction.bind(null, image.id, image.image_path)}
+                            buttonClassName="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                          >
+                            <CloseIcon size={12}/>
+                          </ConfirmButton>
+                        </div>
+                      ) : (
+                        <SkinImageInput
+                            entityId={entityId}
+                            skinId={skin.id}
+                            gameSlug={gameSlug}
+                            sectionId={sectionId}
+                            imageType={imageType}
+                            existingImageUrl={null}
+                            gameDefaultLang={gameDefaultLang}
+                            activeLang={activeLang}
+                        />
+                      )}
                     </div>
-                  ) : (
-                    <SkinImageInput
-                        entityId={entityId}
-                        skinId={skin.id}
-                        gameSlug={gameSlug}
-                        sectionId={sectionId}
-                        imageType="icon"
-                        existingImageUrl={null}
-                        gameDefaultLang={gameDefaultLang}
-                        activeLang={activeLang}
-                    />
-                  )}
-                </div>
-
-                <div className="md:col-span-3 space-y-3">
-                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">{t('fullArt')}</label>
-                  {splash?.publicUrl ? (
-                    <div className="relative w-full aspect-video group">
-                      <Image
-                        src={splash.publicUrl}
-                        alt="Splash"
-                        fill
-                        sizes="(max-width: 768px) 100vw, 75vw"
-                        className="object-contain rounded-2xl border-2 border-zinc-800 bg-black shadow-xl"
-                      />
-                      <ConfirmButton
-                        action={deleteImageAction.bind(null, splash.id, splash.image_path)}
-                        buttonClassName="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                      >
-                        <CloseIcon size={12}/>
-                      </ConfirmButton>
-                    </div>
-                  ) : (
-                    <SkinImageInput
-                        entityId={entityId}
-                        skinId={skin.id}
-                        gameSlug={gameSlug}
-                        sectionId={sectionId}
-                        imageType="splashart"
-                        existingImageUrl={null}
-                        gameDefaultLang={gameDefaultLang}
-                        activeLang={activeLang}
-                    />
-                  )}
-                </div>
+                  );
+                })}
               </div>
             </div>
           );

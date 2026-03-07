@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { toggleCollectionEntityAction, checkEntityOwnershipAction } from "@/app/collections/actions";
+import { toggleCollectionEntityAction } from "@/lib/actions/collection";
+import { checkEntityOwnership } from "@/lib/services/collection.service";
 import { useLocalizationParams } from "@/lib/localization";
 import { Check, Plus, Loader2 } from "lucide-react";
 
@@ -22,7 +23,7 @@ export default function CollectionToggle({
   useEffect(() => {
     async function checkOwnership() {
       try {
-        const result = await checkEntityOwnershipAction(entityId);
+        const result = await checkEntityOwnership(entityId);
         setIsOwned(result.owned);
         setIsAuthenticated(!!result.authenticated);
       } catch (err) {

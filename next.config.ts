@@ -1,6 +1,15 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
+// Extend NextConfig to include the experimental reactCompiler property
+interface CustomNextConfig extends NextConfig {
+  reactCompiler?: boolean | {
+    compilationMode?: "annotation" | "infer";
+    panicThreshold?: "none" | "critical_errors" | "all_errors";
+  };
+}
+
+const nextConfig: CustomNextConfig = {
+  reactCompiler: true,
   experimental: {
     serverActions: {
       bodySizeLimit: '10mb',

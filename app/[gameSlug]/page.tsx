@@ -92,6 +92,7 @@ export default async function GameDetailPage({ params: paramsPromise }: PageProp
             src={coverUrl}
             alt=""
             fill
+            sizes="100vw"
             className="object-cover grayscale blur-md opacity-25 scale-105"
             priority
           />
@@ -117,6 +118,7 @@ export default async function GameDetailPage({ params: paramsPromise }: PageProp
                   width={128}
                   height={128}
                   className="rounded-2xl shadow-lg border border-zinc-300 dark:border-zinc-700"
+                  priority
                 />
               )}
               <h1 className="text-5xl font-extrabold text-black dark:text-zinc-50 tracking-tight uppercase">

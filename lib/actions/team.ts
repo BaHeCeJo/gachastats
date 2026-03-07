@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
+import { updateTag } from "next/cache";
 
 async function isAdmin() {
   const supabase = await createClient();
@@ -36,7 +36,16 @@ export async function upsertTeamAction(
 
   let actualTeamId = teamId;
 
+  // 1. Get old members if updating to revalidate them too
+  let oldEntityIds: string[] = [];
   if (teamId) {
+    const { data: oldMembers } = await supabase
+      .from("section_team_members")
+      .select("entity_id")
+      .eq("team_id", teamId)
+      .eq("member_type", "entity");
+    oldEntityIds = (oldMembers || []).map(m => m.entity_id).filter(Boolean) as string[];
+
     const { error } = await supabase
       .from("section_teams")
       .update(teamData)
@@ -52,7 +61,6 @@ export async function upsertTeamAction(
     actualTeamId = data.id;
   }
 
-  // 1. Delete existing members first to avoid conflicts during re-insertion
   const { error: deleteError } = await supabase
     .from("section_team_members")
     .delete()
@@ -60,8 +68,9 @@ export async function upsertTeamAction(
     
   if (deleteError) return { error: deleteError.message };
 
-  // 2. Prepare member data with both slot_index AND order_index
   const memberData: TeamMemberInsert[] = [];
+  const newEntityIds: string[] = [];
+
   slots.forEach((slot, slotIndex) => {
     slot.members.forEach((member, priority) => {
       memberData.push({
@@ -70,8 +79,9 @@ export async function upsertTeamAction(
         entity_id: member.type === 'entity' ? member.id : null,
         option_id: member.type === 'option' ? member.id : null,
         slot_index: slotIndex,
-        order_index: priority, // This differentiates alternatives within the same slot
+        order_index: priority,
       });
+      if (member.type === 'entity') newEntityIds.push(member.id);
     });
   });
 
@@ -82,15 +92,30 @@ export async function upsertTeamAction(
     if (membersError) return { error: membersError.message };
   }
 
-  revalidatePath(`/`);
+  // 2. Surgical Invalidation: Revalidate all affected entities
+  const allAffectedEntityIds = Array.from(new Set([...oldEntityIds, ...newEntityIds]));
+  allAffectedEntityIds.forEach(id => updateTag(`entity-teams-${id}`));
+
   return { success: true, teamId: actualTeamId };
 }
 
 export async function deleteTeamAction(teamId: string) {
   if (!(await isAdmin())) return { error: "Unauthorized" };
   const supabase = await createClient();
+
+  // Get members before deleting to revalidate
+  const { data: oldMembers } = await supabase
+    .from("section_team_members")
+    .select("entity_id")
+    .eq("team_id", teamId)
+    .eq("member_type", "entity");
+  const oldEntityIds = (oldMembers || []).map(m => m.entity_id).filter(Boolean) as string[];
+
   const { error } = await supabase.from("section_teams").delete().eq("id", teamId);
   if (error) return { error: error.message };
-  revalidatePath(`/`);
+
+  // Surgical Invalidation
+  oldEntityIds.forEach(id => updateTag(`entity-teams-${id}`));
+
   return { success: true };
 }

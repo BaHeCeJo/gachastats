@@ -126,7 +126,7 @@ export default async function EditSectionPage({ params: paramsPromise }: PagePro
   const processedEntities: ProcessedEntity[] = (entities || []).map((entity) => {
     const defaultSkin = entity.entity_skins?.[0];
     const skinIconPath = defaultSkin?.entity_images?.find((img) => img.type === 'icon')?.image_path;
-    const iconPath = entity.icon_path || skinIconPath;
+    const iconPath = (entity.icon_path || skinIconPath) || null;
     
     const publicIconUrl = iconPath ? getPublicUrl('games', iconPath) || "" : "";
 
@@ -168,7 +168,7 @@ export default async function EditSectionPage({ params: paramsPromise }: PagePro
       id: entity.id,
       section_id: entity.section_id,
       name: entity.name,
-      icon_path: entity.icon_path,
+      icon_path: iconPath, 
       publicIconUrl, 
       fieldValuesMap, 
       allValues 

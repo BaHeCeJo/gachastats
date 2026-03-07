@@ -1,20 +1,14 @@
-import { createPublicClient } from "@/lib/supabase/server";
 import Header from "./components/Header";
 import HomeContent from "./components/HomeContent";
 import { GameLocalizationProvider } from "@/lib/localization";
 import { getTranslation } from "@/lib/localization-utils";
+import { getGames } from "@/lib/supabase/queries";
 
 // Enable ISR
 export const revalidate = 3600;
 
 export default async function Home() {
-  // Use public client for static rendering (no cookies)
-  const supabase = createPublicClient();
-
-  const { data: games, error } = await supabase
-    .from("games")
-    .select("id, name, slug, description, cover_url, default_lang, supported_languages")
-    .order("created_at", { ascending: false });
+  const { data: games, error } = await getGames();
 
   if (error) {
     console.error("HOME PAGE GAMES ERROR:", error.message);

@@ -45,30 +45,24 @@ export function LocalizationProvider({
   children: ReactNode;
   currentLang: string;
 }) {
-  const [adminSelectedLang, setAdminSelectedLangState] = useState<string | null>(null);
-  const [userSelectedLang, setUserSelectedLangState] = useState<string | null>(null);
+  const [adminSelectedLang, setAdminSelectedLangState] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return sessionStorage.getItem('admin_preview_lang');
+  });
 
-  // Use a lazy initializer for isMounted to avoid triggering an immediate re-render if possible,
-  // but for hydration safety, we must start at false and move to true.
-  const [isMounted, setIsMounted] = useState(false);
+  const [userSelectedLang, setUserSelectedLangState] = useState<string | null>(() => {
+    if (typeof document === 'undefined') return null;
+    const cookies = document.cookie.split('; ');
+    return cookies.find(row => row.startsWith('user_lang='))?.split('=')[1] || null;
+  });
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setIsMounted(true);
-    const savedAdminLang = sessionStorage.getItem('admin_preview_lang') || null;
-    if (savedAdminLang) setAdminSelectedLangState(savedAdminLang);
-
-    const cookies = document.cookie.split('; ');
-    const userLangCookie = cookies.find(row => row.startsWith('user_lang='))?.split('=')[1] || null;
-    if (userLangCookie) setUserSelectedLangState(userLangCookie);
+    // Session and cookie sync if needed, but lazy init handles initial load
   }, []);
 
   const displayLang = useMemo(() => {
-    // During SSR and first mount, use initialLang
-    if (!isMounted) return initialLang || 'en';
-    // After mount, we can use client-side state
     return adminSelectedLang || userSelectedLang || initialLang || 'en';
-  }, [isMounted, adminSelectedLang, userSelectedLang, initialLang]);
+  }, [adminSelectedLang, userSelectedLang, initialLang]);
 
   const { t, formatNumber, formatDate } = useLocalizationCore(displayLang);
 

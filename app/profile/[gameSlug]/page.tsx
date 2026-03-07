@@ -78,7 +78,7 @@ export default async function GameCollectionPage({ params: paramsPromise }: Page
             <div className="flex flex-col md:flex-row items-center gap-10 text-center md:text-left">
               {coverUrl && (
                 <div className="relative w-48 h-48 rounded-[2rem] overflow-hidden border-4 border-zinc-800 shadow-2xl bg-zinc-900">
-                  <Image src={coverUrl} alt="" fill sizes="192px" className="object-cover" />
+                  <Image src={coverUrl} alt="" fill sizes="192px" className="object-cover" priority />
                 </div>
               )}
               <div className="space-y-4">

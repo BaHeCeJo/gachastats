@@ -7,12 +7,15 @@ import ConfirmButton from '@/app/components/ConfirmButton';
 import LocalizedTextInput from '@/app/components/fields/LocalizedTextInput';
 import ImageInput from '@/app/components/ImageInput';
 import EntityGridManager from '@/app/components/EntityGridManager';
-import TeamBuilder, { TeamData, TeamEntity, TeamFieldOption } from '@/app/components/TeamBuilder';
+import TeamBuilder from '@/app/components/TeamBuilder';
+import { TeamData, TeamEntity, TeamFieldOption } from '@/app/components/teambuilder/types';
 import { LocalizedString, getTranslatedField, GameLocalizationProvider, useLocalizationParams } from "@/lib/localization";
 import Link from "next/link";
 import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
 import { Game, Section, SectionDisplaySettings } from '@/lib/supabase/queries';
 import { ProcessedEntity } from '@/app/[gameSlug]/sections/[sectionId]/page';
+
+import CreatableTagInput from '@/app/components/fields/CreatableTagInput';
 
 type FieldOption = { id: string; game_field_id: string; value_key: LocalizedString; icon_path: string | null; color: string | null; order_index: number; };
 type Field = { id: string; section_id: string; key: LocalizedString; required: boolean; manual_fill: boolean; has_icon: boolean; has_color: boolean; order_index: number; is_multi: boolean; category: string | null; field_options: FieldOption[] | null; };
@@ -45,6 +48,7 @@ export default function EditSectionClient({
   const [minDupes, setMinDupes] = useState<number>(section.min_dupes ?? 0);
   const [maxDupes, setMaxDupes] = useState<number>(section.max_dupes ?? 0);
   const [localizedDupeName, setLocalizedDupeName] = useState<LocalizedString>(section.dupe_name || { [game.default_lang]: "Duplicate" });
+  const [skinImageTypes, setSkinImageTypes] = useState<string[]>(section.skin_image_types || ["icon", "splashart"]);
   const [iconFile, setIconFile] = useState<File | null>(null);
   const [existingIconPath, setExistingIconPath] = useState<string | null>(section.icon_path);
   const [filterFieldIds, setFilterFieldIds] = useState<string[]>(displaySettings?.filter_field_ids || []);
@@ -68,6 +72,7 @@ export default function EditSectionClient({
       formData.set("min_dupes", minDupes.toString());
       formData.set("max_dupes", maxDupes.toString());
       formData.set("dupe_name", JSON.stringify(localizedDupeName));
+      formData.set("skin_image_types", JSON.stringify(skinImageTypes));
       if (iconFile) formData.set("icon_file", iconFile);
       formData.set("existing_icon_path", existingIconPath || "null");
       return await upsertSectionAction(game.id, game.slug, game.default_lang, formData);
@@ -238,6 +243,21 @@ export default function EditSectionClient({
                 )}
 
                 <div><label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{t('icon')}</label><ImageInput name="icon_file" onFileChange={setIconFile} existingImageUrl={sectionIconPublicUrl} onRemoveExisting={() => setExistingIconPath(null)} /><input type="hidden" name="existing_icon_path" value={existingIconPath || ""} /></div>
+                
+                <div className="pt-4 border-t border-zinc-800">
+                  <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">
+                    Skin Image Types
+                  </label>
+                  <CreatableTagInput 
+                    name="skin_image_types_input"
+                    initialValues={skinImageTypes}
+                    onChange={(values) => setSkinImageTypes(values)}
+                  />
+                  <p className="mt-2 text-[10px] text-zinc-500 uppercase font-bold tracking-widest">
+                    Define custom image slots for skins (e.g., icon, splashart, sprite, thumb).
+                  </p>
+                </div>
+
                 <button type="submit" className="w-full bg-[#22c55e] text-black font-bold px-4 py-3 rounded-xl hover:bg-[#1da34a] transition">{t('save')} {t('section')}</button>
               </form>
             </section>

@@ -8,7 +8,6 @@ import {
   Game,
   Section,
   SectionField,
-  SectionEntity,
   SectionDisplaySettings,
 } from "@/lib/supabase/queries";
 import { redirect } from "next/navigation";
@@ -213,6 +212,7 @@ export default async function SectionDetailPage({ params: paramsPromise }: PageP
             src={gameCoverUrl}
             alt=""
             fill
+            sizes="100vw"
             className="object-cover grayscale blur-md opacity-25 scale-105"
             priority
           />
@@ -245,6 +245,7 @@ export default async function SectionDetailPage({ params: paramsPromise }: PageP
                     fill
                     sizes="80px"
                     className="object-contain p-2"
+                    priority
                   />
                 </div>
               ) : (

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { upsertGameAction } from "@/app/admin/games/actions";
+import { upsertGameAction } from "@/lib/actions/admin/game";
 import LocalizedTextInput from "@/app/components/fields/LocalizedTextInput";
 import ImageInput from "@/app/components/ImageInput";
 import { LocalizedString, useLocalizationParams } from "@/lib/localization";

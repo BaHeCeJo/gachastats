@@ -11,7 +11,7 @@ type Props = {
   skinId: string;
   gameSlug: string;
   sectionId: string;
-  imageType: "icon" | "splashart";
+  imageType: string;
   existingImageUrl: string | null; // Public URL of existing image
   gameDefaultLang: string;
   activeLang: string;
@@ -82,7 +82,7 @@ export default function SkinImageInput({
     []
   );
 
-  const inputLabel = imageType === "icon" ? t('uploadIcon') : t('uploadFullArt');
+  const inputLabel = `${t('upload')} ${imageType}`;
 
   return (
     <div className="space-y-2">
@@ -99,12 +99,12 @@ export default function SkinImageInput({
             alt={`${imageType} preview`}
             fill
             sizes="(max-width: 768px) 100vw, 300px"
-            className={imageType === "icon" ? "object-contain p-2" : "object-contain"}
+            className="object-contain p-2"
           />
         </div>
       ) : (
-        <div className="flex items-center justify-center h-24 w-24 md:h-32 md:w-32 rounded-md bg-zinc-900/50 border border-zinc-800 text-zinc-500 text-sm">
-          {imageType === "icon" ? t('noIcon') : t('noFullArt')}
+        <div className="flex items-center justify-center h-24 w-24 md:h-32 md:w-32 rounded-md bg-zinc-900/50 border border-zinc-800 text-zinc-500 text-sm italic">
+          No {imageType}
         </div>
       )}
 
@@ -126,8 +126,8 @@ export default function SkinImageInput({
           disabled={!file} // Disable if no file is selected
         >
           {previewUrl && existingImageUrl 
-            ? `${t('update')} ${imageType === "icon" ? t('icon') : t('fullArt')}` 
-            : `${t('upload')} ${imageType === "icon" ? t('icon') : t('fullArt')}`}
+            ? `${t('update')} ${imageType}` 
+            : `${t('upload')} ${imageType}`}
         </button>
       </form>
     </div>

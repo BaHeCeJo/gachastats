@@ -3,29 +3,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { LocalizedString } from "@/lib/localization";
-import { v4 as uuidv4 } from "uuid";
-
-/**
- * Handles uploading an image file to Supabase storage.
- */
-async function uploadFileToStorage(file: File, bucket: string, folder: string): Promise<string> {
-  const supabase = await createClient();
-  const fileExtension = file.name.split(".").pop();
-  const path = `${folder}/${uuidv4()}.${fileExtension}`;
-
-  const { error } = await supabase.storage.from(bucket).upload(path, file, {
-    cacheControl: "3600",
-    upsert: false,
-  });
-
-  if (error) {
-    console.error("Error uploading image:", error);
-    throw new Error(`Failed to upload image: ${error.message}`);
-  }
-
-  return path;
-}
-
+import { uploadImage } from "@/lib/supabase/storage-utils";
+import { deleteAssets } from "@/lib/services/storage.service";
 
 /**
  * Upserts (creates or updates) a skin entry.
@@ -117,7 +96,7 @@ export async function upsertSkinImage(
   // Upload new image
   try {
     const folder = `${gameSlug}/sections/${sectionId}/entities/${entityId}/skins/${skinId}`;
-    imageUrl = await uploadFileToStorage(imageFile, "games", folder);
+    imageUrl = await uploadImage(imageFile, "games", folder);
   } catch (uploadError: unknown) {
     const message = uploadError instanceof Error ? uploadError.message : "Unknown error";
     return { error: `Image upload failed: ${message}` };
@@ -149,7 +128,7 @@ export async function upsertSkinImage(
     }
     // Delete old image from storage if path changed
     if (existingImage.image_path && existingImage.image_path !== imageUrl) {
-        await supabase.storage.from("games").remove([existingImage.image_path]);
+        await deleteAssets([existingImage.image_path], "games");
     }
   } else {
     // Insert new image
@@ -197,7 +176,7 @@ export async function deleteSkin(
       .filter(Boolean);
 
     if (paths.length > 0) {
-      await supabase.storage.from("games").remove(paths);
+      await deleteAssets(paths, "games");
     }
   }
 
@@ -228,7 +207,7 @@ export async function deleteSkinImage(imageId: string, imagePath: string, gameSl
       storagePath = parts[1];
     }
   }
-  await supabase.storage.from("games").remove([storagePath]);
+  await deleteAssets([storagePath], "games");
   await supabase.from("entity_images").delete().eq("id", imageId);
   revalidatePath(
     `/admin/games/${gameSlug}/sections/${sectionId}/entities/${entityId}`

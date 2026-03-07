@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Image from "next/image";
-import { toggleUserGameAction } from "@/app/collections/actions";
+import { toggleUserGameAction } from "@/lib/actions/collection";
 import { useLocalizationParams, getTranslatedField, LocalizedString } from "@/lib/localization";
 import { Plus, X, Loader2, Gamepad2 } from "lucide-react";
 import Link from "next/link";
@@ -50,7 +50,7 @@ export default function GameCollectionManager({
     <div className="space-y-12">
       <div className="flex flex-wrap gap-10 items-center justify-center lg:justify-start">
         {/* Played Games Icons */}
-        {playedGames.map((game) => (
+        {playedGames.map((game, index) => (
           <div key={game.id} className="relative group">
             <Link 
               href={`/profile/${game.slug}`}
@@ -64,6 +64,7 @@ export default function GameCollectionManager({
                     fill
                     sizes="224px"
                     className="object-cover group-hover:scale-110 transition-transform duration-700" 
+                    priority={index < 4}
                   />
                 </div>
               ) : (

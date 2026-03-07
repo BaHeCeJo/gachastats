@@ -29,6 +29,7 @@ export async function upsertSectionAction(
   const max_dupes = Number(formData.get("max_dupes") || 0);
   const min_dupes = Number(formData.get("min_dupes") || 0);
   const dupe_name = JSON.parse(formData.get("dupe_name") as string || '{"en": "Duplicate"}') as LocalizedString;
+  const skin_image_types = JSON.parse(formData.get("skin_image_types") as string || '["icon", "splashart"]') as string[];
   const iconFile = formData.get("icon_file"); // File or null
   const existingIconPath = formData.get("existing_icon_path") as string | null;
 
@@ -92,6 +93,7 @@ export async function upsertSectionAction(
     dupe_name,
     icon_path: icon_path,
     game_id: gameId,
+    skin_image_types: skin_image_types,
   };
 
   if (sectionId) {

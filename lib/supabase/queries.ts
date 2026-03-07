@@ -1,6 +1,7 @@
 import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
 import { createPublicClient } from './server';
+import { slugify } from '../utils/slugify';
 
 export type LocalizedString = Record<string, string>;
 
@@ -28,6 +29,7 @@ export interface Section {
   has_teams: boolean;
   max_team_size: number;
   order_index: number;
+  skin_image_types: string[];
 }
 
 export interface FieldOption {
@@ -111,6 +113,41 @@ export interface SectionEntity {
 }
 
 /**
+ * Cached fetch for a user's profile.
+ */
+export const getUserProfile = cache(async (userId: string) => {
+  return unstable_cache(
+    async () => {
+      const supabase = createPublicClient();
+      return supabase
+        .from("profiles")
+        .select("role, nickname, avatar_url")
+        .eq("id", userId)
+        .single();
+    },
+    [`profile-${userId}`],
+    { revalidate: 3600, tags: [`profile-${userId}`] }
+  )();
+});
+
+/**
+ * Cached fetch for all games.
+ */
+export const getGames = cache(async () => {
+  return unstable_cache(
+    async () => {
+      const supabase = createPublicClient();
+      return supabase
+        .from("games")
+        .select("id, name, slug, description, cover_url, default_lang, supported_languages")
+        .order("created_at", { ascending: false });
+    },
+    ['all-games'],
+    { revalidate: 3600, tags: ['games'] }
+  )();
+});
+
+/**
  * Cached fetch for a single game by its slug.
  */
 export const getGameBySlug = cache(async (slug: string) => {
@@ -135,11 +172,16 @@ export const getSectionById = cache(async (sectionId: string) => {
   return unstable_cache(
     async () => {
       const supabase = createPublicClient();
-      return supabase
+      const res = await supabase
         .from("game_sections")
-        .select("id, key, game_id, icon_path, color, is_collectible, is_unique, min_dupes, max_dupes, dupe_name, has_teams, max_team_size, order_index")
+        .select("id, key, game_id, icon_path, color, is_collectible, is_unique, min_dupes, max_dupes, dupe_name, has_teams, max_team_size, order_index, skin_image_types")
         .eq("id", sectionId)
         .single();
+      
+      if (res.error) {
+        console.error(`[getSectionById] Error fetching section ${sectionId}:`, res.error);
+      }
+      return res;
     },
     [`section-${sectionId}`],
     { revalidate: 3600, tags: [`section-${sectionId}`] }
@@ -189,6 +231,42 @@ export const getEntityByNames = cache(async (sectionId: string, entityName: stri
     { revalidate: 3600, tags: [`entity-${sectionId}-${entityName}`] }
   )();
 });
+
+/**
+ * Resolves a section ID from its slug within a game.
+ */
+export async function resolveSectionBySlug(gameId: string, sectionSlug: string, gameDefaultLang: string) {
+  const supabase = createPublicClient();
+  const { data: sections } = await supabase
+    .from("game_sections")
+    .select("id, key")
+    .eq("game_id", gameId);
+
+  const matched = (sections || []).find(s => {
+    const key = s.key[gameDefaultLang] || s.key['en'] || '';
+    return slugify(key) === sectionSlug;
+  });
+
+  return matched || null;
+}
+
+/**
+ * Resolves an entity ID from its slug within a section.
+ */
+export async function resolveEntityBySlug(sectionId: string, entitySlug: string, gameDefaultLang: string) {
+  const supabase = createPublicClient();
+  const { data: entities } = await supabase
+    .from("section_entities")
+    .select("id, name")
+    .eq("section_id", sectionId);
+
+  const matched = (entities || []).find(e => {
+    const name = e.name[gameDefaultLang] || e.name['en'] || '';
+    return slugify(name) === entitySlug;
+  });
+
+  return matched || null;
+}
 
 /**
  * Cached fetch for section fields.
@@ -270,7 +348,8 @@ export const getSectionEntities = cache(async (
           id,
           game_field_id, 
           value_text, 
-          option_id
+          option_id,
+          field_options ( color, icon_path, value_key )
         )
       `)
       .eq("section_id", sectionId)
@@ -301,17 +380,35 @@ export const getEntityById = cache(async (entityId: string) => {
 });
 
 /**
- * Cached fetch for a full entity by its ID (Admin version with all skins/images).
+ * Optimized fetch for a full entity by its ID (Admin version).
+ * Includes skins, images, and field values in a single request.
  */
 export const getFullEntityById = cache(async (entityId: string) => {
   return unstable_cache(
     async () => {
       const supabase = createPublicClient();
       return supabase.from("section_entities").select(`
-        id, section_id, name, icon_path,
+        id, 
+        section_id, 
+        name, 
+        icon_path,
         entity_skins (
-          id, entity_id, name, is_default,
+          id, 
+          entity_id, 
+          name, 
+          is_default,
           entity_images ( id, type, key, image_path, width, height, order_index )
+        ),
+        entity_field_values (
+          id,
+          game_field_id,
+          value_text,
+          option_id,
+          field_options (
+            color,
+            icon_path,
+            value_key
+          )
         )
       `).eq("id", entityId).single();
     },
@@ -335,8 +432,31 @@ export const getEntityFieldValues = cache(async (entityId: string) => {
 });
 
 /**
- * Cached fetch for section teams that include a specific entity.
+ * Lightweight fetch for section entities (ID, Name, Icon only).
+ * Used for populating selection lists and team builders.
  */
+export const getSectionEntitiesLibrary = cache(async (sectionId: string) => {
+  return unstable_cache(
+    async () => {
+      const supabase = createPublicClient();
+      return supabase
+        .from("section_entities")
+        .select(`
+          id, 
+          name, 
+          icon_path,
+          entity_skins(
+            is_default,
+            entity_images(type, image_path)
+          )
+        `)
+        .eq("section_id", sectionId)
+        .eq("entity_skins.is_default", true);
+    },
+    [`section-library-${sectionId}`],
+    { revalidate: 3600, tags: [`section-entities-${sectionId}`] }
+  )();
+});
 export const getEntityTeams = cache(async (entityId: string) => {
   return unstable_cache(
     async () => {

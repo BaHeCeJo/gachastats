@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useActionState } from "react";
-import { updateProfileAction } from "@/app/collections/actions";
+import { updateProfileAction } from "@/lib/actions/collection";
 import { useLocalizationParams } from "@/lib/localization";
 import { Loader2, Save } from "lucide-react";
 import ImageInput from "@/app/components/ImageInput";

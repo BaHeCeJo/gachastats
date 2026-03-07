@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { toggleUserGameAction } from "@/app/collections/actions";
+import { toggleUserGameAction } from "@/lib/actions/collection";
 import { useLocalizationParams } from "@/lib/localization";
 import { X, Loader2 } from "lucide-react";
 

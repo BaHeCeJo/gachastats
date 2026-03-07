@@ -2,18 +2,37 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import React from "react"
+import React, { useEffect, useState } from "react"
 import { signOut } from "@/app/auth/signout/action"
 import { useLocalizationParams } from "@/lib/localization"
 import { languages } from "@/lib/constants/languages"
+import { createClient } from "@/lib/supabase/client"
+import { User } from "@supabase/supabase-js"
 
-export default function HeaderClient({ 
-  isAdmin, 
-  isLoggedIn 
-}: { 
-  isAdmin: boolean
-  isLoggedIn: boolean
-}) {
+export default function HeaderClient() {
+  const [user, setUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const supabase = createClient();
+
+  useEffect(() => {
+    async function checkUser() {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+        setIsAdmin(profile?.role === 'admin');
+      }
+      setIsLoading(false);
+    }
+    checkUser();
+  }, [supabase]);
+
   const pathname = usePathname() ?? "/"
   const { 
     adminSelectedLang, 
@@ -58,6 +77,15 @@ export default function HeaderClient({
     const publicPath = pathname.replace(/^\/admin/, "") || "/"
     return publicPath
   })()
+
+  if (isLoading) {
+    return (
+      <div className="flex gap-4 items-center">
+        <div className="w-20 h-8 bg-zinc-200 dark:bg-zinc-800 animate-pulse rounded-md" />
+        <div className="w-8 h-8 bg-zinc-200 dark:bg-zinc-800 animate-pulse rounded-full" />
+      </div>
+    );
+  }
 
   return (
     <nav className="flex gap-6 items-center">
@@ -132,7 +160,7 @@ export default function HeaderClient({
         </div>
       )}
 
-      {!isLoggedIn ? (
+      {!user ? (
         <Link
           href="/auth/signin"
           className="px-4 py-2 rounded-md bg-[#22c55e] text-black font-bold hover:bg-[#1da34a] transition relative z-[60]"
@@ -141,7 +169,7 @@ export default function HeaderClient({
         </Link>
       ) : (
         <div className="flex items-center gap-4">
-          {/* Admin button appears only if server told us the user is admin */}
+          {/* Admin button appears only if client-side check confirms admin */}
           {isAdmin && (
             <>
               {isAdminRoute ? (
@@ -181,5 +209,5 @@ export default function HeaderClient({
         </div>
       )}
     </nav>
-  )
+  );
 }

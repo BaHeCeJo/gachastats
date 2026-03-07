@@ -13,7 +13,8 @@ import {
   SectionEntity,
   SectionDisplaySettings,
 } from "@/lib/supabase/queries";
-import TeamBuilder, { TeamEntity, TeamData, TeamFieldOption } from "@/app/components/TeamBuilder";
+import TeamBuilder from "@/app/components/TeamBuilder";
+import { TeamEntity, TeamData, TeamFieldOption } from "@/app/components/teambuilder/types";
 import { redirect } from "next/navigation";
 import Image from "next/image";
 import Header from "@/app/components/Header";
@@ -224,6 +225,7 @@ export default async function EntityDetailPage({ params: paramsPromise }: PagePr
             src={gameCoverUrl}
             alt=""
             fill
+            sizes="100vw"
             className="object-cover grayscale blur-md opacity-25 scale-105"
             priority
           />

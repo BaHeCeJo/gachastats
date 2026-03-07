@@ -51,7 +51,7 @@ export default function GameGrid({ games, supabaseUrl, onHoverChange }: Props) {
           </h1>
 
           <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-10">
-            {games.map((game) => {
+            {games.map((game, index) => {
               const coverUrl = game.cover_url
                 ? `${supabaseUrl}/storage/v1/object/public/games/${game.cover_url}`
                 : null;
@@ -72,6 +72,8 @@ export default function GameGrid({ games, supabaseUrl, onHoverChange }: Props) {
                           fill
                           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                           className="object-cover group-hover:scale-105 transition-transform duration-700"
+                          priority={index < 8}
+                          loading={index < 8 ? "eager" : "lazy"}
                         />
                       ) : (
                         <div className="w-full h-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-zinc-400">

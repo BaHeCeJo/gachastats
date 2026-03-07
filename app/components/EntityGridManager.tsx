@@ -1,27 +1,28 @@
 "use client";
 
-import { useState, useMemo } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { LocalizedString, getTranslatedField, useLocalizationParams } from "@/lib/localization";
+import { useLocalizationParams } from "@/lib/localization";
 import MissingTranslationIndicator from "./MissingTranslationIndicator";
+import { useEntityFiltering } from "@/lib/hooks/useEntityFiltering";
+import { FilterBar } from "./FilterBar";
+import { EntityCard } from "./EntityCard";
 
 type Option = {
   id: string;
-  value_key: LocalizedString;
+  value_key: Record<string, string>;
   iconUrl?: string;
   color?: string;
 };
 
 type FilterField = {
   id: string;
-  key: LocalizedString;
+  key: Record<string, string>;
   options: Option[];
 };
 
 type Entity = {
   id: string;
-  name: LocalizedString;
+  name: Record<string, string>;
   publicIconUrl: string;
   fieldValuesMap: Record<string, { color?: string; iconUrl?: string }>;
   allValues: Record<string, string[]>;
@@ -62,123 +63,24 @@ export default function EntityGridManager({
   const { displayLang, t } = useLocalizationParams();
   const activeLang = displayLang || browserLang;
 
-  const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
-
-  const filteredEntities = useMemo(() => {
-    const filtered = entities.filter((entity) => {
-      for (const [fieldId, value] of Object.entries(activeFilters)) {
-        const entityValues = entity.allValues[fieldId] || [];
-        if (!entityValues.includes(value)) return false;
-      }
-      return true;
-    });
-
-    return [...filtered].sort((a, b) => {
-      const nameA = getTranslatedField(a.name, activeLang, gameDefaultLang).trim();
-      const nameB = getTranslatedField(b.name, activeLang, gameDefaultLang).trim();
-      
-      if (!nameA && nameB) return 1;
-      if (nameA && !nameB) return -1;
-      if (!nameA && !nameB) return 0;
-
-      const cmp = nameA.localeCompare(nameB, activeLang, { 
-        sensitivity: 'accent',
-        numeric: true 
-      });
-
-      if (cmp === 0) return a.id.localeCompare(b.id);
-      return cmp;
-    });
-  }, [entities, activeFilters, activeLang, gameDefaultLang]);
-
-  function toggleFilter(fieldId: string, value: string) {
-    setActiveFilters((prev) => {
-      const next = { ...prev };
-      if (next[fieldId] === value) {
-        delete next[fieldId];
-      } else {
-        next[fieldId] = value;
-      }
-      return next;
-    });
-  }
+  const {
+    activeFilters,
+    toggleFilter,
+    filteredEntities,
+    setActiveFilters,
+  } = useEntityFiltering(entities, activeLang, gameDefaultLang);
 
   const maxCols = displaySettings?.max_columns ?? 6;
 
   return (
     <div className="space-y-8">
-      {/* Visual Filter Interface */}
-      {filterFields.length > 0 && (
-        <div className="space-y-6 bg-gray-900/50 p-6 rounded-xl border border-gray-800">
-          {filterFields.map((field) => (
-            <div key={field.id} className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-bold uppercase tracking-wider text-gray-500">
-                  {getTranslatedField(field.key, activeLang, gameDefaultLang)}
-                </span>
-                {activeFilters[field.id] && (
-                  <button
-                    onClick={() => {
-                      const next = { ...activeFilters };
-                      delete next[field.id];
-                      setActiveFilters(next);
-                    }}
-                    className="text-xs text-[#22c55e] hover:text-[#1da34a]"
-                  >
-                    {t('clear')}
-                  </button>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-3">
-                {field.options.map((opt) => {
-                  const isActive = activeFilters[field.id] === opt.id;
-                  const displayValue = getTranslatedField(opt.value_key, activeLang, gameDefaultLang);
-                  return (
-                    <button
-                      key={opt.id}
-                      onClick={() => toggleFilter(field.id, opt.id)}
-                      title={displayValue}
-                      className={`
-                        relative group flex items-center justify-center transition-all duration-200
-                        ${
-                          opt.iconUrl
-                            ? "w-12 h-12 rounded-lg p-1"
-                            : "px-4 py-2 rounded-full text-sm font-medium"
-                        }
-                        ${
-                          isActive
-                            ? "bg-[#22c55e] ring-2 ring-[#22c55e] ring-offset-2 ring-offset-gray-900 text-black"
-                            : "bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700"
-                        }
-                      `}
-                    >
-                      {opt.iconUrl ? (
-                        <>
-                          <div className="relative w-full h-full">
-                            <Image
-                              src={opt.iconUrl}
-                              alt={displayValue}
-                              fill
-                              sizes="40px"
-                              className={`object-contain ${isActive ? "brightness-0" : ""}`}
-                            />
-                          </div>
-                          {/* Tooltip */}
-                          <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50 shadow-xl border border-gray-700">
-                            {displayValue}
-                          </div>
-                        </>
-                      ) : (
-                        <span className={isActive ? "font-bold" : ""}>{displayValue}</span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <FilterBar
+        filterFields={filterFields}
+        activeFilters={activeFilters}
+        onToggleFilter={toggleFilter}
+        currentLang={activeLang}
+        gameDefaultLang={gameDefaultLang}
+      />
 
       {/* Entity Grid */}
       <div className="space-y-6">
@@ -198,111 +100,27 @@ export default function EntityGridManager({
 
         {filteredEntities.length > 0 ? (
           <div
-            className="grid gap-x-6 gap-y-10"
+            className="grid gap-x-6 gap-y-10 justify-center lg:justify-start"
             style={{
               gridTemplateColumns: `repeat(auto-fill, minmax(160px, 1fr))`,
               maxWidth: `${maxCols * 160 + (maxCols - 1) * 24}px`,
             }}
           >
             {filteredEntities.map((entity) => {
-              const bgValue = displaySettings?.bg_color_field_id
-                ? entity.fieldValuesMap[displaySettings.bg_color_field_id]
-                : null;
-              const topLeftValue = displaySettings?.top_left_icon_field_id
-                ? entity.fieldValuesMap[displaySettings.top_left_icon_field_id]
-                : null;
-              const topRightValue = displaySettings?.top_right_icon_field_id
-                ? entity.fieldValuesMap[displaySettings.top_right_icon_field_id]
-                : null;
-              const overlayValue = displaySettings?.overlay_icon_field_id
-                ? entity.fieldValuesMap[displaySettings.overlay_icon_field_id]
-                : null;
-
               const entityLink = isAdmin
                 ? `/admin/games/${gameSlug}/sections/${sectionId}/entities/${entity.id}`
                 : `/${gameSlug}/sections/${sectionId}/entities/${entity.id}`;
 
-              const cardContent = (
-                <>
-                  <div
-                    className="relative aspect-square overflow-hidden"
-                    style={{ backgroundColor: bgValue?.color || "#1a1a1a" }}
-                  >
-                    {overlayValue?.iconUrl && (
-                      <div className="absolute inset-0 flex items-center justify-center p-2">
-                        <Image
-                          src={overlayValue.iconUrl}
-                          fill
-                          sizes="160px"
-                          className="object-contain opacity-20 pointer-events-none grayscale brightness-150"
-                          alt=""
-                        />
-                      </div>
-                    )}
-
-                    {entity.publicIconUrl ? (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Image
-                          src={entity.publicIconUrl}
-                          fill
-                          sizes="160px"
-                          className="object-cover relative z-10"
-                          alt={getTranslatedField(entity.name, activeLang, gameDefaultLang)}
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-600 relative z-10">
-                        ?
-                      </div>
-                    )}
-
-                    {topLeftValue?.iconUrl && (
-                      <div className="absolute top-1.5 left-1.5 w-8 h-8 bg-black/70 backdrop-blur-md border border-white/10 rounded-lg flex items-center justify-center p-0 z-20 shadow-2xl overflow-hidden">
-                        <div className="relative w-full h-full">
-                          <Image
-                            src={topLeftValue.iconUrl}
-                            fill
-                            sizes="32px"
-                            className="object-contain"
-                            alt=""
-                          />
-                        </div>
-                      </div>
-                    )}
-                    {topRightValue?.iconUrl && (
-                      <div className="absolute top-1.5 right-1.5 w-8 h-8 bg-black/70 backdrop-blur-md border border-white/10 rounded-lg flex items-center justify-center p-0 z-20 shadow-2xl overflow-hidden">
-                        <div className="relative w-full h-full">
-                          <Image
-                            src={topRightValue.iconUrl}
-                            fill
-                            sizes="32px"
-                            className="object-contain"
-                            alt=""
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="bg-black/90 p-2 min-h-[44px] flex items-center justify-center border-t border-gray-800 group-hover:bg-[#22c55e] transition-colors">
-                    <span className="text-[11px] font-bold px-1 text-gray-200 group-hover:text-black uppercase tracking-tight flex flex-wrap items-center justify-center gap-1 leading-tight text-center">
-                      {getTranslatedField(entity.name, activeLang, gameDefaultLang)}
-                      {isAdmin && <MissingTranslationIndicator value={entity.name} />}
-                    </span>
-                  </div>
-                </>
-              );
-
-              const commonClasses = "group flex flex-col transition-all duration-300 rounded-xl overflow-hidden border border-gray-800 hover:ring-2 hover:ring-[#22c55e] hover:scale-[1.02]";
-
               return (
-                <Link
+                <EntityCard
                   key={entity.id}
+                  entity={entity}
+                  displaySettings={displaySettings}
+                  currentLang={activeLang}
+                  gameDefaultLang={gameDefaultLang}
                   href={entityLink}
-                  className={commonClasses}
-                >
-                  {cardContent}
-                </Link>
+                  badgeContent={isAdmin && <MissingTranslationIndicator value={entity.name} />}
+                />
               );
             })}
           </div>
