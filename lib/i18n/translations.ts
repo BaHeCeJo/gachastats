@@ -124,7 +124,8 @@ export const uiTranslations: Record<string, Record<string, string>> = {
     deleteConfirm: "Are you sure you want to delete this item permanently?",
     signInToAccount: "Sign in to your account",
     emailAddress: "Email Address",
-    password: "Password",
+    // eslint-disable-next-line sonarjs/no-hardcoded-passwords
+    passwordLabel: "Password",
     signingIn: "Signing in...",
     noAccount: "Don't have an account?",
     createOneNow: "Create one now",
@@ -287,7 +288,8 @@ export const uiTranslations: Record<string, Record<string, string>> = {
     deleteConfirm: "Êtes-vous sûr de vouloir supprimer cet élément de façon permanente ?",
     signInToAccount: "Connectez-vous à votre compte",
     emailAddress: "Adresse Email",
-    password: "Mot de passe",
+    // eslint-disable-next-line sonarjs/no-hardcoded-passwords
+    passwordLabel: "Mot de passe",
     signingIn: "Connexion...",
     noAccount: "Vous n'avez pas de compte ?",
     createOneNow: "Créez-en un maintenant",
@@ -374,4 +376,9 @@ export const uiTranslations: Record<string, Record<string, string>> = {
     createNewField: "새 필드 만들기",
     }
     };
+
+// Deep freeze to prevent runtime modification
+Object.freeze(uiTranslations);
+Object.values(uiTranslations).forEach(Object.freeze);
+
 export type UITranslationKey = keyof typeof uiTranslations.en;

@@ -91,18 +91,19 @@ export default async function EntityPage({ params: paramsPromise }: PageProps) {
 
   // Process fields structure
   const fields = (fieldsRaw || []).map((f) => {
+    const gf = Array.isArray(f.game_fields) ? f.game_fields[0] : f.game_fields;
     return { 
       id: f.id,
       game_field_id: f.game_field_id,
       key: f.key,
       required: f.required,
-      manual_fill: f.game_fields?.manual_fill || false,
+      manual_fill: gf?.manual_fill || false,
       is_multi: f.is_multi,
-      has_icon: f.game_fields?.has_icon || false,
-      has_color: f.game_fields?.has_color || false,
+      has_icon: gf?.has_icon || false,
+      has_color: gf?.has_color || false,
       order_index: f.order_index,
       category: f.category,
-      field_options: f.game_fields?.field_options || [] 
+      field_options: gf?.field_options || [] 
     };
   });
 

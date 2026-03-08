@@ -1,235 +1,135 @@
 "use client";
 
-import { useState, useActionState } from "react";
-import { LocalizedString, getTranslatedField, useLocalizationParams } from "@/lib/localization";
-import SkinImageInput from "../SkinImageInput";
-import { deleteSkin, upsertSkin, deleteSkinImage } from "./actions";
-import LocalizedTextInput from "../fields/LocalizedTextInput";
-import ConfirmButton from "../ConfirmButton";
-import { Edit2, Check, X as CloseIcon } from "lucide-react";
+import { useState, useMemo } from "react";
 import Image from "next/image";
+import { Edit2, X as CloseIcon } from "lucide-react";
+import { getPublicUrl } from "@/lib/supabase/client";
+import { LocalizedString, getTranslatedField, useLocalizationParams } from "@/lib/localization";
+import ImageInput from "@/app/components/ImageInput";
+import ConfirmButton from "@/app/components/ConfirmButton";
+import { upsertSkin, upsertSkinImage, deleteSkin, deleteSkinImage } from "./actions";
+import LocalizedTextInput from "@/app/components/fields/LocalizedTextInput";
 
-// --- Type Definitions ---
-type EntityData = {
-  id: string;
-  name: LocalizedString;
-  icon_path: string | null;
-};
+interface SkinImage { id: string; type: string; image_path: string; }
+interface Skin { id: string; name: LocalizedString; is_default: boolean; entity_images: SkinImage[]; }
+interface Entity { id: string; name: LocalizedString; }
 
-type SkinImage = {
-  id: string;
-  type: string;
-  image_path: string;
-  publicUrl?: string;
-};
-
-type SkinData = {
-  id: string;
-  entity_id: string;
-  name: LocalizedString;
-  is_default: boolean;
-  entity_images: SkinImage[];
-};
-
-type SkinManagerProps = {
-  entity: EntityData;
-  skins: SkinData[];
-  gameSlug: string;
-  sectionId: string;
-  gameDefaultLang: string;
-  activeLang: string;
-  skinImageTypes?: string[];
-};
-
-type FormState = {
-  error?: string;
-};
-
-export default function SkinManager({
-  entity,
-  skins,
-  gameSlug,
-  sectionId,
-  gameDefaultLang,
-  activeLang: browserLang,
-  skinImageTypes = ["icon", "splashart"],
-}: SkinManagerProps) {
-  const { displayLang, t } = useLocalizationParams();
-  const activeLang = displayLang || browserLang;
-
-  const entityId = entity.id;
-  const [newSkinName, setNewSkinName] = useState<LocalizedString>({ [gameDefaultLang]: "" });
-  const [editingSkinId, setEditingSkinId] = useState<string | null>(null);
-  const [editingSkinName, setEditingSkinName] = useState<LocalizedString>({});
-
-  const [addSkinState, addSkinAction] = useActionState(
-    async (prevState: FormState, formData: FormData) => {
-      formData.set("entity_id", entityId);
-      formData.set("name", JSON.stringify(newSkinName));
-      formData.set("is_default", skins.length === 0 ? "true" : "false");
-
-      const result = await upsertSkin(gameSlug, sectionId, entityId, gameDefaultLang, formData);
-
-      if (result?.error) return { ...prevState, error: result.error };
-      setNewSkinName({ [gameDefaultLang]: "" });
-      return { ...prevState, error: undefined };
-    },
-    {} as FormState
-  );
-
-  const [editSkinState, editSkinAction] = useActionState(
-    async (prevState: FormState, formData: FormData) => {
-      if (!editingSkinId) return prevState;
-      formData.set("id", editingSkinId);
-      formData.set("entity_id", entityId);
-      formData.set("name", JSON.stringify(editingSkinName));
-      // Keep existing default status
-      const skin = skins.find(s => s.id === editingSkinId);
-      formData.set("is_default", skin?.is_default ? "true" : "false");
-
-      const result = await upsertSkin(gameSlug, sectionId, entityId, gameDefaultLang, formData);
-
-      if (result?.error) return { ...prevState, error: result.error };
-      setEditingSkinId(null);
-      return { ...prevState, error: undefined };
-    },
-    {} as FormState
-  );
-
-  async function deleteImageAction(imageId: string, imagePath: string) {
-    await deleteSkinImage(imageId, imagePath, gameSlug, sectionId, entityId);
-  }
-
-  const startEditing = (skin: SkinData) => {
-    setEditingSkinId(skin.id);
-    setEditingSkinName(skin.name);
-  };
+/**
+ * Renders a single image slot within a skin.
+ */
+function SkinImageSlot({
+  type, skin, onUpload, onDelete
+}: {
+  type: string; skin: Skin; onUpload: (skinId: string, type: string, file: File | null) => Promise<void>; onDelete: (id: string, path: string) => Promise<void>;
+}) {
+  const image = skin.entity_images.find(img => img.type === type);
+  const publicUrl = image ? getPublicUrl('games', image.image_path) : null;
 
   return (
-    <div className="space-y-6 mt-12 pt-12 border-t border-zinc-800">
-      <h2 className="text-xl font-bold text-white italic flex items-center gap-2">
-        <span className="w-4 h-1 bg-blue-500"></span>
-        {t('skins')}
-      </h2>
+    <div className="space-y-3 p-4 bg-black/40 rounded-2xl border border-white/5 group/image">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{type}</span>
+        {image && (
+          <button onClick={() => onDelete(image.id, image.image_path)} className="text-zinc-700 hover:text-red-500 transition-colors">
+            <CloseIcon size={14} />
+          </button>
+        )}
+      </div>
+      
+      <div className="relative aspect-square rounded-xl overflow-hidden bg-zinc-900 border border-zinc-800">
+        {publicUrl ? (
+          <Image src={publicUrl} alt={type} fill sizes="150px" className="object-contain p-2" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-zinc-800"><CloseIcon size={24} /></div>
+        )}
+      </div>
 
-      {(addSkinState?.error || editSkinState?.error) && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-sm p-4 rounded-lg">
-          {addSkinState?.error || editSkinState?.error}
-        </div>
+      <ImageInput name={`file-${skin.id}-${type}`} onFileChange={(file) => onUpload(skin.id, type, file)} hidePreview />
+    </div>
+  );
+}
+
+export default function SkinManager({
+  entity, skins, gameSlug, sectionId, gameDefaultLang, activeLang, skinImageTypes = ["icon", "splashart"]
+}: {
+  entity: Entity; skins: Skin[]; gameSlug: string; sectionId: string; gameDefaultLang: string; activeLang: string; skinImageTypes?: string[];
+}) {
+  const { t } = useLocalizationParams();
+  const [isAddingSkin, setIsAddingSkin] = useState(false);
+  const [editingSkinId, setEditingSkinId] = useState<string | null>(null);
+  const [newSkinName, setNewSkinName] = useState<LocalizedString>({ [gameDefaultLang]: "" });
+
+  const handleUpsertSkin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData();
+    if (editingSkinId) formData.set("id", editingSkinId);
+    formData.set("name", JSON.stringify(newSkinName));
+    
+    let isDefault = skins.length === 0;
+    if (editingSkinId) {
+      const skin = skins.find(s => s.id === editingSkinId);
+      if (skin) isDefault = skin.is_default;
+    }
+    formData.set("is_default", isDefault.toString());
+
+    const res = await upsertSkin(gameSlug, sectionId, entity.id, gameDefaultLang, formData);
+    if (!res.error) { setIsAddingSkin(false); setEditingSkinId(null); setNewSkinName({ [gameDefaultLang]: "" }); }
+  };
+
+  const handleImageUpload = async (skinId: string, type: string, file: File | null) => {
+    if (!file) return;
+    const formData = new FormData();
+    formData.set("imageType", type);
+    formData.set("image_file", file);
+    await upsertSkinImage(gameSlug, sectionId, entity.id, skinId, formData);
+  };
+
+  const sortedSkins = useMemo(() => [...skins].sort((a, b) => {
+    if (a.is_default) return -1;
+    if (b.is_default) return 1;
+    return 0;
+  }), [skins]);
+
+  return (
+    <div className="space-y-8 mt-12 pt-12 border-t border-zinc-800">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-white flex items-center gap-3">
+          <span className="w-8 h-1 bg-blue-500 rounded-full" />{t('skins')}
+        </h2>
+        <button onClick={() => setIsAddingSkin(true)} className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/20">{t('addSkin')}</button>
+      </div>
+
+      {(isAddingSkin || editingSkinId) && (
+        <form onSubmit={handleUpsertSkin} className="p-6 bg-zinc-900/50 border border-zinc-800 rounded-3xl space-y-4 animate-in fade-in slide-in-from-top-4">
+          <LocalizedTextInput id="skin-name" label={t('skinName')} value={newSkinName} onChange={setNewSkinName} />
+          <div className="flex gap-3 justify-end">
+            <button type="button" onClick={() => { setIsAddingSkin(false); setEditingSkinId(null); }} className="px-4 py-2 text-zinc-400 hover:text-white transition-colors">{t('cancel')}</button>
+            <button type="submit" className="px-6 py-2 bg-[#22c55e] text-black font-bold rounded-xl hover:bg-[#1da34a] transition-all">{t('save')}</button>
+          </div>
+        </form>
       )}
 
-      <form action={addSkinAction} className="flex gap-2 bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800">
-        <LocalizedTextInput
-          id="new_skin_name"
-          label={t('newSkin')}
-          value={newSkinName}
-          onChange={setNewSkinName}
-          placeholder="e.g., Summer Outfit"
-          className="flex-grow"
-        />
-        <button
-          type="submit"
-          className="bg-blue-600 text-white font-bold px-6 py-2 rounded-xl hover:bg-blue-500 transition self-end h-[42px]"
-        >
-          {t('addSkin')}
-        </button>
-      </form>
-
       <div className="grid grid-cols-1 gap-6">
-        {skins.map((skin) => {
-          const isEditing = editingSkinId === skin.id;
-
-          return (
-            <div key={skin.id} className="p-6 border border-zinc-800 rounded-3xl bg-zinc-900/30 space-y-6">
-              <div className="flex justify-between items-start">
-                <div className="flex-grow max-w-md">
-                  {isEditing ? (
-                    <form action={editSkinAction} className="space-y-3">
-                      <LocalizedTextInput
-                        id={`edit_name_${skin.id}`}
-                        label={t('skinName')}
-                        value={editingSkinName}
-                        onChange={setEditingSkinName}
-                      />
-                      <div className="flex gap-2">
-                        <button type="submit" className="flex items-center gap-1 bg-green-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-green-500"><Check size={14}/> Save</button>
-                        <button type="button" onClick={() => setEditingSkinId(null)} className="flex items-center gap-1 bg-zinc-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-zinc-600"><CloseIcon size={14}/> Cancel</button>
-                      </div>
-                    </form>
-                  ) : (
-                    <div className="flex items-center gap-3">
-                      <h3 className="font-black text-xl text-white uppercase italic tracking-wider">
-                        {getTranslatedField(skin.name, activeLang, gameDefaultLang)} 
-                        {skin.is_default && <span className="ml-2 text-[10px] bg-green-500/20 text-green-500 px-2 py-0.5 rounded-full not-italic tracking-normal">DEFAULT</span>}
-                      </h3>
-                      <button onClick={() => startEditing(skin)} className="text-zinc-500 hover:text-white transition"><Edit2 size={16}/></button>
-                    </div>
-                  )}
-                </div>
-                
-                <div className="flex gap-2">
-                  {!skin.is_default && (
-                    <form action={async () => {
-                      const fd = new FormData();
-                      fd.set("id", skin.id);
-                      fd.set("name", JSON.stringify(skin.name));
-                      fd.set("is_default", "true");
-                      await upsertSkin(gameSlug, sectionId, entityId, gameDefaultLang, fd);
-                    }}>
-                      <button className="text-[10px] font-bold bg-zinc-800 text-zinc-400 px-3 py-1.5 rounded-xl hover:bg-zinc-700 hover:text-white transition uppercase tracking-widest border border-zinc-700">Set Default</button>
-                    </form>
-                  )}
-                  <form action={deleteSkin.bind(null, skin.id, entityId, gameSlug, sectionId)}>
-                    <ConfirmButton buttonClassName="text-[10px] font-bold bg-red-950/30 text-red-500 px-3 py-1.5 rounded-xl hover:bg-red-900/50 transition uppercase tracking-widest border border-red-900/30">{t('delete')}</ConfirmButton>
-                  </form>
-                </div>
+        {sortedSkins.map((skin) => (
+          <div key={skin.id} className={`p-8 bg-zinc-900/30 border rounded-[2.5rem] transition-all ${skin.is_default ? "border-blue-500/50 shadow-2xl shadow-blue-500/5" : "border-zinc-800"}`}>
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+              <div className="flex items-center gap-4">
+                <h3 className="text-xl font-black italic uppercase tracking-tight text-white">{getTranslatedField(skin.name, activeLang, gameDefaultLang)}</h3>
+                {skin.is_default && <span className="px-3 py-1 bg-blue-600/20 text-blue-400 text-[10px] font-black uppercase tracking-widest rounded-full border border-blue-500/20">{t('default')}</span>}
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-                {skinImageTypes.map((imageType) => {
-                  const image = skin.entity_images.find(img => img.type === imageType);
-                  const isSplash = imageType === "splashart" || imageType === "fullart";
-                  
-                  return (
-                    <div key={imageType} className={isSplash ? "sm:col-span-2 space-y-3" : "space-y-3"}>
-                      <label className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">
-                        {imageType === "icon" ? t('icon') : imageType === "splashart" || imageType === "fullart" ? t('fullArt') : imageType}
-                      </label>
-                      {image?.publicUrl ? (
-                        <div className={`relative w-full ${isSplash ? "aspect-video" : "aspect-square"} group`}>
-                          <Image
-                            src={image.publicUrl}
-                            alt={imageType}
-                            fill
-                            sizes={isSplash ? "(max-width: 768px) 100vw, 50vw" : "128px"}
-                            className="object-contain rounded-2xl border-2 border-zinc-800 bg-black shadow-xl"
-                          />
-                          <ConfirmButton
-                            action={deleteImageAction.bind(null, image.id, image.image_path)}
-                            buttonClassName="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                          >
-                            <CloseIcon size={12}/>
-                          </ConfirmButton>
-                        </div>
-                      ) : (
-                        <SkinImageInput
-                            entityId={entityId}
-                            skinId={skin.id}
-                            gameSlug={gameSlug}
-                            sectionId={sectionId}
-                            imageType={imageType}
-                            existingImageUrl={null}
-                            gameDefaultLang={gameDefaultLang}
-                            activeLang={activeLang}
-                        />
-                      )}
-                    </div>
-                  );
-                })}
+              <div className="flex items-center gap-2">
+                <button onClick={() => { setEditingSkinId(skin.id); setNewSkinName(skin.name); }} className="p-2 text-zinc-500 hover:text-white transition-colors"><Edit2 size={18} /></button>
+                {!skin.is_default && <form action={deleteSkin.bind(null, skin.id, entity.id, gameSlug, sectionId)}><ConfirmButton buttonClassName="p-2 text-zinc-500 hover:text-red-500 transition-colors">{t('delete')}</ConfirmButton></form>}
               </div>
             </div>
-          );
-        })}
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+              {skinImageTypes.map(type => (
+                <SkinImageSlot key={type} type={type} skin={skin} onUpload={handleImageUpload} onDelete={(id: string, path: string) => deleteSkinImage(id, path, gameSlug, sectionId, entity.id)} />
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

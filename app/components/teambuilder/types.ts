@@ -1,4 +1,4 @@
-import { LocalizedString } from "@/lib/types";
+import { LocalizedString } from "@/lib/supabase/queries";
 
 export interface TeamMember {
   id: string;

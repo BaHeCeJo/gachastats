@@ -67,6 +67,7 @@ export function TeamEditorModal({
                   <div 
                     key={sIdx} 
                     className="flex items-start gap-12"
+                    // eslint-disable-next-line security/detect-object-injection
                     draggable={!!currentSlots[sIdx]}
                     onDragStart={() => onDragStart(sIdx)}
                     onDragEnter={() => onDragEnter(sIdx)}
@@ -77,6 +78,7 @@ export function TeamEditorModal({
                     
                     <div className={`flex flex-col items-center gap-6 p-6 rounded-[2.5rem] border-2 transition-all ${isDragging ? 'bg-green-500/10 border-green-500/50' : 'border-transparent bg-zinc-950/30'}`}>
                       <div className="flex flex-col gap-4">
+                        {/* eslint-disable-next-line security/detect-object-injection */}
                         {currentSlots[sIdx]?.members.map((member, mIdx) => {
                           const mIconUrl = getPublicUrl('games', member.icon_path);
                           return (
@@ -106,10 +108,12 @@ export function TeamEditorModal({
                           className="w-24 h-24 rounded-[2rem] border-2 border-dashed border-zinc-800 flex flex-col items-center justify-center text-zinc-700 hover:text-green-500 hover:border-green-500/50 hover:bg-green-500/5 transition-all group active:scale-95 shadow-inner"
                         >
                           <Plus size={32} />
+                          {/* eslint-disable-next-line security/detect-object-injection */}
                           <span className="text-[8px] font-black uppercase tracking-tighter mt-1">{currentSlots[sIdx] ? 'Add Alternative' : 'Add Slot'}</span>
                         </button>
                       </div>
 
+                      {/* eslint-disable-next-line security/detect-object-injection */}
                       {currentSlots[sIdx] && (
                         <div className="flex items-center gap-2 text-zinc-600 cursor-grab active:cursor-grabbing hover:text-zinc-400 transition-colors">
                           <GripVertical size={18} />

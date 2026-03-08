@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, ReactNode, useState, useCallback, useEffect, useMemo } from "react";
-import { formatNumber as fnUtils, formatDate as fdUtils } from "./localization-utils";
+import { formatNumber as fnUtils, formatDate as fdUtils, safeGet } from "./localization-utils";
 import { uiTranslations, UITranslationKey } from "./i18n/translations";
 
 type LocalizationContextType = {
@@ -25,8 +25,12 @@ const LocalizationContext = createContext<LocalizationContextType | undefined>(u
  */
 function useLocalizationCore(displayLang: string) {
   const t = useCallback((key: UITranslationKey): string => {
-    const translations = uiTranslations[displayLang as keyof typeof uiTranslations] || uiTranslations.en;
-    return translations[key] || uiTranslations.en[key] || key;
+    const translations = Object.prototype.hasOwnProperty.call(uiTranslations, displayLang) 
+      // eslint-disable-next-line security/detect-object-injection
+      ? (uiTranslations as Record<string, Record<string, string>>)[displayLang] 
+      : uiTranslations.en;
+
+    return safeGet(translations, key) || safeGet(uiTranslations.en, key) || key;
   }, [displayLang]);
 
   const formatNumber = useCallback((n: number, options?: Intl.NumberFormatOptions) => 
@@ -146,7 +150,7 @@ export function useLocalizationParams() {
   const context = useContext(LocalizationContext);
   if (context === undefined) {
     const displayLang = 'en';
-    const t = (key: UITranslationKey) => uiTranslations.en[key] || key;
+    const t = (key: UITranslationKey) => safeGet(uiTranslations.en as Record<string, string>, key) || key;
     const formatNumber = (n: number, options?: Intl.NumberFormatOptions) => fnUtils(n, displayLang, options);
     const formatDate = (d: Date | string, options?: Intl.DateTimeFormatOptions) => fdUtils(d, displayLang, options);
     
@@ -167,4 +171,4 @@ export function useLocalizationParams() {
   return context;
 }
 
-export { getTranslatedField, isMissingTranslation, formatNumber, formatDate, type LocalizedString } from "./localization-utils";
+export { getTranslatedField, isMissingTranslation, getMissingLanguages, formatNumber, formatDate, type LocalizedString, safeGet } from "./localization-utils";

@@ -62,11 +62,12 @@ export default async function EditFieldPage({ params: paramsPromise }: PageProps
 
   if (!fieldRaw) redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields`);
 
+  const gf = Array.isArray(fieldRaw.game_fields) ? fieldRaw.game_fields[0] : fieldRaw.game_fields;
   const field = {
     ...fieldRaw,
-    manual_fill: fieldRaw.game_fields?.manual_fill ?? false,
-    has_icon: fieldRaw.game_fields?.has_icon ?? false,
-    has_color: fieldRaw.game_fields?.has_color ?? false,
+    manual_fill: gf?.manual_fill ?? false,
+    has_icon: gf?.has_icon ?? false,
+    has_color: gf?.has_color ?? false,
   };
 
   const { data: existingFields } = await supabase.from('section_fields').select('category').eq('section_id', sectionId);
