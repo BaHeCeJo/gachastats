@@ -15,11 +15,17 @@ type PageProps = {
 export default async function GameCollectionPage({ params: paramsPromise }: PageProps) {
   const params = await paramsPromise;
   const { gameSlug } = params;
+  
+  console.log(`[DEBUG] Entering GameCollectionPage for slug: ${gameSlug}`);
+  
   const supabase = await createClient();
 
   // Fetch current user
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/auth/signin");
+  if (!user) {
+    console.log("[DEBUG] GameCollectionPage: No user found, redirecting to signin");
+    redirect("/auth/signin");
+  }
 
   // Fetch game details
   const { data: game, error: gameError } = await supabase
@@ -28,7 +34,12 @@ export default async function GameCollectionPage({ params: paramsPromise }: Page
     .eq("slug", gameSlug)
     .single();
 
-  if (gameError || !game) redirect("/profile");
+  if (gameError || !game) {
+    console.log(`[DEBUG] GameCollectionPage: Game not found or error: ${gameError?.message}. Redirecting to /profile`);
+    redirect("/profile");
+  }
+
+  console.log(`[DEBUG] GameCollectionPage: Found game ${game.id}`);
 
   // Fetch ONLY collectible sections for this game
   const { data: sections } = await supabase
@@ -45,15 +56,14 @@ export default async function GameCollectionPage({ params: paramsPromise }: Page
   // --- Language Detection ---
   const headersList = await headers();
   const cookieStore = await cookies();
-  const userLang = cookieStore.get('user_lang')?.value;
-  const acceptLanguage = headersList.get('Accept-Language');
+  const userLang = (await cookieStore).get('user_lang')?.value;
+  const acceptLanguage = (await headersList).get('Accept-Language');
   const browserLang = acceptLanguage ? acceptLanguage.split(',')[0].split('-')[0].toLowerCase() : 'en';
   const preferredLang = userLang || browserLang;
   const currentLang = game.supported_languages.includes(preferredLang) ? preferredLang : game.default_lang;
 
   return (
     <div className="relative flex flex-col min-h-screen bg-black font-sans text-white overflow-x-hidden">
-      {/* Background Cover */}
       <div className="fixed inset-0 pointer-events-none z-[1] overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-center grayscale blur-md opacity-25 scale-105 transition-all duration-1000 ease-out"
@@ -109,7 +119,6 @@ export default async function GameCollectionPage({ params: paramsPromise }: Page
                         href={`/profile/${game.slug}/sections/${section.id}`}
                         className="group relative flex items-center gap-6 p-8 bg-zinc-800/40 border-2 border-zinc-700/50 rounded-[2.5rem] hover:border-[#22c55e] transition-all duration-500 hover:shadow-2xl hover:shadow-[#22c55e]/10 overflow-hidden"
                       >
-                        {/* Glow effect on hover */}
                         <div className="absolute inset-0 bg-gradient-to-br from-[#22c55e]/0 to-[#22c55e]/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                         
                         <div className="relative z-10 w-20 h-20 rounded-2xl bg-black/60 flex items-center justify-center border border-zinc-700 group-hover:border-[#22c55e]/30 transition-colors">

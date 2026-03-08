@@ -1,7 +1,8 @@
 import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
-import { createPublicClient } from './server';
+import { createPublicClient, createClient } from './server';
 import { slugify } from '../utils/slugify';
+import { safeGet } from '../localization-utils';
 
 export type LocalizedString = Record<string, string>;
 
@@ -56,11 +57,11 @@ export interface SectionField {
   category: string | null;
   order_index: number;
   game_field_id: string;
-  game_fields: GameField;
+  game_fields: GameField | GameField[];
 }
 
 export interface EntityFieldValue {
-  id: string;
+  id?: string;
   game_field_id: string;
   value_text: string | LocalizedString | null;
   option_id: string | null;
@@ -243,7 +244,7 @@ export async function resolveSectionBySlug(gameId: string, sectionSlug: string, 
     .eq("game_id", gameId);
 
   const matched = (sections || []).find(s => {
-    const key = s.key[gameDefaultLang] || s.key['en'] || '';
+    const key = safeGet(s.key as LocalizedString, gameDefaultLang) || safeGet(s.key as LocalizedString, 'en') || '';
     return slugify(key) === sectionSlug;
   });
 
@@ -261,7 +262,7 @@ export async function resolveEntityBySlug(sectionId: string, entitySlug: string,
     .eq("section_id", sectionId);
 
   const matched = (entities || []).find(e => {
-    const name = e.name[gameDefaultLang] || e.name['en'] || '';
+    const name = safeGet(e.name as LocalizedString, gameDefaultLang) || safeGet(e.name as LocalizedString, 'en') || '';
     return slugify(name) === entitySlug;
   });
 
@@ -457,6 +458,43 @@ export const getSectionEntitiesLibrary = cache(async (sectionId: string) => {
     { revalidate: 3600, tags: [`section-entities-${sectionId}`] }
   )();
 });
+
+/**
+ * Optimized fetch for a user's collection in a specific section.
+ * Combines entity data, field values, and ownership status.
+ * Authenticated: Respects RLS.
+ */
+export const getUserSectionCollection = cache(async (sectionId: string, userId: string, defaultLang: string) => {
+  const supabase = await createClient();
+  
+  // Note: We use React cache() for per-request deduplication.
+  // We avoid unstable_cache here because it runs in a background context 
+  // without the user's session cookies, which RLS requires.
+  return supabase.from("section_entities").select(`
+    id, 
+    section_id, 
+    name, 
+    icon_path,
+    entity_skins ( 
+      entity_images ( image_path, type ) 
+    ),
+    entity_field_values ( 
+      game_field_id, 
+      value_text, 
+      option_id, 
+      field_options ( color, icon_path, value_key ) 
+    ),
+    user_entities!left (
+      id,
+      dupes
+    )
+  `)
+  .eq("section_id", sectionId)
+  .eq("user_entities.user_id", userId)
+  .eq("entity_skins.is_default", true)
+  .order(`name->>${defaultLang}`, { ascending: true });
+});
+
 export const getEntityTeams = cache(async (entityId: string) => {
   return unstable_cache(
     async () => {

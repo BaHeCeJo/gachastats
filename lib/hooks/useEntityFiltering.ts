@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { getTranslatedField } from "@/lib/localization";
-import { LocalizedString } from "@/lib/types";
+import { LocalizedString } from "@/lib/supabase/queries";
 
 export interface Entity {
   id: string;
@@ -19,9 +19,12 @@ export function useEntityFiltering<T extends Entity>(
   const toggleFilter = (fieldId: string, value: string) => {
     setActiveFilters((prev) => {
       const next = { ...prev };
+      // eslint-disable-next-line security/detect-object-injection
       if (next[fieldId] === value) {
+        // eslint-disable-next-line security/detect-object-injection
         delete next[fieldId];
       } else {
+        // eslint-disable-next-line security/detect-object-injection
         next[fieldId] = value;
       }
       return next;
@@ -38,7 +41,8 @@ export function useEntityFiltering<T extends Entity>(
 
       // Apply Filters
       for (const [fieldId, value] of Object.entries(activeFilters)) {
-        const entityValues = entity.allValues[fieldId] || [];
+        // eslint-disable-next-line security/detect-object-injection
+        const entityValues = (entity.allValues as Record<string, string[]>)[fieldId] || [];
         if (!entityValues.includes(value)) return false;
       }
       return true;

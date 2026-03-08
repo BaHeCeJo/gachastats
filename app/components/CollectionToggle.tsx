@@ -1,87 +1,60 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useCallback } from "react";
 import { toggleCollectionEntityAction } from "@/lib/actions/collection";
-import { checkEntityOwnership } from "@/lib/services/collection.service";
-import { useLocalizationParams } from "@/lib/localization";
 import { Check, Plus, Loader2 } from "lucide-react";
+import { useLocalizationParams } from "@/lib/localization";
 
-export default function CollectionToggle({ 
-  entityId, 
-  initialIsOwned 
-}: { 
-  entityId: string; 
+interface CollectionToggleProps {
+  entityId: string;
   initialIsOwned: boolean;
-}) {
-  const [isOwned, setIsOwned] = useState(initialIsOwned);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isPending, startTransition] = useTransition();
+}
+
+export default function CollectionToggle({
+  entityId,
+  initialIsOwned,
+}: CollectionToggleProps) {
   const { t } = useLocalizationParams();
+  const [isOwned, setIsOwned] = useState(initialIsOwned);
+  const [isPending, startTransition] = useTransition();
 
-  // Perform client-side check on mount to handle static page hydration
-  useEffect(() => {
-    async function checkOwnership() {
-      try {
-        const result = await checkEntityOwnership(entityId);
-        setIsOwned(result.owned);
-        setIsAuthenticated(!!result.authenticated);
-      } catch (err) {
-        console.error("Failed to check ownership:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    checkOwnership();
-  }, [entityId]);
-
-  const handleToggle = () => {
-    if (!isAuthenticated) {
-      alert("You must be logged in to manage your collection");
-      return;
-    }
-
+  const handleToggle = useCallback(async () => {
     startTransition(async () => {
+      // Toggle logic: if isOwned is true, we are removing.
       const result = await toggleCollectionEntityAction(entityId, isOwned);
       if (result.success) {
         setIsOwned(!isOwned);
       } else {
-        alert(result.error || "Something went wrong");
+        alert(result.error || "Failed to update collection");
       }
     });
+  }, [entityId, isOwned]);
+
+  const renderIcon = () => {
+    if (isPending) return <Loader2 className="w-4 h-4 animate-spin" />;
+    return isOwned ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />;
   };
 
-  // Don't show the button if we are not authenticated (for public visitors)
-  if (!isLoading && !isAuthenticated) return null;
+  const renderText = () => {
+    if (isOwned) return t('removeFromCollection');
+    return t('addToCollection');
+  };
+
+  const buttonBaseClass = "flex items-center gap-2 px-4 py-2 rounded-full font-bold transition-all duration-300";
+  const buttonStateClass = isOwned 
+    ? "bg-[#22c55e] text-black hover:bg-red-500 hover:text-white" 
+    : "bg-zinc-800 text-zinc-400 hover:bg-[#22c55e] hover:text-black";
 
   return (
     <button
       onClick={handleToggle}
-      disabled={isPending || isLoading}
-      className={`
-        flex items-center gap-2 px-6 py-2.5 rounded-full font-bold uppercase tracking-widest text-xs transition-all
-        ${isOwned 
-          ? "bg-[#22c55e] text-black hover:bg-red-500 hover:text-white group" 
-          : "bg-zinc-900 text-white border border-zinc-800 hover:border-[#22c55e] hover:text-[#22c55e]"
-        }
-        disabled:opacity-50 disabled:cursor-not-allowed
-        min-w-[160px] justify-center
-      `}
+      disabled={isPending}
+      className={`${buttonBaseClass} ${buttonStateClass} disabled:opacity-50`}
     >
-      {isPending || isLoading ? (
-        <Loader2 className="w-4 h-4 animate-spin" />
-      ) : isOwned ? (
-        <>
-          <Check className="w-4 h-4 group-hover:hidden" />
-          <span className="group-hover:hidden">{t('owned')}</span>
-          <span className="hidden group-hover:inline">{t('removeFromCollection')}</span>
-        </>
-      ) : (
-        <>
-          <Plus className="w-4 h-4" />
-          <span>{t('addToCollection')}</span>
-        </>
-      )}
+      {renderIcon()}
+      <span className={isOwned ? "hidden group-hover:inline" : ""}>
+        {renderText()}
+      </span>
     </button>
   );
 }

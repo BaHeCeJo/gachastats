@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
-import { LocalizedString } from "@/lib/types";
+import { LocalizedString } from "@/lib/supabase/queries";
 import { slugify } from "@/lib/utils/slugify";
 import { smartUpdateImage, deleteAssets } from "@/lib/services/storage.service";
 
@@ -26,6 +26,7 @@ export async function upsertGameAction(formData: FormData) {
   const defaultLang = formData.get("default_lang") as string;
   const supportedLanguages = JSON.parse(formData.get("supported_languages") as string) as string[];
 
+  // eslint-disable-next-line security/detect-object-injection
   if (!rawName[defaultLang]) {
     return { error: `Name for default language (${defaultLang.toUpperCase()}) is required.` };
   }
@@ -50,10 +51,13 @@ export async function upsertGameAction(formData: FormData) {
     const { error } = await supabase.from("games").update(gameData).eq("id", gameId);
     if (error) return { error: `Failed to update game: ${error.message}` };
   } else {
-    const { error } = await supabase.from("games").insert({ ...gameData, slug: slugify(rawName[defaultLang]) });
+    // eslint-disable-next-line security/detect-object-injection
+    const slug = slugify(rawName[defaultLang]);
+    const { error } = await supabase.from("games").insert({ ...gameData, slug });
     if (error) return { error: `Failed to create game: ${error.message}` };
   }
 
+  // eslint-disable-next-line security/detect-object-injection
   const slug = gameId ? formData.get("slug") as string : slugify(rawName[defaultLang]);
   if (slug) updateTag(`game-${slug}`);
   
@@ -98,4 +102,3 @@ export async function deleteGameAction(gameId: string) {
   revalidatePath("/");
   redirect("/admin/games");
 }
-

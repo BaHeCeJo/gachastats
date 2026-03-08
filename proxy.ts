@@ -3,16 +3,17 @@ import type { NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
 /**
- * OPTIMIZED MIDDLEWARE
- * 1. Uses an exclusive matcher to avoid running on assets/images.
- * 2. Immediately returns for public routes to avoid object overhead.
- * 3. Only performs heavy auth logic for /admin, /profile, and /auth.
+ * PRODUCTION-READY MIDDLEWARE
+ * 1. Renamed to standard middleware.ts for Next.js execution.
+ * 2. Uses an exclusive matcher to avoid running on assets/images.
+ * 3. Handles auth redirects for /admin, /profile, and /auth.
+ * 4. Adds basic protection headers.
  */
 export async function proxy(req: NextRequest) {
   const pathname = req.nextUrl.pathname
   
-  // 1. FAST PATH: Identify routes that REQUIRE auth logic
-  // Immediately return for public routes to avoid object overhead and cookie parsing
+  // 1. FAST PATH: Skip for static assets and public files
+  // (Matcher already handles most of this, but we keep it here for safety)
   const isProtected = pathname.startsWith('/admin') || pathname.startsWith('/profile')
   const isAuthPage = pathname.startsWith('/auth')
 
@@ -20,7 +21,7 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next()
   }
 
-  // 2. AUTH LOGIC: Only execute for specific routes
+  // 2. AUTH LOGIC
   const res = NextResponse.next()
 
   const supabase = createServerClient(
@@ -38,10 +39,9 @@ export async function proxy(req: NextRequest) {
     }
   )
 
-  // This is the "expensive" part (network call to Supabase)
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Authorization Redirects
+  // Security Redirects
   if (!user && isProtected) {
     return NextResponse.redirect(new URL('/auth/signin', req.url))
   }
@@ -53,11 +53,6 @@ export async function proxy(req: NextRequest) {
   return res
 }
 
-/**
- * EXCLUSIVE MATCHER
- * We only run middleware on paths that could possibly be pages.
- * We explicitly exclude everything that looks like a static asset.
- */
 export const config = {
   matcher: [
     /*

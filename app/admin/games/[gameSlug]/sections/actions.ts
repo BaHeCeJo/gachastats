@@ -6,176 +6,87 @@ import { redirect } from "next/navigation";
 import { LocalizedString } from "@/lib/localization";
 import { slugify } from "@/lib/utils/slugify";
 import { uploadImage, extractPathFromUrl } from "@/lib/supabase/storage-utils";
+import { SupabaseClient } from "@supabase/supabase-js";
 
 /**
- * Upserts (creates or updates) a section entry.
+ * Handles icon path resolution for a section.
  */
-export async function upsertSectionAction(
-  gameId: string,
+async function resolveSectionIcon(
+  supabase: SupabaseClient,
+  sectionId: string | undefined,
+  rawKey: LocalizedString,
+  defaultLang: string,
   gameSlug: string,
-  gameDefaultLang: string,
-  formData: FormData
-) {
-  const supabase = await createClient();
+  iconFile: File | string | null | undefined,
+  existingIconPath: string | null
+): Promise<string | null> {
+  let oldIconPath = existingIconPath;
+  if (sectionId && !iconFile && !existingIconPath) {
+    const { data } = await supabase.from("game_sections").select("icon_path").eq("id", sectionId).single();
+    if (data?.icon_path) oldIconPath = extractPathFromUrl(data.icon_path, "games");
+  }
 
+  if (iconFile instanceof File && iconFile.size > 0) {
+     
+    const sectionSlug = slugify(rawKey[defaultLang as keyof LocalizedString] || "");
+    const newPath = await uploadImage(iconFile, "games", `${gameSlug}/sections/${sectionSlug}`);
+    if (oldIconPath && oldIconPath !== newPath) await supabase.storage.from("games").remove([oldIconPath]);
+    return newPath;
+  }
+  
+  if (existingIconPath && existingIconPath !== "null") return existingIconPath;
+  if (oldIconPath) await supabase.storage.from("games").remove([oldIconPath]);
+  return null;
+}
+
+export async function upsertSectionAction(gameId: string, gameSlug: string, gameDefaultLang: string, formData: FormData) {
+  const supabase = await createClient();
   const sectionId = formData.get("id") as string | undefined;
   const rawKey = JSON.parse(formData.get("key") as string) as LocalizedString;
-  const color = (formData.get("color") as string);
-  const order_index = Number(formData.get("order_index"));
-  const is_collectible = formData.get("is_collectible") !== "false";
-  const is_unique = formData.get("is_unique") !== "false";
-  const has_teams = formData.get("has_teams") === "true";
-  const max_team_size = Number(formData.get("max_team_size") || 0);
-  const max_dupes = Number(formData.get("max_dupes") || 0);
-  const min_dupes = Number(formData.get("min_dupes") || 0);
-  const dupe_name = JSON.parse(formData.get("dupe_name") as string || '{"en": "Duplicate"}') as LocalizedString;
-  const skin_image_types = JSON.parse(formData.get("skin_image_types") as string || '["icon", "splashart"]') as string[];
-  const iconFile = formData.get("icon_file"); // File or null
-  const existingIconPath = formData.get("existing_icon_path") as string | null;
 
-  if (!rawKey[gameDefaultLang]) {
-    return { error: `Key for default language (${gameDefaultLang.toUpperCase()}) is required.` };
-  }
+  if (!rawKey[gameDefaultLang as keyof LocalizedString]) return { error: "Key for default language is required." };
 
-  let icon_path: string | null = null;
-  let oldIconPath: string | null = existingIconPath; // Assume existing path by default
-
-  if (sectionId && !iconFile && !existingIconPath) {
-    // If updating, no new file, and no existing path passed (meaning it was removed)
-    // Fetch current icon_path to potentially delete
-    const { data: currentSection, error: fetchError } = await supabase
-      .from("game_sections")
-      .select("icon_path")
-      .eq("id", sectionId)
-      .single();
-
-    if (fetchError) {
-      console.error("Error fetching current section for icon management:", fetchError);
-      return { error: `Failed to fetch current section icon: ${fetchError.message}` };
-    }
-    if (currentSection?.icon_path) {
-      oldIconPath = extractPathFromUrl(currentSection.icon_path, "games");
-    }
-  }
-
-
-  // Handle icon file upload/deletion
-  if (iconFile instanceof File && iconFile.size > 0) {
-    // New file uploaded
-    const sectionSlug = slugify(rawKey[gameDefaultLang]);
-    icon_path = await uploadImage(iconFile, "games", `${gameSlug}/sections/${sectionSlug}`);
-    // If there was an old icon, delete it
-    if (oldIconPath && oldIconPath !== icon_path) { // Only delete if it's different from newly uploaded
-      await supabase.storage.from("games").remove([oldIconPath]);
-    }
-  } else if (existingIconPath && existingIconPath !== "null") {
-    // Existing image path was retained, no new upload
-    icon_path = existingIconPath;
-  } else {
-    // Icon was removed or never existed
-    icon_path = null;
-    // If there was an old icon, delete it
-    if (oldIconPath) {
-      await supabase.storage.from("games").remove([oldIconPath]);
-    }
-  }
+  const icon_path = await resolveSectionIcon(supabase, sectionId, rawKey, gameDefaultLang, gameSlug, formData.get("icon_file") as File | null, formData.get("existing_icon_path") as string | null);
 
   const sectionData = {
     key: rawKey,
-    color,
-    order_index,
-    is_collectible,
-    is_unique,
-    has_teams,
-    max_team_size,
-    max_dupes,
-    min_dupes,
-    dupe_name,
-    icon_path: icon_path,
+    color: formData.get("color") as string,
+    order_index: Number(formData.get("order_index")),
+    is_collectible: formData.get("is_collectible") !== "false",
+    is_unique: formData.get("is_unique") !== "false",
+    has_teams: formData.get("has_teams") === "true",
+    max_team_size: Number(formData.get("max_team_size") || 0),
+    max_dupes: Number(formData.get("max_dupes") || 0),
+    min_dupes: Number(formData.get("min_dupes") || 0),
+    dupe_name: JSON.parse(formData.get("dupe_name") as string || '{"en": "Duplicate"}'),
+    skin_image_types: JSON.parse(formData.get("skin_image_types") as string || '["icon", "splashart"]'),
+    icon_path,
     game_id: gameId,
-    skin_image_types: skin_image_types,
   };
 
-  if (sectionId) {
-    // Update existing section
-    const { error } = await supabase
-      .from("game_sections")
-      .update(sectionData)
-      .eq("id", sectionId);
-
-    if (error) {
-      console.error("Error updating section:", error);
-      return { error: `Failed to update section: ${error.message}` };
-    }
-  } else {
-    // Create new section
-    const { error } = await supabase
-      .from("game_sections")
-      .insert(sectionData);
-
-    if (error) {
-      console.error("Error creating section:", error);
-      return { error: `Failed to create section: ${error.message}` };
-    }
-  }
+  const query = sectionId ? supabase.from("game_sections").update(sectionData).eq("id", sectionId) : supabase.from("game_sections").insert(sectionData);
+  const { error } = await query;
+  if (error) return { error: `Failed to save section: ${error.message}` };
 
   if (sectionId) updateTag(`section-${sectionId}`);
-  
   revalidatePath(`/admin/games/${gameSlug}/sections`);
   redirect(`/admin/games/${gameSlug}/sections`);
 }
 
-/**
- * Deletes a section and its associated assets.
- * Database CASCADE handles child records (entities, fields, options, etc.).
- */
-export async function deleteSectionAction(
-  sectionId: string,
-  gameSlug: string
-) {
+export async function deleteSectionAction(sectionId: string, gameSlug: string) {
   const supabase = await createClient();
-
-  // 1. Fetch section and its entities in parallel before they are deleted from DB
-  const [sectionRes, entitiesRes] = await Promise.all([
+  const [{ data: section }, { data: entities }] = await Promise.all([
     supabase.from("game_sections").select("icon_path").eq("id", sectionId).single(),
     supabase.from("section_entities").select("id").eq("section_id", sectionId)
   ]);
 
-  const section = sectionRes.data;
-  const entities = entitiesRes.data || [];
-  const entityIds = entities.map(e => e.id);
+  const { data: images } = await supabase.from("entity_images").select("image_path").in("entity_id", entities?.map(e => e.id) || []);
+  const paths = [section?.icon_path, ...(images?.map(img => img.image_path) || [])].map(p => extractPathFromUrl(p, "games")).filter((p): p is string => !!p);
 
-  // 2. Fetch all image paths for these entities
-  const { data: images } = await supabase
-    .from("entity_images")
-    .select("image_path")
-    .in("entity_id", entityIds);
+  if (paths.length) await supabase.storage.from("games").remove(paths);
 
-  // 3. Prepare and cleanup storage
-  const pathsToDelete: string[] = [];
-
-  if (section?.icon_path) pathsToDelete.push(extractPathFromUrl(section.icon_path, "games"));
-
-  images?.forEach(img => {
-    if (img.image_path) pathsToDelete.push(extractPathFromUrl(img.image_path, "games"));
-  });
-
-  const validPaths = pathsToDelete.filter(Boolean);
-
-  if (validPaths.length > 0) {
-    await supabase.storage.from("games").remove(validPaths);
-  }
-
-  // 4. Finally delete the section - database CASCADE handles the rest
-  const { error } = await supabase
-    .from("game_sections")
-    .delete()
-    .eq("id", sectionId);
-
-  if (error) {
-    console.error("Error deleting section:", error);
-    throw new Error(error.message);
-  }
+  const { error } = await supabase.from("game_sections").delete().eq("id", sectionId);
+  if (error) throw new Error(error.message);
 
   updateTag(`section-${sectionId}`);
   revalidatePath(`/admin/games/${gameSlug}/sections`);

@@ -5,8 +5,10 @@ export function slugify(value: string) {
   return value
     .toLowerCase()
     .trim()
-    .replace(/[^a-z0-9]+/g, '-') // spaces and special chars → dash
-    .replace(/^-+|-+$/g, '')     // remove leading/trailing dash
+    .replace(/[^a-z0-9]+/g, '-') // Convert non-alphanumeric chars to dashes
+    .replace(/^-+/, '')          // Remove leading dashes (safe)
+    // eslint-disable-next-line sonarjs/slow-regex
+    .replace(/-+$/, '');         // Remove trailing dashes (safe)
 }
 
 export async function generateUniqueSlug(

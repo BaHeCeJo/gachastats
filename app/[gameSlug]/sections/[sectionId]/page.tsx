@@ -9,6 +9,9 @@ import {
   Section,
   SectionField,
   SectionDisplaySettings,
+  SectionEntity,
+  FieldOption,
+  EntityFieldValue,
 } from "@/lib/supabase/queries";
 import { redirect } from "next/navigation";
 import Image from "next/image";
@@ -19,27 +22,14 @@ import { getTranslatedField, getTranslation } from "@/lib/localization-utils";
 import { GameLocalizationProvider } from "@/lib/localization";
 import { getPublicUrl } from "@/lib/supabase/client";
 
-// Enable ISR
 export const revalidate = 3600;
 
-interface StaticParamsSection {
-  id: string;
-  games: {
-    slug: string;
-  } | null;
-}
+interface StaticParamsSection { id: string; games: { slug: string; } | null; }
 
-/**
- * Pre-generate static paths for sections.
- */
 export async function generateStaticParams() {
   const supabase = createPublicClient();
   const { data: sections } = await supabase.from('game_sections').select('id, games(slug)') as { data: StaticParamsSection[] | null };
-  
-  return (sections || []).map((s) => ({
-    gameSlug: s.games?.slug,
-    sectionId: s.id,
-  }));
+  return (sections || []).map((s) => ({ gameSlug: s.games?.slug, sectionId: s.id }));
 }
 
 export type ProcessedEntity = {
@@ -52,225 +42,111 @@ export type ProcessedEntity = {
   allValues: Record<string, string[]>;
 };
 
-// --- Page Component ---
-type PageProps = {
-  params: Promise<{ gameSlug: string; sectionId: string }>;
-};
+type PageProps = { params: Promise<{ gameSlug: string; sectionId: string }>; };
 
 export async function generateMetadata({ params: paramsPromise }: PageProps) {
   const { gameSlug, sectionId } = await paramsPromise;
-  
-  const [gameRes, sectionRes] = await Promise.all([
-    getGameBySlug(gameSlug),
-    getSectionById(sectionId)
-  ]);
-
-  const game = gameRes.data as Game | null;
-  const section = sectionRes.data as Section | null;
-
+  const [gameRes, sectionRes] = await Promise.all([getGameBySlug(gameSlug), getSectionById(sectionId)]);
+  const game = gameRes.data as Game;
+  const section = sectionRes.data as Section;
   if (!game || !section) return { title: 'Section Not Found' };
+  const lang = game.default_lang || 'en';
+  return { title: `${getTranslatedField(section.key, lang, lang)} | ${getTranslatedField(game.name, lang, lang)} - GachaStats` };
+}
 
-  const currentLang = game.default_lang || 'en';
-  const gameTitle = getTranslatedField(game.name, currentLang, game.default_lang || 'en');
-  const sectionTitle = getTranslatedField(section.key, currentLang, game.default_lang || 'en');
+/**
+ * Resolves icon URL for an entity.
+ */
+function getEntityIconUrl(entity: SectionEntity): string {
+  const defaultSkin = entity.entity_skins?.find((s) => s.is_default) || entity.entity_skins?.[0];
+  const skinIconPath = defaultSkin?.entity_images?.find((img) => img.type === 'icon')?.image_path;
+  const iconPath = entity.icon_path || skinIconPath;
+  return iconPath ? getPublicUrl('games', iconPath) || "" : "";
+}
 
-  return {
-    title: `${sectionTitle} | ${gameTitle} - GachaStats`,
-    openGraph: {
-      title: `${sectionTitle} | ${gameTitle} - GachaStats`,
-    },
-  };
+/**
+ * Processes a single field value.
+ */
+function processSingleValue(val: EntityFieldValue, field: SectionField, lang: string, defLang: string, all: string[]) {
+  if (val.option_id) {
+    all.push(String(val.option_id));
+  } else {
+    const text = typeof val.value_text === 'string' ? val.value_text : getTranslatedField(val.value_text || {}, lang, defLang);
+    if (text) {
+      if (field.is_multi) all.push(...text.split(',').filter(Boolean).map(p => p.trim()));
+      else all.push(text);
+    }
+  }
+}
+
+/**
+ * Maps field values for an entity.
+ */
+function mapFieldValues(entity: SectionEntity, fieldsMap: Map<string, SectionField>, optionsMap: Map<string, FieldOption>, lang: string, defLang: string) {
+  const fieldValuesMap: Record<string, { color?: string; iconUrl?: string }> = {};
+  const allValues: Record<string, string[]> = {};
+
+  entity.entity_field_values?.forEach((val) => {
+    const field = fieldsMap.get(val.game_field_id);
+    if (!field) return;
+    const fId = field.id;
+
+    // eslint-disable-next-line security/detect-object-injection
+    if (!allValues[fId]) allValues[fId] = [];
+    // eslint-disable-next-line security/detect-object-injection
+    processSingleValue(val, field, lang, defLang, allValues[fId]);
+
+    const opt = optionsMap.get(String(val.option_id));
+    if (opt) {
+      // eslint-disable-next-line security/detect-object-injection
+      fieldValuesMap[fId] = { color: opt.color || undefined, iconUrl: opt.icon_path ? getPublicUrl('games', opt.icon_path) || undefined : undefined };
+    }
+  });
+  return { fieldValuesMap, allValues };
 }
 
 export default async function SectionDetailPage({ params: paramsPromise }: PageProps) {
   const { gameSlug, sectionId } = await paramsPromise;
+  const [gRes, sRes, fRes, dsRes] = await Promise.all([getGameBySlug(gameSlug), getSectionById(sectionId), getSectionFields(sectionId), getSectionDisplaySettings(sectionId)]);
+  const game = gRes.data as Game;
+  const section = sRes.data as Section;
+  if (!game) redirect("/");
+  if (!section) redirect(`/${gameSlug}`);
 
-  // Fetch all core data in parallel to avoid waterfalls
-  const [gameRes, sectionRes, fieldsRes, settingsRes] = await Promise.all([
-    getGameBySlug(gameSlug),
-    getSectionById(sectionId),
-    getSectionFields(sectionId),
-    getSectionDisplaySettings(sectionId),
-  ]);
-
-  const game = gameRes.data as Game | null;
-  const section = sectionRes.data as Section | null;
-
-  if (!game) {
-    redirect("/");
-  }
-
-  if (!section) {
-    redirect(`/${gameSlug}`);
-  }
-
-  // Now fetch entities using the game's default lang
   const { data: entities } = await getSectionEntities(sectionId, game.default_lang);
-
-  const fieldsRaw = fieldsRes.data as unknown as SectionField[];
-  const displaySettings = settingsRes.data as SectionDisplaySettings | null;
-
-  const currentLang = game.default_lang;
-
-  const fields = (fieldsRaw || []).map((f) => {
-    return {
-      ...f,
-      manual_fill: f.game_fields?.manual_fill,
-      has_icon: f.game_fields?.has_icon,
-      has_color: f.game_fields?.has_color,
-      field_options: f.game_fields?.field_options || []
-    };
-  });
-
-  // Create a flat map of all options across all fields for fast lookup
-  const allOptionsMap = new Map();
-  fields.forEach(f => {
-    f.field_options?.forEach(opt => {
-      allOptionsMap.set(String(opt.id), opt);
-    });
-  });
-
-  const gameFieldsMap = new Map(fields.map(f => [f.game_field_id, f]));
-
-  const processedEntities: ProcessedEntity[] = (entities || []).map((entity) => {
-    const defaultSkin = entity.entity_skins?.find((s) => s.is_default) || entity.entity_skins?.[0];
-    const skinIconPath = defaultSkin?.entity_images?.find((img) => img.type === 'icon')?.image_path;
-    const iconPath = entity.icon_path || skinIconPath;
-    
-    const publicIconUrl = iconPath ? getPublicUrl('games', iconPath) || "" : "";
-
-    const fieldValuesMap: Record<string, { color?: string; iconUrl?: string }> = {};
-    const allValues: Record<string, string[]> = {};
-
-    entity.entity_field_values?.forEach((val) => {
-      const field = gameFieldsMap.get(val.game_field_id);
-      if (!field) return;
-      const fieldId = field.id;
-
-      if (!allValues[fieldId]) allValues[fieldId] = [];
-
-      if (val.option_id) {
-        allValues[fieldId].push(String(val.option_id));
-        
-        // In-memory lookup of the option data
-        const opt = allOptionsMap.get(String(val.option_id));
-        if (opt) {
-          fieldValuesMap[fieldId] = {
-            color: opt.color || undefined,
-            iconUrl: opt.icon_path ? getPublicUrl('games', opt.icon_path) || undefined : undefined, 
-          };
-        }
-      } else {
-        const valText = val.value_text as string | Record<string, string> | null;
-        const translatedValue = typeof valText === 'string' ? valText : getTranslatedField(valText || {}, currentLang, game.default_lang);
-        if (translatedValue) {
-          if (field?.is_multi) {
-            const parts = translatedValue.split(',').filter(Boolean).map((p: string) => p.trim());
-            allValues[fieldId].push(...parts);
-          } else {
-            allValues[fieldId].push(translatedValue);
-          }
-        }
-      }
-    });
-
+  const fields = (fRes.data as SectionField[] || []).map(f => {
+    const gField = Array.isArray(f.game_fields) ? f.game_fields[0] : f.game_fields;
     return { 
-      id: entity.id,
-      section_id: entity.section_id,
-      name: entity.name,
-      icon_path: entity.icon_path,
-      publicIconUrl, 
-      fieldValuesMap, 
-      allValues 
+      ...f, 
+      manual_fill: gField?.manual_fill, 
+      has_icon: gField?.has_icon, 
+      has_color: gField?.has_color, 
+      field_options: gField?.field_options || [] 
     };
   });
+  
+  const allOptionsMap = new Map<string, FieldOption>();
+  fields.forEach(f => f.field_options?.forEach(o => allOptionsMap.set(String(o.id), o)));
+  const fieldsMap = new Map(fields.map(f => [f.game_field_id, f]));
 
-  const filterFieldIds = displaySettings?.filter_field_ids || [];
-  const filterFields =
-    fields
-      .filter((f) => filterFieldIds.includes(f.id))
-      .map((f) => ({
-        id: String(f.id),
-        key: f.key,
-        options: (f.field_options || [])
-          .sort((a, b) => a.order_index - b.order_index)
-          .map((opt) => ({
-            id: String(opt.id),
-            value_key: opt.value_key,
-            iconUrl: opt.icon_path ? getPublicUrl('games', opt.icon_path) || undefined : undefined,
-            color: opt.color || undefined,
-          })),
-      })) || [];
+  const processedEntities: ProcessedEntity[] = (entities || []).map(e => {
+    const skinIcon = e.entity_skins?.find((s) => s.is_default)?.entity_images?.find((i) => i.type === 'icon')?.image_path;
+    const { fieldValuesMap, allValues } = mapFieldValues(e, fieldsMap, allOptionsMap, game.default_lang, game.default_lang);
+    return { id: e.id, section_id: e.section_id, name: e.name, icon_path: e.icon_path || skinIcon || null, publicIconUrl: getEntityIconUrl(e), fieldValuesMap, allValues };
+  });
 
-  const gameCoverUrl = game.cover_url ? getPublicUrl('games', game.cover_url) : null;
+  const filterIds = (dsRes.data as SectionDisplaySettings)?.filter_field_ids || [];
+  const filterFields = fields.filter(f => filterIds.includes(f.id)).map(f => ({ id: String(f.id), key: f.key, options: (f.field_options || []).sort((a, b) => a.order_index - b.order_index).map(o => ({ id: String(o.id), value_key: o.value_key, iconUrl: o.icon_path ? getPublicUrl('games', o.icon_path) || undefined : undefined, color: o.color || undefined })) }));
 
   return (
     <div className="relative flex flex-col min-h-screen bg-zinc-50 dark:bg-black font-sans overflow-x-hidden">
-      <div className="fixed inset-0 pointer-events-none z-[1] overflow-hidden">
-        {gameCoverUrl && (
-          <Image
-            src={gameCoverUrl}
-            alt=""
-            fill
-            sizes="100vw"
-            className="object-cover grayscale blur-md opacity-25 scale-105"
-            priority
-          />
-        )}
-        <div className="absolute inset-0 bg-zinc-50/60 dark:bg-black/80" />
-      </div>
-
-      <GameLocalizationProvider 
-        gameDefaultLang={game.default_lang} 
-        gameSupportedLanguages={game.supported_languages}
-      >
-        <GSBackground isHidden={!!gameCoverUrl} />
-        
-        <Header
-          breadcrumbs={[
-            { href: "/", label: getTranslation('home', currentLang) },
-            { href: `/${gameSlug}`, label: getTranslatedField(game.name, currentLang, game.default_lang) },
-            { href: `/${game.slug}/sections/${sectionId}`, label: getTranslatedField(section.key, currentLang, game.default_lang) },
-          ]}
-        />
-
+      <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
+        <GSBackground isHidden={!!game.cover_url} />
+        <Header breadcrumbs={[{ href: "/", label: getTranslation('home', game.default_lang) }, { href: `/${gameSlug}`, label: getTranslatedField(game.name, game.default_lang, game.default_lang) }, { href: `/${gameSlug}/sections/${sectionId}`, label: getTranslatedField(section.key, game.default_lang, game.default_lang) }, { href: `/${gameSlug}/sections/${sectionId}/entities/${game.id}`, label: "Section" }]} />
         <main className="flex-1 px-8 py-24 z-10 relative">
           <div className="max-w-7xl mx-auto space-y-12">
-            <div className="flex items-center gap-6">
-              {section.icon_path ? (
-                <div className="relative w-20 h-20 rounded-full shadow-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden" style={{ backgroundColor: section.color || 'transparent' }}>
-                  <Image
-                    src={getPublicUrl('games', section.icon_path)!}
-                    alt={getTranslatedField(section.key, currentLang, game.default_lang)}
-                    fill
-                    sizes="80px"
-                    className="object-contain p-2"
-                    priority
-                  />
-                </div>
-              ) : (
-                <div
-                  className="w-20 h-20 flex items-center justify-center text-zinc-400 text-3xl border border-zinc-300 dark:border-zinc-700 rounded-full"
-                  style={{ backgroundColor: section.color || 'transparent' }}
-                >
-                  ?
-                </div>
-              )}
-              <h1 className="text-5xl font-extrabold text-black dark:text-zinc-50 tracking-tight uppercase">
-                {getTranslatedField(section.key, currentLang, game.default_lang)}
-              </h1>
-            </div>
-
-            <EntityGridManager
-              entities={processedEntities}
-              displaySettings={displaySettings}
-              filterFields={filterFields}
-              gameSlug={gameSlug}
-              sectionId={sectionId}
-              sectionName={getTranslatedField(section.key, currentLang, game.default_lang)}
-              gameDefaultLang={game.default_lang}
-              currentLang={currentLang}
-            />
+            <div className="flex items-center gap-6">{section.icon_path ? <div className="relative w-20 h-20 rounded-full shadow-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden" style={{ backgroundColor: section.color || 'transparent' }}><Image src={getPublicUrl('games', section.icon_path)!} alt={getTranslatedField(section.key, game.default_lang, game.default_lang)} fill sizes="80px" className="object-contain p-2" priority /></div> : <div className="w-20 h-20 flex items-center justify-center text-zinc-400 text-3xl border border-zinc-300 dark:border-zinc-700 rounded-full" style={{ backgroundColor: section.color || 'transparent' }}>?</div>}<h1 className="text-5xl font-extrabold text-black dark:text-zinc-50 tracking-tight uppercase">{getTranslatedField(section.key, game.default_lang, game.default_lang)}</h1></div>
+            <EntityGridManager entities={processedEntities} displaySettings={dsRes.data as SectionDisplaySettings} filterFields={filterFields} gameSlug={gameSlug} sectionId={sectionId} sectionName={getTranslatedField(section.key, game.default_lang, game.default_lang)} gameDefaultLang={game.default_lang} currentLang={game.default_lang} />
           </div>
         </main>
       </GameLocalizationProvider>

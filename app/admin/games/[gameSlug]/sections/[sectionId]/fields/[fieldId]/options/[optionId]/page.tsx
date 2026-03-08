@@ -65,14 +65,14 @@ export default async function EditFieldOptionPage({ params: paramsPromise }: Pag
 
   if (!fieldRaw) redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields`);
 
+  const gf = Array.isArray(fieldRaw.game_fields) ? fieldRaw.game_fields[0] : fieldRaw.game_fields;
   const field = {
     id: fieldRaw.id,
     key: fieldRaw.key,
-    manual_fill: fieldRaw.game_fields?.manual_fill ?? false,
-    has_icon: fieldRaw.game_fields?.has_icon ?? false,
-    has_color: fieldRaw.game_fields?.has_color ?? false,
+    manual_fill: gf?.manual_fill ?? false,
+    has_icon: gf?.has_icon ?? false,
+    has_color: gf?.has_color ?? false,
   };
-
   const { data: option } = await supabase.from('field_options').select('*').eq('id', optionId).single() as { data: OptionData | null };
   if (!option) redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields/${fieldId}/options`);
 

@@ -7,10 +7,11 @@ import { useLocalizationParams } from "@/lib/localization";
 type Props = {
   name: string; // The name for the file input in case it's directly used in a form
   onFileChange: (file: File | null) => void;
-  existingImageUrl: string | null; // Full public URL of the existing image
+  existingImageUrl?: string | null; // Full public URL of the existing image
   onRemoveExisting?: () => void; // Callback when existing image is explicitly removed
   className?: string;
   label?: string;
+  hidePreview?: boolean;
 };
 
 export default function ImageInput({
@@ -20,6 +21,7 @@ export default function ImageInput({
   onRemoveExisting,
   className,
   label,
+  hidePreview = false,
 }: Props) {
   const { t } = useLocalizationParams();
   const [file, setFile] = useState<File | null>(null);
@@ -65,7 +67,7 @@ export default function ImageInput({
         {displayLabel}
       </label>
       <div className="mt-1 flex items-center space-x-4">
-        {previewUrl && (
+        {previewUrl && !hidePreview && (
           <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-zinc-700 bg-zinc-800 flex-shrink-0">
             <Image src={previewUrl} alt={t('imagePreview')} fill className="object-cover" />
             <button

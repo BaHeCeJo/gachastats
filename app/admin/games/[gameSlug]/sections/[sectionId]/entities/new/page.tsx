@@ -48,7 +48,7 @@ export default async function NewEntityPage({ params: paramsPromise }: PageProps
     : { data: [] };
 
   const fields = (fieldsRaw || []).map(f => {
-    const gf = f.game_fields;
+    const gf = Array.isArray(f.game_fields) ? f.game_fields[0] : f.game_fields;
     const options = (allOptions || []).filter((opt) => opt.game_field_id === f.game_field_id);
     return {
       ...f,
