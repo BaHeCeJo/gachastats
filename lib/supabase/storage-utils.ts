@@ -10,11 +10,13 @@ export function extractPathFromUrl(url: string, bucket: string): string {
   // If it's already a relative path (doesn't start with http), return as is
   if (!url.startsWith("http")) return url;
 
-  const searchStr = `/${bucket}/`;
+  const searchStr = `/storage/v1/object/public/${bucket}/`;
   if (!url.includes(searchStr)) return "";
 
   const parts = url.split(searchStr);
-  return parts[parts.length - 1];
+  // We want everything AFTER the FIRST occurrence of the search string that matches the pattern
+  // In Supabase, the public URL pattern is very specific.
+  return parts.slice(1).join(searchStr);
 }
 
 /**

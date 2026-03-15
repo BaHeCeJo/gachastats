@@ -12,17 +12,355 @@ import { TeamData, TeamEntity, TeamFieldOption } from '@/app/components/teambuil
 import { LocalizedString, getTranslatedField, GameLocalizationProvider, useLocalizationParams } from "@/lib/localization";
 import Link from "next/link";
 import MissingTranslationIndicator from '@/app/components/MissingTranslationIndicator';
-import { Game, Section, SectionDisplaySettings } from '@/lib/supabase/queries';
+import { Game, Section, SectionDisplaySettings, SectionStat, SectionAscension, AbilityTemplate, AbilityDefinition } from '@/lib/supabase/queries';
 import { ProcessedEntity } from '@/app/[gameSlug]/sections/[sectionId]/page';
 
 import CreatableTagInput from '@/app/components/fields/CreatableTagInput';
+import { upsertSectionStatAction, deleteSectionStatAction, upsertSectionAscensionAction, deleteSectionAscensionAction, upsertAbilityTemplateAction, deleteAbilityTemplateAction, upsertAbilityDefinitionAction, deleteAbilityDefinitionAction } from '@/app/admin/games/[gameSlug]/sections/actions';
 
 type FieldOption = { id: string; game_field_id: string; value_key: LocalizedString; icon_path: string | null; color: string | null; order_index: number; };
 type Field = { id: string; section_id: string; key: LocalizedString; required: boolean; manual_fill: boolean; has_icon: boolean; has_color: boolean; order_index: number; is_multi: boolean; category: string | null; field_options: FieldOption[] | null; };
-type FormState = { error?: string; };
+type FormState = { error: string | null; success?: boolean; };
+
+function SectionAbilityTemplateManager({ sectionId, existingTemplates, gameDefaultLang, activeLang }: { sectionId: string; existingTemplates: (AbilityTemplate & { section_ability_definitions: AbilityDefinition[] })[]; gameDefaultLang: string, activeLang: string }) {
+  const [editingTemplate, setEditingTemplate] = useState<string | null>(null);
+  const [templateName, setTemplateName] = useState<LocalizedString>({ [gameDefaultLang]: '' });
+  const [isDefault, setIsDefault] = useState(false);
+
+  const [editingDefinition, setEditingDefinition] = useState<string | null>(null);
+  const [definitionName, setDefinitionName] = useState<LocalizedString>({ [gameDefaultLang]: '' });
+  const [definitionMaxLevel, setDefinitionMaxLevel] = useState(1);
+  const [definitionTemplateId, setDefinitionTemplateId] = useState<string | null>(null);
+
+  const handleUpsertTemplate = async (id?: string) => {
+    const formData = new FormData();
+    if (id) formData.set('id', id);
+    formData.set('name', JSON.stringify(templateName));
+    formData.set('is_default', isDefault.toString());
+    const res = await upsertAbilityTemplateAction(sectionId, formData);
+    if (res.success) window.location.reload();
+  };
+
+  const handleUpsertDefinition = async (templateId: string, id?: string) => {
+    const formData = new FormData();
+    if (id) formData.set('id', id);
+    formData.set('name', JSON.stringify(definitionName));
+    formData.set('max_level', definitionMaxLevel.toString());
+    const res = await upsertAbilityDefinitionAction(sectionId, templateId, formData);
+    if (res.success) window.location.reload();
+  };
+
+  const handleDeleteTemplate = async (templateId: string) => {
+    if (!confirm('Delete template?')) return;
+    const res = await deleteAbilityTemplateAction(sectionId, templateId);
+    if (res.success) window.location.reload();
+  };
+
+  const handleDeleteDefinition = async (definitionId: string) => {
+    if (!confirm('Delete slot?')) return;
+    const res = await deleteAbilityDefinitionAction(sectionId, definitionId);
+    if (res.success) window.location.reload();
+  };
+
+  const startEditingTemplate = (template: AbilityTemplate) => {
+    setEditingTemplate(template.id);
+    setTemplateName(template.name);
+    setIsDefault(template.is_default);
+  };
+
+  const startEditingDefinition = (templateId: string, def: AbilityDefinition) => {
+    setEditingDefinition(def.id);
+    setDefinitionTemplateId(templateId);
+    setDefinitionName(def.name);
+    setDefinitionMaxLevel(def.max_level);
+  };
+
+  const startAddingTemplate = () => {
+    setEditingTemplate('new');
+    setTemplateName({ [gameDefaultLang]: '' });
+    setIsDefault(false);
+  };
+
+  const startAddingDefinition = (templateId: string) => {
+    setEditingDefinition('new');
+    setDefinitionTemplateId(templateId);
+    setDefinitionName({ [gameDefaultLang]: '' });
+    setDefinitionMaxLevel(1);
+  };
+
+  return (
+    <div className="space-y-8">
+      <div className="grid grid-cols-1 gap-6">
+        {existingTemplates.map(template => (
+          <div key={template.id} className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 space-y-4">
+            {editingTemplate === template.id ? (
+              <div className="space-y-4 bg-zinc-950 p-4 rounded-xl border border-green-500/30">
+                <LocalizedTextInput id={`edit-template-${template.id}`} label="Template Name" value={templateName} onChange={setTemplateName} />
+                <div className="flex items-center gap-3">
+                  <input type="checkbox" id={`edit-default-${template.id}`} checked={isDefault} onChange={e => setIsDefault(e.target.checked)} className="w-4 h-4 rounded border-zinc-800 bg-zinc-900 text-[#22c55e]" />
+                  <label htmlFor={`edit-default-${template.id}`} className="text-xs font-bold text-zinc-400 uppercase tracking-widest cursor-pointer">Default</label>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => handleUpsertTemplate(template.id)} className="flex-1 bg-green-500 text-black text-[10px] font-bold py-2 rounded-lg">Save Changes</button>
+                  <button onClick={() => setEditingTemplate(null)} className="flex-1 bg-zinc-800 text-white text-[10px] font-bold py-2 rounded-lg">Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex justify-between items-center border-b border-zinc-800 pb-4">
+                <div className="flex items-center gap-4">
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    {getTranslatedField(template.name, activeLang, gameDefaultLang)}
+                    {template.is_default && <span className="text-[10px] bg-green-500/20 text-green-500 px-2 py-0.5 rounded-full uppercase tracking-tighter font-black">Default</span>}
+                  </h3>
+                  <button onClick={() => startEditingTemplate(template)} className="text-[10px] text-zinc-500 hover:text-white font-bold uppercase tracking-widest">Edit Name</button>
+                </div>
+                <button onClick={() => handleDeleteTemplate(template.id)} className="text-red-500 hover:bg-red-500/10 p-2 rounded-lg text-[10px] font-black uppercase tracking-widest">Delete Template</button>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {template.section_ability_definitions?.sort((a,b) => a.order_index - b.order_index).map(def => (
+                editingDefinition === def.id ? (
+                  <div key={def.id} className="bg-zinc-950 border border-green-500/30 p-3 rounded-xl space-y-3">
+                    <LocalizedTextInput id={`edit-def-${def.id}`} label="Slot Name" value={definitionName} onChange={setDefinitionName} />
+                    <div>
+                      <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1 ml-1">Max Level</label>
+                      <input type="number" value={definitionMaxLevel} onChange={(e) => setDefinitionMaxLevel(Number(e.target.value))} className="w-full bg-zinc-900 border border-zinc-800 rounded p-1.5 text-white text-xs" />
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => handleUpsertDefinition(template.id, def.id)} className="flex-1 bg-green-500 text-black text-[10px] font-bold py-1.5 rounded-lg">Save</button>
+                      <button onClick={() => setEditingDefinition(null)} className="flex-1 bg-zinc-800 text-white text-[10px] font-bold py-1.5 rounded-lg">Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div key={def.id} className="bg-zinc-950 border border-zinc-800 p-3 rounded-xl flex justify-between items-center group relative overflow-hidden">
+                    <div className="flex flex-col">
+                      <span className="text-sm text-zinc-300 font-bold uppercase italic">{getTranslatedField(def.name, activeLang, gameDefaultLang)}</span>
+                      <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Max Level: {def.max_level}</span>
+                    </div>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => startEditingDefinition(template.id, def)} className="text-zinc-400 hover:text-white p-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                      </button>
+                      <button onClick={() => handleDeleteDefinition(def.id)} className="text-red-500 hover:text-red-400 p-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </div>
+                  </div>
+                )
+              ))}
+              
+              {editingDefinition === 'new' && definitionTemplateId === template.id ? (
+                <div className="bg-zinc-950 border border-green-500/30 p-3 rounded-xl space-y-3">
+                  <LocalizedTextInput id={`new-def-${template.id}`} label="Slot Name" value={definitionName} onChange={setDefinitionName} />
+                  <div>
+                    <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1 ml-1">Max Level</label>
+                    <input type="number" value={definitionMaxLevel} onChange={(e) => setDefinitionMaxLevel(Number(e.target.value))} className="w-full bg-zinc-900 border border-zinc-800 rounded p-1.5 text-white text-xs" />
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => handleUpsertDefinition(template.id)} className="flex-1 bg-green-500 text-black text-[10px] font-bold py-1.5 rounded-lg">Save</button>
+                    <button onClick={() => setEditingDefinition(null)} className="flex-1 bg-zinc-800 text-white text-[10px] font-bold py-1.5 rounded-lg">Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => startAddingDefinition(template.id)} className="border-2 border-dashed border-zinc-800 rounded-xl p-3 flex items-center justify-center text-zinc-500 hover:border-zinc-700 hover:text-zinc-400 transition-all text-[10px] font-black uppercase tracking-widest">
+                  + Add Slot
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+
+        {editingTemplate === 'new' ? (
+          <div className="bg-zinc-900 border border-green-500/30 p-6 rounded-2xl space-y-4 shadow-2xl">
+            <LocalizedTextInput id="new-template-name" label="Template Name" value={templateName} onChange={setTemplateName} placeholder="Standard Kit, Memosprite Kit..." />
+            <div className="flex items-center gap-3">
+              <input type="checkbox" id="is_default_template" checked={isDefault} onChange={e => setIsDefault(e.target.checked)} className="w-4 h-4 rounded border-zinc-800 bg-zinc-900 text-[#22c55e]" />
+              <label htmlFor="is_default_template" className="text-xs font-bold text-zinc-400 uppercase tracking-widest cursor-pointer">Set as Default for Section</label>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => handleUpsertTemplate()} className="flex-1 bg-green-500 text-black font-bold py-3 rounded-xl hover:bg-green-400 transition">Create Template</button>
+              <button onClick={() => setEditingTemplate(null)} className="flex-1 bg-zinc-800 text-white font-bold py-3 rounded-xl hover:bg-zinc-700 transition">Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={startAddingTemplate} className="w-full py-6 border-2 border-dashed border-zinc-800 rounded-2xl text-zinc-500 hover:border-zinc-700 hover:text-zinc-400 transition-all font-black uppercase tracking-[0.2em] text-xs">
+            + Create New Ability Template
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SectionStatsManager({ sectionId, existingStats, gameDefaultLang }: { sectionId: string; existingStats: SectionStat[]; gameDefaultLang: string }) {
+  const stats = existingStats;
+  const [isAdding, setIsAdding] = useState(false);
+  const [newName, setNewName] = useState<LocalizedString>({ [gameDefaultLang]: '' });
+  const [newKey, setNewKey] = useState('');
+  const [newOrder, setNewOrder] = useState(0);
+  const [isScalable, setIsScalable] = useState(true);
+
+  const handleAdd = async () => {
+    if (!newKey) { alert('Internal key is required'); return; }
+    const formData = new FormData();
+    formData.set('key', newKey);
+    formData.set('name', JSON.stringify(newName));
+    formData.set('order_index', newOrder.toString());
+    formData.set('is_scalable', isScalable.toString());
+    const res = await upsertSectionStatAction(sectionId, formData);
+    if (res.success) {
+      setIsAdding(false);
+      setNewName({ [gameDefaultLang]: '' });
+      setNewKey('');
+      setNewOrder(stats.length + 1);
+      setIsScalable(true);
+      window.location.reload(); 
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (confirm('Are you sure you want to delete this stat?')) {
+      const res = await deleteSectionStatAction(sectionId, id);
+      if (res.success) window.location.reload();
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {stats.map(stat => (
+          <div key={stat.id} className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl flex justify-between items-center group relative overflow-hidden">
+            <div className="z-10">
+              <div className="flex items-center gap-2 mb-1">
+                <p className="text-white font-bold">{getTranslatedField(stat.name, gameDefaultLang, gameDefaultLang)}</p>
+                <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${stat.is_scalable ? 'bg-green-500/10 text-green-500' : 'bg-zinc-800 text-zinc-500'}`}>
+                  {stat.is_scalable ? 'Scalable' : 'Static'}
+                </span>
+              </div>
+              <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-mono">Key: {stat.key} | Order: {stat.order_index}</p>
+            </div>
+            <button onClick={() => handleDelete(stat.id)} className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-red-500/10 rounded-lg z-10">
+              Delete
+            </button>
+            {!stat.is_scalable && <div className="absolute top-0 right-0 w-16 h-16 bg-zinc-800/20 rotate-45 translate-x-8 -translate-y-8" />}
+          </div>
+        ))}
+        {isAdding ? (
+          <div className="bg-zinc-900 border border-green-500/30 p-4 rounded-xl space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">Internal Key (e.g. hp, atk)</label>
+              <input type="text" value={newKey} onChange={(e) => setNewKey(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white text-sm" placeholder="hp" />
+            </div>
+            <LocalizedTextInput id="new-stat-name" label="Display Name" value={newName} onChange={setNewName} placeholder="HP, ATK, DEF..." />
+            
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex-1">
+                <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">Order</label>
+                <input type="number" value={newOrder} onChange={(e) => setNewOrder(Number(e.target.value))} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white text-sm" />
+              </div>
+              <div className="pt-6">
+                <label className="flex items-center gap-2 cursor-pointer group">
+                  <input 
+                    type="checkbox" 
+                    checked={isScalable} 
+                    onChange={e => setIsScalable(e.target.checked)}
+                    className="w-4 h-4 rounded border-zinc-800 bg-zinc-950 text-green-500 focus:ring-green-500/50" 
+                  />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 group-hover:text-zinc-300 transition-colors">Scalable</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button onClick={handleAdd} className="flex-1 bg-green-500 text-black font-bold py-2 rounded-lg hover:bg-green-400 transition text-sm">Save</button>
+              <button onClick={() => setIsAdding(false)} className="flex-1 bg-zinc-800 text-white font-bold py-2 rounded-lg hover:bg-zinc-700 transition text-sm">Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setIsAdding(true)} className="border-2 border-dashed border-zinc-800 rounded-xl p-4 flex items-center justify-center text-zinc-500 hover:border-zinc-700 hover:text-zinc-400 transition-all group">
+            <span className="font-bold uppercase tracking-widest text-xs">+ Add New Stat</span>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SectionAscensionManager({ sectionId, existingAscensions }: { sectionId: string; existingAscensions: SectionAscension[]; maxLevel: number }) {
+  const ascensions = existingAscensions;
+  const [isAdding, setIsAdding] = useState(false);
+  const [newPhase, setNewPhase] = useState(ascensions.length);
+  const [newMin, setNewMin] = useState(1);
+  const [newMax, setNewMax] = useState(20);
+
+  const handleAdd = async () => {
+    const formData = new FormData();
+    formData.set('phase_index', newPhase.toString());
+    formData.set('min_level', newMin.toString());
+    formData.set('max_level', newMax.toString());
+    const res = await upsertSectionAscensionAction(sectionId, formData);
+    if (res.success) {
+      setIsAdding(false);
+      window.location.reload();
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (confirm('Delete this phase?')) {
+      const res = await deleteSectionAscensionAction(sectionId, id);
+      if (res.success) window.location.reload();
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="text-left text-xs font-bold text-zinc-500 uppercase tracking-widest border-b border-zinc-800">
+              <th className="p-4">Phase</th>
+              <th className="p-4">Min Level</th>
+              <th className="p-4">Max Level</th>
+              <th className="p-4 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-800/50">
+            {ascensions.map(asc => (
+              <tr key={asc.id} className="group hover:bg-white/[0.02] transition-colors">
+                <td className="p-4 text-white font-bold">Phase {asc.phase_index}</td>
+                <td className="p-4 text-zinc-400">{asc.min_level}</td>
+                <td className="p-4 text-zinc-400">{asc.max_level}</td>
+                <td className="p-4 text-right">
+                  <button onClick={() => handleDelete(asc.id)} className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:underline">Delete</button>
+                </td>
+              </tr>
+            ))}
+            {isAdding && (
+              <tr className="bg-green-500/5">
+                <td className="p-4"><input type="number" value={newPhase} onChange={e => setNewPhase(Number(e.target.value))} className="w-20 bg-zinc-950 border border-zinc-800 rounded p-1 text-white" /></td>
+                <td className="p-4"><input type="number" value={newMin} onChange={e => setNewMin(Number(e.target.value))} className="w-20 bg-zinc-950 border border-zinc-800 rounded p-1 text-white" /></td>
+                <td className="p-4"><input type="number" value={newMax} onChange={e => setNewMax(Number(e.target.value))} className="w-20 bg-zinc-950 border border-zinc-800 rounded p-1 text-white" /></td>
+                <td className="p-4 text-right space-x-2">
+                  <button onClick={handleAdd} className="text-green-500 font-bold hover:underline">Save</button>
+                  <button onClick={() => setIsAdding(false)} className="text-zinc-500 hover:underline">Cancel</button>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {!isAdding && (
+        <button onClick={() => setIsAdding(true)} className="w-full py-3 border-2 border-dashed border-zinc-800 rounded-xl text-zinc-500 hover:border-zinc-700 hover:text-zinc-400 transition-all font-bold uppercase tracking-widest text-xs">
+          + Add Ascension Phase
+        </button>
+      )}
+    </div>
+  );
+}
 
 export default function EditSectionClient({
-  game, section, fields, displaySettings, entities, filterFieldsData, currentLang: browserLang, updateDisplaySettingsAction, sectionTeams = []
+  game, section, fields, displaySettings, entities, filterFieldsData, currentLang: browserLang, updateDisplaySettingsAction, sectionTeams = [], sectionStats = [], sectionAscensions = [], abilityTemplates = []
 }: {
   game: Game; 
   section: Section; 
@@ -33,6 +371,9 @@ export default function EditSectionClient({
   currentLang: string; 
   updateDisplaySettingsAction: (formData: FormData) => Promise<{ error?: string }>;
   sectionTeams: TeamData[];
+  sectionStats: SectionStat[];
+  sectionAscensions: SectionAscension[];
+  abilityTemplates: (AbilityTemplate & { section_ability_definitions: AbilityDefinition[] })[];
 }) {
   const supabase = createClient();
   const { displayLang, t } = useLocalizationParams();
@@ -49,6 +390,9 @@ export default function EditSectionClient({
   const [maxDupes, setMaxDupes] = useState<number>(section.max_dupes ?? 0);
   const [localizedDupeName, setLocalizedDupeName] = useState<LocalizedString>(section.dupe_name || { [game.default_lang]: "Duplicate" });
   const [skinImageTypes, setSkinImageTypes] = useState<string[]>(section.skin_image_types || ["icon", "splashart"]);
+  const [hasStats, setHasStats] = useState<boolean>(section.has_stats ?? false);
+  const [hasAscension, setHasAscension] = useState<boolean>(section.has_ascension ?? false);
+  const [maxLevel, setMaxLevel] = useState<number>(section.max_level ?? 1);
   const [iconFile, setIconFile] = useState<File | null>(null);
   const [existingIconPath, setExistingIconPath] = useState<string | null>(section.icon_path);
   const [filterFieldIds, setFilterFieldIds] = useState<string[]>(displaySettings?.filter_field_ids || []);
@@ -58,9 +402,10 @@ export default function EditSectionClient({
   const [topRightIconFieldId, setTopRightIconFieldId] = useState<string>(displaySettings?.top_right_icon_field_id || "");
   const [overlayIconFieldId, setOverlayIconFieldId] = useState<string>(displaySettings?.overlay_icon_field_id || "");
   const [maxColumns, setMaxColumns] = useState<number>(displaySettings?.max_columns ?? 6);
+  const [skinDisplayTypes, setSkinDisplayTypes] = useState<string[]>(displaySettings?.skin_display_types || ["splashart"]);
 
   const [sectionState, sectionFormAction] = useActionState(
-    async (_prevState: FormState, formData: FormData) => {
+    async (_prevState: FormState, formData: FormData): Promise<FormState> => {
       formData.set("id", section.id);
       formData.set("key", JSON.stringify(localizedKey));
       formData.set("color", color);
@@ -73,15 +418,19 @@ export default function EditSectionClient({
       formData.set("max_dupes", maxDupes.toString());
       formData.set("dupe_name", JSON.stringify(localizedDupeName));
       formData.set("skin_image_types", JSON.stringify(skinImageTypes));
+      formData.set("has_stats", hasStats.toString());
+      formData.set("has_ascension", hasAscension.toString());
+      formData.set("max_level", maxLevel.toString());
       if (iconFile) formData.set("icon_file", iconFile);
       formData.set("existing_icon_path", existingIconPath || "null");
-      return await upsertSectionAction(game.id, game.slug, game.default_lang, formData);
+      const res = await upsertSectionAction(game.id, game.slug, game.default_lang, formData);
+      return { error: res?.error || null };
     },
-    {} as FormState
+    { error: null }
   );
 
   const [displaySettingsState, displaySettingsFormAction] = useActionState(
-    async (_prevState: FormState, formData: FormData) => {
+    async (_prevState: FormState, formData: FormData): Promise<FormState> => {
       formData.set("max_columns", maxColumns.toString());
       formData.set("bg_color_field_id", bgColorFieldId);
       formData.set("top_left_icon_field_id", topLeftIconFieldId);
@@ -90,14 +439,25 @@ export default function EditSectionClient({
 
       formData.delete("filter_field_ids");
       filterFieldIds.forEach(id => formData.append("filter_field_ids", id));
-      return await updateDisplaySettingsAction(formData);
+
+      formData.delete("skin_display_types");
+      skinDisplayTypes.forEach(type => formData.append("skin_display_types", type));
+
+      const res = await updateDisplaySettingsAction(formData);
+      return { error: res?.error || null };
     },
-    {} as FormState
+    { error: null }
   );
 
   const toggleFilterField = (id: string) => {
     setFilterFieldIds(prev => 
       prev.includes(id) ? prev.filter(fid => fid !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSkinDisplayType = (type: string) => {
+    setSkinDisplayTypes(prev => 
+      prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
     );
   };
 
@@ -183,6 +543,46 @@ export default function EditSectionClient({
                       Build Teams
                     </label>
                   </div>
+                  <div className="flex items-center gap-3 pt-6">
+                    <input 
+                      id="has_stats" 
+                      type="checkbox" 
+                      checked={hasStats} 
+                      onChange={(e) => setHasStats(e.target.checked)}
+                      className="w-5 h-5 rounded border-zinc-800 bg-zinc-900 text-[#22c55e] focus:ring-[#22c55e]"
+                    />
+                    <label htmlFor="has_stats" className="text-xs font-bold text-zinc-500 uppercase tracking-widest cursor-pointer text-zinc-400">
+                      Enable Stats
+                    </label>
+                  </div>
+                  {hasStats && (
+                    <>
+                      <div className="flex items-center gap-3 pt-6">
+                        <input 
+                          id="has_ascension" 
+                          type="checkbox" 
+                          checked={hasAscension} 
+                          onChange={(e) => setHasAscension(e.target.checked)}
+                          className="w-5 h-5 rounded border-zinc-800 bg-zinc-900 text-[#22c55e] focus:ring-[#22c55e]"
+                        />
+                        <label htmlFor="has_ascension" className="text-xs font-bold text-zinc-500 uppercase tracking-widest cursor-pointer text-zinc-400">
+                          Enable Ascension
+                        </label>
+                      </div>
+                      <div className="flex items-center gap-3 pt-6">
+                        <label htmlFor="max_level" className="text-xs font-bold text-zinc-500 uppercase tracking-widest text-zinc-400">
+                          Max Level
+                        </label>
+                        <input 
+                          id="max_level" 
+                          type="number" 
+                          value={maxLevel} 
+                          onChange={(e) => setMaxLevel(Number(e.target.value))}
+                          className="w-20 px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-white text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
+                        />
+                      </div>
+                    </>
+                  )}
                   {hasTeams && (
                     <div className="flex items-center gap-3 pt-6">
                       <label htmlFor="max_team_size" className="text-xs font-bold text-zinc-500 uppercase tracking-widest text-zinc-400">
@@ -268,6 +668,28 @@ export default function EditSectionClient({
                 <button type="submit" className="w-full bg-[#22c55e] text-black font-bold px-4 py-3 rounded-xl hover:bg-[#1da34a] transition">{t('save')} {t('section')}</button>
               </form>
             </section>
+
+            {hasStats && (
+              <section className="space-y-10 border-b pb-10">
+                <div className="space-y-6">
+                  <h2 className="text-xl font-semibold text-white">Section Stats Configuration</h2>
+                  <SectionStatsManager sectionId={section.id} existingStats={sectionStats} gameDefaultLang={game.default_lang} />
+                </div>
+                
+                {hasAscension && (
+                  <div className="space-y-6 pt-10 border-t border-zinc-800">
+                    <h2 className="text-xl font-semibold text-white">Section Ascension Phases</h2>
+                    <SectionAscensionManager sectionId={section.id} existingAscensions={sectionAscensions} maxLevel={maxLevel} />
+                  </div>
+                )}
+              </section>
+            )}
+
+            <section className="space-y-6 border-b pb-10">
+              <h2 className="text-xl font-semibold text-white">Ability Templates</h2>
+              <SectionAbilityTemplateManager sectionId={section.id} existingTemplates={abilityTemplates} gameDefaultLang={game.default_lang} activeLang={activeLang} />
+            </section>
+
             <section className="space-y-6 border-b pb-10">
               <h2 className="text-xl font-semibold text-white">{t('displaySettings')}</h2>
               <form action={displaySettingsFormAction} className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -321,6 +743,18 @@ export default function EditSectionClient({
                       </label>
                     ))}
                   </div>
+                </div>
+                <div className="space-y-2 md:col-span-2 pt-4 border-t border-zinc-800/50">
+                  <label className="block text-sm font-medium text-zinc-400">Skin Parts to Display (Public)</label>
+                  <div className="flex flex-wrap gap-4 mt-2">
+                    {skinImageTypes.map(type => (
+                      <label key={type} className="flex items-center gap-2 cursor-pointer group">
+                        <input type="checkbox" name="skin_display_types" value={type} checked={skinDisplayTypes.includes(type)} onChange={() => toggleSkinDisplayType(type)} className="w-4 h-4 rounded border-zinc-800 bg-zinc-900 text-[#22c55e] focus:ring-[#22c55e]" />
+                        <span className="text-sm text-zinc-400 group-hover:text-zinc-200 transition-colors uppercase tracking-widest text-[10px] font-bold">{type}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-zinc-500 font-medium">Choose which image types appear on the entity page. If multiple are selected, they will show in a grid.</p>
                 </div>
                 <div className="md:col-span-2"><button type="submit" className="w-full bg-[#22c55e] text-black font-bold px-4 py-3 rounded-xl hover:bg-[#1da34a] transition">{t('saveDisplaySettings')}</button></div>
               </form>

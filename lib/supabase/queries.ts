@@ -31,6 +31,35 @@ export interface Section {
   max_team_size: number;
   order_index: number;
   skin_image_types: string[];
+  has_stats: boolean;
+  has_ascension: boolean;
+  max_level: number;
+}
+
+export interface SectionStat {
+  id: string;
+  section_id: string;
+  key: string;
+  name: LocalizedString;
+  order_index: number;
+  is_scalable: boolean;
+}
+
+export interface SectionAscension {
+  id: string;
+  section_id: string;
+  phase_index: number;
+  min_level: number;
+  max_level: number;
+}
+
+export interface EntityStatValue {
+  id: string;
+  entity_id: string;
+  stat_id: string;
+  level: number;
+  phase_index: number;
+  value: number;
 }
 
 export interface FieldOption {
@@ -102,6 +131,7 @@ export interface SectionDisplaySettings {
   top_right_icon_field_id: string | null;
   overlay_icon_field_id: string | null;
   filter_field_ids: string[];
+  skin_display_types: string[];
 }
 
 export interface SectionEntity {
@@ -175,7 +205,7 @@ export const getSectionById = cache(async (sectionId: string) => {
       const supabase = createPublicClient();
       const res = await supabase
         .from("game_sections")
-        .select("id, key, game_id, icon_path, color, is_collectible, is_unique, min_dupes, max_dupes, dupe_name, has_teams, max_team_size, order_index, skin_image_types")
+        .select("id, key, game_id, icon_path, color, is_collectible, is_unique, min_dupes, max_dupes, dupe_name, has_teams, max_team_size, order_index, skin_image_types, has_stats, has_ascension, max_level")
         .eq("id", sectionId)
         .single();
       
@@ -493,6 +523,129 @@ export const getUserSectionCollection = cache(async (sectionId: string, userId: 
   .eq("user_entities.user_id", userId)
   .eq("entity_skins.is_default", true)
   .order(`name->>${defaultLang}`, { ascending: true });
+});
+
+/**
+ * Cached fetch for section stats.
+ */
+export const getSectionStats = cache(async (sectionId: string) => {
+  return unstable_cache(
+    async () => {
+      const supabase = createPublicClient();
+      return supabase.from("section_stats").select("*").eq("section_id", sectionId).order("order_index", { ascending: true });
+    },
+    [`section-stats-${sectionId}`],
+    { revalidate: 3600, tags: [`section-stats-${sectionId}`] }
+  )();
+});
+
+/**
+ * Cached fetch for section ascensions.
+ */
+export const getSectionAscensions = cache(async (sectionId: string) => {
+  return unstable_cache(
+    async () => {
+      const supabase = createPublicClient();
+      return supabase.from("section_ascensions").select("*").eq("section_id", sectionId).order("phase_index", { ascending: true });
+    },
+    [`section-ascensions-${sectionId}`],
+    { revalidate: 3600, tags: [`section-ascensions-${sectionId}`] }
+  )();
+});
+
+/**
+ * Cached fetch for entity stats.
+ */
+export const getEntityStats = cache(async (entityId: string) => {
+  return unstable_cache(
+    async () => {
+      const supabase = createPublicClient();
+      return supabase.from("entity_stats").select("*").eq("entity_id", entityId).order("level", { ascending: true });
+    },
+    [`entity-stats-${entityId}`],
+    { revalidate: 3600, tags: [`entity-stats-${entityId}`] }
+  )();
+});
+
+export interface AbilityTemplate {
+  id: string;
+  section_id: string;
+  name: LocalizedString;
+  is_default: boolean;
+  order_index: number;
+}
+
+export interface AbilityDefinition {
+  id: string;
+  template_id: string;
+  name: LocalizedString;
+  order_index: number;
+  max_level: number;
+}
+
+export interface EntityAbilityScaling {
+  id: string;
+  ability_id: string;
+  attribute_index: number;
+  level: number;
+  value: number;
+  value_type: 'percent' | 'flat';
+  scaling_stat_id: string | null;
+}
+
+export interface EntityAbility {
+  id: string;
+  entity_id: string;
+  definition_id: string;
+  name: LocalizedString;
+  description: LocalizedString;
+  icon_path: string | null;
+  entity_ability_forms?: EntityAbilityForm[];
+  entity_ability_scaling?: EntityAbilityScaling[];
+}
+
+export interface EntityAbilityForm {
+  id: string;
+  ability_id: string;
+  name: LocalizedString;
+  description: LocalizedString;
+  icon_path: string | null;
+  order_index: number;
+}
+
+/**
+ * Cached fetch for section ability templates.
+ */
+export const getSectionAbilityTemplates = cache(async (sectionId: string) => {
+  return unstable_cache(
+    async () => {
+      const supabase = createPublicClient();
+      return supabase
+        .from("section_ability_templates")
+        .select(`*, section_ability_definitions(*)`)
+        .eq("section_id", sectionId)
+        .order("order_index", { ascending: true });
+    },
+    [`section-ability-templates-${sectionId}`],
+    { revalidate: 3600, tags: [`section-ability-templates-${sectionId}`] }
+  )();
+});
+
+/**
+ * Cached fetch for entity abilities.
+ */
+export const getEntityAbilities = cache(async (entityId: string) => {
+  return unstable_cache(
+    async () => {
+      const supabase = createPublicClient();
+      return supabase
+        .from("entity_abilities")
+        .select(`*, entity_ability_forms(*), entity_ability_scaling(*)`)
+        .eq("entity_id", entityId);
+    },
+    [`entity-abilities-${entityId}`],
+    { revalidate: 3600, tags: [`entity-abilities-${entityId}`] }
+  )();
 });
 
 export const getEntityTeams = cache(async (entityId: string) => {

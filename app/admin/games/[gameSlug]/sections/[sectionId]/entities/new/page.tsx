@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { getTranslatedField } from "@/lib/localization-utils";
 import NewEntityClient from './NewEntityClient';
-import { Game, Section, SectionField, FieldOption } from '@/lib/supabase/queries';
+import { Game, Section, SectionField, FieldOption, getSectionStats, getSectionAscensions } from '@/lib/supabase/queries';
 import AdminHeader from '@/app/admin/components/AdminHeader';
 
 type PageProps = { params: Promise<{ gameSlug: string; sectionId: string }>; };
@@ -28,8 +28,13 @@ export default async function NewEntityPage({ params: paramsPromise }: PageProps
   const { data: game } = await supabase.from('games').select('id, name, slug, default_lang, supported_languages').eq('slug', gameSlug).single();
   if (!game) redirect('/admin/games');
 
-  const { data: section } = await supabase.from('game_sections').select('id, key, game_id').eq('id', sectionId).single();
+  const { data: section } = await supabase.from('game_sections').select('id, key, game_id, has_stats, has_ascension, max_level').eq('id', sectionId).single();
   if (!section) redirect(`/admin/games/${gameSlug}/sections`);
+
+  const [statsRes, ascRes] = await Promise.all([
+    getSectionStats(sectionId),
+    getSectionAscensions(sectionId)
+  ]);
 
   const { data: fieldsRaw } = await supabase
     .from('section_fields')
@@ -62,7 +67,14 @@ export default async function NewEntityPage({ params: paramsPromise }: PageProps
   return (
     <>
       <AdminHeader params={paramsPromise} />
-      <NewEntityClient game={game as Game} section={section as Section} fields={fields} currentLang={currentLang} />
+      <NewEntityClient 
+        game={game as Game} 
+        section={section as Section} 
+        fields={fields} 
+        currentLang={currentLang} 
+        sectionStats={statsRes.data || []}
+        sectionAscensions={ascRes.data || []}
+      />
     </>
   );
 }

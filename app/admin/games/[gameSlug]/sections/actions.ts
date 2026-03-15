@@ -62,18 +62,127 @@ export async function upsertSectionAction(gameId: string, gameSlug: string, game
     skin_image_types: JSON.parse(formData.get("skin_image_types") as string || '["icon", "splashart"]'),
     icon_path,
     game_id: gameId,
+    has_stats: formData.get("has_stats") === "true",
+    has_ascension: formData.get("has_ascension") === "true",
+    max_level: Number(formData.get("max_level") || 1),
   };
 
   const query = sectionId ? supabase.from("game_sections").update(sectionData).eq("id", sectionId) : supabase.from("game_sections").insert(sectionData);
   const { error } = await query;
   if (error) return { error: `Failed to save section: ${error.message}` };
 
-  if (sectionId) updateTag(`section-${sectionId}`);
+  updateTag(`section-${sectionId}`);
   revalidatePath(`/admin/games/${gameSlug}/sections`);
   redirect(`/admin/games/${gameSlug}/sections`);
+  }
+
+  export async function upsertSectionStatAction(sectionId: string, formData: FormData) {
+  const supabase = await createClient();
+  const id = formData.get("id") as string | undefined;
+  const key = formData.get("key") as string;
+  const name = JSON.parse(formData.get("name") as string) as LocalizedString;
+  const order_index = Number(formData.get("order_index") || 0);
+  const is_scalable = formData.get("is_scalable") === "true";
+
+  const statData = { section_id: sectionId, key, name, order_index, is_scalable };
+
+  const query = id ? supabase.from("section_stats").update(statData).eq("id", id) : supabase.from("section_stats").insert(statData);
+  const { error } = await query;
+  if (error) return { error: `Failed to save stat: ${error.message}` };
+
+  updateTag(`section-stats-${sectionId}`);
+  return { success: true };
+  }
+
+  export async function deleteSectionStatAction(sectionId: string, statId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("section_stats").delete().eq("id", statId);
+  if (error) return { error: `Failed to delete stat: ${error.message}` };
+
+  updateTag(`section-stats-${sectionId}`);
+  return { success: true };
+  }
+
+  export async function upsertSectionAscensionAction(sectionId: string, formData: FormData) {
+  const supabase = await createClient();
+  const id = formData.get("id") as string | undefined;
+  const phase_index = Number(formData.get("phase_index"));
+  const min_level = Number(formData.get("min_level"));
+  const max_level = Number(formData.get("max_level"));
+
+  const ascensionData = { section_id: sectionId, phase_index, min_level, max_level };
+
+  const query = id ? supabase.from("section_ascensions").update(ascensionData).eq("id", id) : supabase.from("section_ascensions").insert(ascensionData);
+  const { error } = await query;
+  if (error) return { error: `Failed to save ascension phase: ${error.message}` };
+
+  updateTag(`section-ascensions-${sectionId}`);
+  return { success: true };
+  }
+
+  export async function deleteSectionAscensionAction(sectionId: string, ascensionId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("section_ascensions").delete().eq("id", ascensionId);
+  if (error) return { error: `Failed to delete ascension phase: ${error.message}` };
+
+  updateTag(`section-ascensions-${sectionId}`);
+  return { success: true };
+  }
+
+  export async function upsertAbilityTemplateAction(sectionId: string, formData: FormData) {
+  const supabase = await createClient();
+  const id = formData.get("id") as string | undefined;
+  const name = JSON.parse(formData.get("name") as string) as LocalizedString;
+  const is_default = formData.get("is_default") === "true";
+  const order_index = Number(formData.get("order_index") || 0);
+
+  const data = { section_id: sectionId, name, is_default, order_index };
+  const query = id ? supabase.from("section_ability_templates").update(data).eq("id", id) : supabase.from("section_ability_templates").insert(data);
+  
+  const { error } = await query;
+  if (error) return { error: error.message };
+
+  updateTag(`section-ability-templates-${sectionId}`);
+  return { success: true };
+}
+
+export async function deleteAbilityTemplateAction(sectionId: string, templateId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("section_ability_templates").delete().eq("id", templateId);
+  if (error) return { error: error.message };
+
+  updateTag(`section-ability-templates-${sectionId}`);
+  return { success: true };
+}
+
+export async function upsertAbilityDefinitionAction(sectionId: string, templateId: string, formData: FormData) {
+  const supabase = await createClient();
+  const id = formData.get("id") as string | undefined;
+  const name = JSON.parse(formData.get("name") as string) as LocalizedString;
+  const order_index = Number(formData.get("order_index") || 0);
+  const max_level = Number(formData.get("max_level") || 1);
+
+  const data = { template_id: templateId, name, order_index, max_level };
+  const query = id ? supabase.from("section_ability_definitions").update(data).eq("id", id) : supabase.from("section_ability_definitions").insert(data);
+  
+  const { error } = await query;
+  if (error) return { error: error.message };
+
+  updateTag(`section-ability-templates-${sectionId}`);
+  return { success: true };
+}
+
+export async function deleteAbilityDefinitionAction(sectionId: string, definitionId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("section_ability_definitions").delete().eq("id", definitionId);
+  if (error) return { error: error.message };
+
+  updateTag(`section-ability-templates-${sectionId}`);
+  return { success: true };
 }
 
 export async function deleteSectionAction(sectionId: string, gameSlug: string) {
+
   const supabase = await createClient();
   const [{ data: section }, { data: entities }] = await Promise.all([
     supabase.from("game_sections").select("icon_path").eq("id", sectionId).single(),

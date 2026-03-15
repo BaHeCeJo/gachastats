@@ -20,13 +20,17 @@ const TeamBuilder = dynamic(() => import("@/app/components/TeamBuilder"), {
 });
 
 type GameData = { id: string; name: LocalizedString; slug: string; default_lang: string; supported_languages: string[]; };
-type SectionData = { id: string; key: LocalizedString; game_id: string; skin_image_types: string[]; };
+type SectionData = { id: string; key: LocalizedString; game_id: string; skin_image_types: string[]; has_stats?: boolean; has_ascension?: boolean; max_level?: number; };
 type FieldOption = { id: string; game_field_id: string; value_key: LocalizedString; icon_path: string | null; color: string | null; order_index: number; };
 type FieldData = { id: string; game_field_id: string; key: LocalizedString; required: boolean; manual_fill: boolean; is_multi: boolean; has_icon: boolean; has_color: boolean; order_index: number; category: string | null; field_options: FieldOption[] | null; };
 type EntityFieldValueData = { id?: string; entity_id?: string; game_field_id: string; value_text: string | LocalizedString | null; option_id: string | null; };
 type EntitySkinData = { id: string; entity_id: string; name: LocalizedString; is_default: boolean; entity_images: { id: string; type: string; image_path: string; publicUrl?: string; }[]; };
 type EntityData = { id: string; section_id: string; name: LocalizedString; icon_path: string | null; entity_skins: EntitySkinData[]; entity_field_values?: EntityFieldValueData[]; };
-type FormState = { error?: string; };
+import { SectionStat, SectionAscension, EntityStatValue, AbilityTemplate, AbilityDefinition, EntityAbility } from '@/lib/supabase/queries';
+import EntityStatsEditor from '../components/EntityStatsEditor';
+import EntityAbilityEditor, { AbilityState } from '../components/EntityAbilityEditor';
+
+type FormState = { error: string | null; };
 
 interface LibraryEntity {
   id: string;
@@ -113,9 +117,22 @@ function EntityFieldItem({
 }
 
 export default function EditEntityClient({ 
-  game, section, entity, fields, currentLang: browserLang, hasTeams, maxTeamSize, sectionTeams = [], libraryPromise
+  game, section, entity, fields, currentLang: browserLang, hasTeams, maxTeamSize, sectionTeams = [], libraryPromise, sectionStats = [], sectionAscensions = [], entityStats = [], abilityTemplates = [], existingAbilities = []
 }: {
-  game: GameData; section: SectionData; entity: EntityData; fields: FieldData[]; currentLang: string; hasTeams: boolean; maxTeamSize: number; sectionTeams: TeamData[]; libraryPromise: Promise<{ data: LibraryEntity[] | null }>;
+  game: GameData; 
+  section: SectionData; 
+  entity: EntityData; 
+  fields: FieldData[]; 
+  currentLang: string; 
+  hasTeams: boolean; 
+  maxTeamSize: number; 
+  sectionTeams: TeamData[]; 
+  libraryPromise: Promise<{ data: LibraryEntity[] | null }>;
+  sectionStats: SectionStat[];
+  sectionAscensions: SectionAscension[];
+  entityStats: EntityStatValue[];
+  abilityTemplates: (AbilityTemplate & { section_ability_definitions: AbilityDefinition[] })[];
+  existingAbilities: EntityAbility[];
 }) {
   const { displayLang, t } = useLocalizationParams();
   const activeLang = displayLang || browserLang;
@@ -139,6 +156,59 @@ export default function EditEntityClient({
   const [entityFieldValues, setEntityFieldValues] = useState<FieldValueState[]>(initialFieldValues);
   useEffect(() => { setEntityFieldValues(initialFieldValues); }, [initialFieldValues]);
 
+  const [stats, setStats] = useState<{ stat_id: string; level: number; phase_index: number; value: number }[]>(() => 
+    entityStats.map(s => ({ stat_id: s.stat_id, level: s.level, phase_index: s.phase_index, value: s.value }))
+  );
+
+  const [abilities, setAbilities] = useState<AbilityState[]>(() => {
+    return existingAbilities.map(ex => ({
+      definition_id: ex.definition_id,
+      name: ex.name,
+      description: ex.description,
+      icon_path: ex.icon_path,
+      entity_ability_forms: ex.entity_ability_forms?.map(f => ({
+        name: f.name,
+        description: f.description,
+        icon_path: f.icon_path
+      })) || [],
+      entity_ability_scaling: ex.entity_ability_scaling?.map(s => ({
+        attribute_index: s.attribute_index,
+        level: s.level,
+        value: s.value,
+        value_type: s.value_type,
+        scaling_stat_id: s.scaling_stat_id || null
+      })) || []
+    }));
+  });
+  
+  const [showJsonMode, setShowJsonMode] = useState(false);
+  const [jsonInput, setJsonInput] = useState('');
+  const [editorKey, setEditorKey] = useState(0);
+
+  const handleGenerateJSON = () => {
+    const data = {
+      name: localizedName,
+      field_values: entityFieldValues,
+      stats: stats,
+      abilities: abilities
+    };
+    setJsonInput(JSON.stringify(data, null, 2));
+  };
+
+  const handleApplyJSON = () => {
+    try {
+      const data = JSON.parse(jsonInput);
+      if (data.name) setLocalizedName(data.name);
+      if (data.field_values) setEntityFieldValues(data.field_values);
+      if (data.stats) setStats(data.stats);
+      if (data.abilities) setAbilities(data.abilities);
+      setEditorKey(prev => prev + 1);
+    } catch (e) {
+      console.error("JSON Parse Error:", e);
+      alert("Invalid JSON format. Please check your syntax.");
+    }
+  };
+
   const [, formAction] = useActionState(async () => {
     const formData = new FormData();
     formData.set("id", entity.id);
@@ -147,8 +217,14 @@ export default function EditEntityClient({
     if (iconFile) formData.set("icon_file", iconFile);
     formData.set("existing_icon_path", existingIconPath || "null");
     formData.set("field_values", JSON.stringify(entityFieldValues));
+    if (section.has_stats) {
+      formData.set("entity_stats", JSON.stringify(stats));
+    }
+    if (abilityTemplates.length > 0) {
+      formData.set("abilities", JSON.stringify(abilities));
+    }
     return await upsertEntityAction(game.slug, section.id, game.default_lang, formData);
-  }, {} as FormState);
+  }, { error: null } as FormState);
 
   const handleFieldValueChange = useCallback((fieldId: string, newValues: string[] | string, mode: 'single' | 'multi') => {
     setEntityFieldValues(prev => prev.map(val => {
@@ -214,6 +290,33 @@ export default function EditEntityClient({
                 </div>
               </div>
             ))}
+            
+            {section.has_stats && (
+              <EntityStatsEditor 
+                key={`stats-${editorKey}`}
+                section={section} 
+                sectionStats={sectionStats} 
+                sectionAscensions={sectionAscensions} 
+                entityStats={stats as EntityStatValue[]} 
+                activeLang={activeLang} 
+                gameDefaultLang={game.default_lang} 
+                onChange={setStats} 
+              />
+            )}
+
+            {abilityTemplates.length > 0 && (
+              <div className="pt-10 border-t border-zinc-800">
+                <EntityAbilityEditor 
+                  key={`abilities-${editorKey}`}
+                  abilityTemplates={abilityTemplates}
+                  existingAbilities={abilities as EntityAbility[]}
+                  sectionStats={sectionStats}
+                  gameDefaultLang={game.default_lang}
+                  activeLang={activeLang}
+                  onChange={setAbilities}
+                />
+              </div>
+            )}
           </div>
           <div className="pt-6 border-t border-zinc-800"><button type="submit" className="w-full bg-[#22c55e] text-black font-bold px-4 py-4 rounded-2xl hover:bg-[#1da34a] transition-all shadow-lg hover:shadow-[#22c55e]/20 active:scale-[0.98]">{t('save')} {t('entity')}</button></div>
         </form>
@@ -224,6 +327,53 @@ export default function EditEntityClient({
             <TeamBuilder sectionId={section.id} gameSlug={game.slug} sectionEntities={sectionEntities} fieldOptions={fieldOptions} maxTeamSize={maxTeamSize || 4} existingTeams={sectionTeams} gameDefaultLang={game.default_lang} isAdmin={true} currentEntityId={entity.id} />
           </div>
         )}
+
+        {/* Individual Entity JSON Mode */}
+        <div className="pt-20 border-t border-zinc-800/50">
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xs font-black text-zinc-500 uppercase tracking-[0.3em] flex items-center gap-3">
+                    <span className="w-8 h-[1px] bg-zinc-800" />
+                    Advanced JSON Editor
+                </h2>
+                <button 
+                    type="button"
+                    onClick={() => setShowJsonMode(!showJsonMode)}
+                    className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 border border-zinc-800 text-zinc-500 hover:text-white hover:border-zinc-600 rounded-lg transition-all"
+                >
+                    {showJsonMode ? 'Hide Editor' : 'Show Editor'}
+                </button>
+            </div>
+
+            {showJsonMode && (
+                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-8 space-y-6">
+                    <div className="flex justify-between items-center">
+                        <p className="text-xs text-zinc-500 font-medium italic">Modify name, fields, and stats in bulk for this entity.</p>
+                        <button 
+                            type="button"
+                            onClick={handleGenerateJSON}
+                            className="bg-zinc-800 text-zinc-300 text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl hover:bg-zinc-700 transition-all"
+                        >
+                            Generate Entity JSON
+                        </button>
+                    </div>
+
+                    <textarea
+                        value={jsonInput}
+                        onChange={(e) => setJsonInput(e.target.value)}
+                        placeholder="Click generate or paste JSON..."
+                        className="w-full h-96 bg-black border border-zinc-800 rounded-2xl p-6 font-mono text-xs text-blue-400 focus:outline-none focus:border-blue-500/30 transition-all"
+                    />
+
+                    <button 
+                        type="button"
+                        onClick={handleApplyJSON}
+                        className="w-full py-4 bg-blue-600 text-white font-black uppercase tracking-[0.2em] rounded-2xl hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/20"
+                    >
+                        Apply JSON Changes to Form
+                    </button>
+                </div>
+            )}
+        </div>
       </div>
     </GameLocalizationProvider>
   );

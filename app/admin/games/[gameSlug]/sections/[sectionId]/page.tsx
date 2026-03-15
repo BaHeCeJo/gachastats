@@ -5,6 +5,9 @@ import {
   getSectionFields, 
   getSectionDisplaySettings, 
   getSectionEntities,
+  getSectionStats,
+  getSectionAscensions,
+  getSectionAbilityTemplates,
   Game,
   Section,
   SectionField,
@@ -42,7 +45,8 @@ async function updateDisplaySettingsAction(_gameSlug: string, sectionId: string,
     top_left_icon_field_id: (formData.get('top_left_icon_field_id') as string) || null,
     top_right_icon_field_id: (formData.get('top_right_icon_field_id') as string) || null,
     overlay_icon_field_id: (formData.get('overlay_icon_field_id') as string) || null,
-    filter_field_ids: formData.getAll('filter_field_ids') as string[]
+    filter_field_ids: formData.getAll('filter_field_ids') as string[],
+    skin_display_types: formData.getAll('skin_display_types') as string[]
   };
   const { error } = await supabase.from('section_display_settings').upsert(data, { onConflict: 'section_id' });
   if (error) return { error: error.message };
@@ -93,9 +97,17 @@ export default async function EditSectionPage({ params: paramsPromise }: PagePro
   const { data: game } = await getGameBySlug(gameSlug);
   if (!game) redirect("/admin/games");
 
-  const [sRes, tRes, fRes, dsRes, eRes, hRes, cStore] = await Promise.all([
-    getSectionById(sectionId), supabase.from("section_teams").select(`*, section_team_members(*)`).eq("section_id", sectionId).order('created_at', { ascending: false }),
-    getSectionFields(sectionId), getSectionDisplaySettings(sectionId), getSectionEntities(sectionId, game.default_lang), headers(), cookies()
+  const [sRes, tRes, fRes, dsRes, eRes, statsRes, ascRes, templatesRes, hRes, cStore] = await Promise.all([
+    getSectionById(sectionId), 
+    supabase.from("section_teams").select(`*, section_team_members(*)`).eq("section_id", sectionId).order('created_at', { ascending: false }),
+    getSectionFields(sectionId), 
+    getSectionDisplaySettings(sectionId), 
+    getSectionEntities(sectionId, game.default_lang), 
+    getSectionStats(sectionId),
+    getSectionAscensions(sectionId),
+    getSectionAbilityTemplates(sectionId),
+    headers(), 
+    cookies()
   ]);
 
   const section = sRes.data as Section;
@@ -127,7 +139,20 @@ export default async function EditSectionPage({ params: paramsPromise }: PagePro
   return (
     <>
       <AdminHeader params={paramsPromise} />
-      <EditSectionClient game={game} section={section} fields={fields} displaySettings={dsRes.data as SectionDisplaySettings} entities={processedEntities} filterFieldsData={filterData} currentLang={lang} updateDisplaySettingsAction={updateDisplaySettingsAction.bind(null, gameSlug, sectionId)} sectionTeams={tRes.data || []} />
+      <EditSectionClient 
+        game={game} 
+        section={section} 
+        fields={fields} 
+        displaySettings={dsRes.data as SectionDisplaySettings} 
+        entities={processedEntities} 
+        filterFieldsData={filterData} 
+        currentLang={lang} 
+        updateDisplaySettingsAction={updateDisplaySettingsAction.bind(null, gameSlug, sectionId)} 
+        sectionTeams={tRes.data || []} 
+        sectionStats={statsRes.data || []}
+        sectionAscensions={ascRes.data || []}
+        abilityTemplates={templatesRes.data || []}
+      />
     </>
   );
 }
