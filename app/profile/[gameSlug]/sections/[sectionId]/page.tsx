@@ -10,7 +10,6 @@ import {
   SectionField,
   SectionDisplaySettings,
   EntityFieldValue,
-  EntityImage,
 } from "@/lib/supabase/queries";
 import { getPublicUrl } from "@/lib/supabase/client";
 import { redirect, notFound } from "next/navigation";

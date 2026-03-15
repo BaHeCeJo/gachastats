@@ -10,15 +10,18 @@ import { upsertEntityAction } from '../actions';
 import Image from 'next/image';
 
 type GameData = { id: string; name: LocalizedString; slug: string; default_lang: string; supported_languages: string[]; };
-type SectionData = { id: string; key: LocalizedString; game_id: string; };
+type SectionData = { id: string; key: LocalizedString; game_id: string; has_stats?: boolean; has_ascension?: boolean; max_level?: number; };
 type FieldOption = { id: string; game_field_id: string; value_key: LocalizedString; icon_path: string | null; color: string | null; };
 type FieldData = { id: string; key: LocalizedString; required: boolean; manual_fill: boolean; is_multi: boolean; has_icon: boolean; has_color: boolean; order_index: number; category: string | null; field_options: FieldOption[] | null; };
+import { SectionStat, SectionAscension } from '@/lib/supabase/queries';
+import EntityStatsEditor from '../components/EntityStatsEditor';
+
 type FormState = { error?: string; };
 
 interface FieldValueState { field_id: string; values: string[]; }
 
-export default function NewEntityClient({ game, section, fields, currentLang: browserLang }: {
-  game: GameData; section: SectionData; fields: FieldData[]; currentLang: string;
+export default function NewEntityClient({ game, section, fields, currentLang: browserLang, sectionStats = [], sectionAscensions = [] }: {
+  game: GameData; section: SectionData; fields: FieldData[]; currentLang: string; sectionStats: SectionStat[]; sectionAscensions: SectionAscension[];
 }) {
   const supabase = createClient();
   const { displayLang, t } = useLocalizationParams();
@@ -27,12 +30,16 @@ export default function NewEntityClient({ game, section, fields, currentLang: br
   const [localizedName, setLocalizedName] = useState<LocalizedString>({ [game.default_lang]: "" });
   const [iconFile, setIconFile] = useState<File | null>(null);
   const [entityFieldValues, setEntityFieldValues] = useState<FieldValueState[]>(() => fields.map(f => ({ field_id: f.id, values: [] })));
+  const [stats, setStats] = useState<{ stat_id: string; level: number; value: number }[]>([]);
 
   const [state, formAction] = useActionState(async (_prevState: FormState, formData: FormData) => {
     formData.set("name", JSON.stringify(localizedName));
     formData.set("section_id", section.id);
     if (iconFile) formData.set("icon_file", iconFile); else formData.delete("icon_file");
     formData.set("field_values", JSON.stringify(entityFieldValues));
+    if (section.has_stats) {
+      formData.set("entity_stats", JSON.stringify(stats));
+    }
     return await upsertEntityAction(game.slug, section.id, game.default_lang, formData);
   }, {} as FormState);
 
@@ -120,6 +127,18 @@ export default function NewEntityClient({ game, section, fields, currentLang: br
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{groups[cat].map(renderField)}</div>
               </div>
             ))}
+
+            {section.has_stats && (
+              <EntityStatsEditor 
+                section={section} 
+                sectionStats={sectionStats} 
+                sectionAscensions={sectionAscensions} 
+                entityStats={[]} 
+                activeLang={activeLang} 
+                gameDefaultLang={game.default_lang} 
+                onChange={setStats} 
+              />
+            )}
           </div>
           <div className="pt-6 border-t border-zinc-800"><button type="submit" className="w-full bg-blue-600 text-white font-bold px-4 py-4 rounded-2xl hover:bg-blue-500 transition-all shadow-lg hover:shadow-blue-500/20 active:scale-[0.98]">{t('createEntity')}</button></div>
         </form>

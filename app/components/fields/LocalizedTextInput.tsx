@@ -61,7 +61,7 @@ export default function LocalizedTextInput({
           id={`${id}-${singleLang}`}
           name={`${id}-${singleLang}`} // Name attribute for form submission
           // eslint-disable-next-line security/detect-object-injection
-          value={(value && value[singleLang]) || ""}
+          value={(value && value[singleLang]) ?? ""}
           onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
             handleChange(singleLang, e.target.value)
           }
@@ -106,7 +106,7 @@ export default function LocalizedTextInput({
             id={`${id}-${lang}`}
             name={`${id}-${lang}`} // Name attribute for form submission
             // eslint-disable-next-line security/detect-object-injection
-            value={(value && value[lang]) || ""}
+            value={(value && value[lang]) ?? ""}
             onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
               handleChange(lang, e.target.value)
             }

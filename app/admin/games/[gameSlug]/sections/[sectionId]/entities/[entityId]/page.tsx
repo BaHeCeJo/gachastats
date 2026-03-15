@@ -5,6 +5,11 @@ import {
   getSectionFields, 
   getEntityTeams,
   getSectionEntitiesLibrary,
+  getSectionStats,
+  getSectionAscensions,
+  getEntityStats,
+  getSectionAbilityTemplates,
+  getEntityAbilities,
   Game,
   Section,
   SectionField,
@@ -66,8 +71,15 @@ export default async function EntityPage({ params: paramsPromise }: PageProps) {
   if (!entity) redirect(`/admin/games/${gameSlug}/sections/${sectionId}/entities`);
   if (!section) redirect(`/admin/games/${gameSlug}/sections`);
 
-  // 2. SECONDARY DATA: Fetch teams (lighter)
-  const teamsRes = await getEntityTeams(entityId);
+  // 2. SECONDARY DATA: Fetch teams, stats, ascensions, and abilities
+  const [teamsRes, sectionStatsRes, sectionAscensionsRes, entityStatsRes, abilityTemplatesRes, entityAbilitiesRes] = await Promise.all([
+    getEntityTeams(entityId),
+    getSectionStats(sectionId),
+    getSectionAscensions(sectionId),
+    getEntityStats(entityId),
+    getSectionAbilityTemplates(sectionId),
+    getEntityAbilities(entityId)
+  ]);
 
   // 3. DEFERRED DATA: Prepare the library promise BUT DO NOT AWAIT IT
   // This allows the server to start sending the HTML for the form immediately
@@ -121,6 +133,11 @@ export default async function EntityPage({ params: paramsPromise }: PageProps) {
           maxTeamSize={section.max_team_size}
           sectionTeams={relevantTeams}
           libraryPromise={libraryPromise} 
+          sectionStats={sectionStatsRes.data || []}
+          sectionAscensions={sectionAscensionsRes.data || []}
+          entityStats={entityStatsRes.data || []}
+          abilityTemplates={abilityTemplatesRes.data || []}
+          existingAbilities={entityAbilitiesRes.data || []}
         />
       </Suspense>
     </>

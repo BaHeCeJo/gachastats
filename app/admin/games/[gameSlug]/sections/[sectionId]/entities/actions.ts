@@ -90,6 +90,100 @@ async function processSingleField(supabase: SupabaseClient, entityId: string, fV
 /**
  * Handles field value processing logic.
  */
+async function processEntityStats(supabase: SupabaseClient, entityId: string, stats: { stat_id: string; level: number; phase_index: number; value: number }[]) {
+  await supabase.from('entity_stats').delete().eq('entity_id', entityId);
+  if (stats.length > 0) {
+    const toInsert = stats.map(s => ({
+      entity_id: entityId,
+      stat_id: s.stat_id,
+      level: s.level,
+      phase_index: s.phase_index,
+      value: s.value
+    }));
+    await supabase.from('entity_stats').insert(toInsert);
+  }
+}
+
+interface AbilityInput {
+  definition_id: string;
+  name: LocalizedString;
+  description: LocalizedString;
+  icon_path: string | null;
+  entity_ability_forms?: FormInput[];
+  entity_ability_scaling?: ScalingInput[];
+}
+
+interface FormInput {
+  name: LocalizedString;
+  description: LocalizedString;
+  icon_path: string | null;
+}
+
+interface ScalingInput {
+  attribute_index: number;
+  level: number;
+  value: number;
+  value_type: 'percent' | 'flat';
+  scaling_stat_id: string | null;
+}
+
+async function processAbilityForms(supabase: SupabaseClient, abilityId: string, forms: FormInput[]) {
+  // Simple delete/re-insert for forms for now
+  await supabase.from('entity_ability_forms').delete().eq('ability_id', abilityId);
+  if (forms.length > 0) {
+    const toInsert = forms.map((f, idx) => ({
+      ability_id: abilityId,
+      name: f.name,
+      description: f.description,
+      icon_path: f.icon_path,
+      order_index: idx
+    }));
+    await supabase.from('entity_ability_forms').insert(toInsert);
+  }
+}
+
+async function processAbilityScaling(supabase: SupabaseClient, abilityId: string, scaling: ScalingInput[]) {
+  await supabase.from('entity_ability_scaling').delete().eq('ability_id', abilityId);
+  if (scaling.length > 0) {
+    const toInsert = scaling.map(s => ({
+      ability_id: abilityId,
+      attribute_index: s.attribute_index,
+      level: s.level,
+      value: s.value,
+      value_type: s.value_type,
+      scaling_stat_id: s.scaling_stat_id
+    }));
+    await supabase.from('entity_ability_scaling').insert(toInsert);
+  }
+}
+
+async function processEntityAbilities(supabase: SupabaseClient, entityId: string, abilities: AbilityInput[]) {
+  for (const ab of abilities) {
+    const data = {
+      entity_id: entityId,
+      definition_id: ab.definition_id,
+      name: ab.name,
+      description: ab.description,
+      icon_path: ab.icon_path
+    };
+
+    const { data: res, error } = await supabase
+      .from('entity_abilities')
+      .upsert(data, { onConflict: 'entity_id, definition_id' })
+      .select('id')
+      .single();
+
+    if (!error && res) {
+      if (ab.entity_ability_forms) {
+        await processAbilityForms(supabase, res.id, ab.entity_ability_forms);
+      }
+      if (ab.entity_ability_scaling) {
+        await processAbilityScaling(supabase, res.id, ab.entity_ability_scaling);
+      }
+    }
+  }
+}
+
 async function processFieldValues(
   supabase: SupabaseClient,
   entityId: string,
@@ -130,8 +224,18 @@ export async function upsertEntityAction(gameSlug: string, sectionId: string, ga
   if (error) return { error: `Failed to upsert entity: ${error.message}` };
   
   await processFieldValues(supabase, res.id, JSON.parse(formData.get("field_values") as string || "[]"), gameDefaultLang);
+  
+  if (formData.has("entity_stats")) {
+    await processEntityStats(supabase, res.id, JSON.parse(formData.get("entity_stats") as string || "[]"));
+  }
+
+  if (formData.has("abilities")) {
+    await processEntityAbilities(supabase, res.id, JSON.parse(formData.get("abilities") as string || "[]"));
+  }
 
   updateTag(`entity-${res.id}`);
+  updateTag(`entity-stats-${res.id}`);
+  updateTag(`entity-abilities-${res.id}`);
   updateTag(`section-entities-${sectionId}`);
   revalidatePath(`/admin/games/${gameSlug}/sections/${sectionId}/entities`);
   redirect(`/admin/games/${gameSlug}/sections/${sectionId}/entities/${res.id}`);
@@ -153,4 +257,45 @@ export async function deleteEntityAction(entityId: string, gameSlug: string, sec
   updateTag(`section-entities-${sectionId}`);
   revalidatePath(`/admin/games/${gameSlug}/sections/${sectionId}/entities`);
   redirect(`/admin/games/${gameSlug}/sections/${sectionId}/entities`);
+}
+
+interface BulkEntityInput {
+  id?: string;
+  name: LocalizedString;
+  icon_path?: string | null;
+  field_values?: FieldValueInput[];
+  entity_stats?: { stat_id: string; level: number; phase_index: number; value: number }[];
+}
+
+export async function bulkUpsertEntitiesAction(sectionId: string, gameDefaultLang: string, entitiesData: BulkEntityInput[]) {
+  const supabase = await createClient();
+  
+  for (const data of entitiesData) {
+    const entityData = { 
+      section_id: sectionId, 
+      name: data.name,
+      icon_path: data.icon_path || null
+    };
+
+    const query = data.id 
+      ? supabase.from("section_entities").update(entityData).eq("id", data.id)
+      : supabase.from("section_entities").insert(entityData);
+
+    const { data: res, error } = await query.select('id').single();
+    if (error) continue; // Skip failed ones for now or handle better
+
+    if (data.field_values) {
+      await processFieldValues(supabase, res.id, data.field_values, gameDefaultLang);
+    }
+    
+    if (data.entity_stats) {
+      await processEntityStats(supabase, res.id, data.entity_stats);
+    }
+
+    updateTag(`entity-${res.id}`);
+    updateTag(`entity-stats-${res.id}`);
+  }
+
+  updateTag(`section-entities-${sectionId}`);
+  return { success: true };
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, Mock } from 'vitest'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { upsertGameAction } from '@/lib/actions/admin/game'
@@ -27,7 +27,7 @@ describe('Security Layer - Admin Actions', () => {
         })
       })
     };
-    (createClient as any).mockResolvedValue(mockSupabase)
+    (createClient as Mock).mockResolvedValue(mockSupabase)
 
     // 2. Try to perform an admin action (upsertGame)
     const formData = new FormData()
@@ -61,7 +61,7 @@ describe('Security Layer - Admin Actions', () => {
       }),
       storage: { from: vi.fn().mockReturnValue({ remove: vi.fn().mockResolvedValue({}) }) }
     };
-    (createClient as any).mockResolvedValue(mockSupabase)
+    (createClient as Mock).mockResolvedValue(mockSupabase)
 
     // 2. Mock valid form data
     const formData = new FormData()
