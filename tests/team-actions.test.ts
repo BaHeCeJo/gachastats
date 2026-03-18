@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createClient } from '@/lib/supabase/server'
 import { upsertTeamAction, deleteTeamAction } from '../lib/actions/team'

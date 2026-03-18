@@ -275,6 +275,7 @@ export default function EntityAbilityEditor({
                     name={`ability-${abIdx}-icon`}
                     existingImageUrl={ab.icon_path ? supabase.storage.from('games').getPublicUrl(ab.icon_path).data.publicUrl : undefined}
                     onFileChange={() => {}}
+                    onRemoveExisting={() => handleAbilityChange(abIdx, { icon_path: null })}
                   />
                 </div>
                 <div className="lg:col-span-3 space-y-4">
@@ -301,7 +302,7 @@ export default function EntityAbilityEditor({
                             <span className="w-8 h-[1px] bg-zinc-800" />
                             Ability Scaling
                         </h4>
-                        <button onClick={() => addAttribute(abIdx)} className="text-[10px] font-black uppercase tracking-widest bg-zinc-800 text-zinc-300 px-3 py-1 rounded-lg border border-zinc-700 hover:bg-zinc-700 transition-colors">+ Add Attribute</button>
+                        <button type="button" onClick={() => addAttribute(abIdx)} className="text-[10px] font-black uppercase tracking-widest bg-zinc-800 text-zinc-300 px-3 py-1 rounded-lg border border-zinc-700 hover:bg-zinc-700 transition-colors">+ Add Attribute</button>
                     </div>
 
                     <div className="overflow-x-auto rounded-2xl border border-zinc-800/50">
@@ -316,7 +317,7 @@ export default function EntityAbilityEditor({
                                                 <div className="flex flex-col gap-2">
                                                     <div className="flex justify-between items-center">
                                                         <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Attr {attrIdx + 1}</span>
-                                                        <button onClick={() => removeAttribute(abIdx, attrIdx)} className="text-red-500 hover:text-red-400">
+                                                        <button type="button" onClick={() => removeAttribute(abIdx, attrIdx)} className="text-red-500 hover:text-red-400">
                                                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                                         </button>
                                                     </div>
@@ -379,10 +380,15 @@ export default function EntityAbilityEditor({
                   <div className="grid grid-cols-1 gap-6">
                     {ab.entity_ability_forms.map((form, fIdx) => (
                       <div key={fIdx} className="relative bg-zinc-950/50 p-6 rounded-2xl border border-zinc-800/30 group">
-                        <button onClick={() => removeForm(abIdx, fIdx)} className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                        <button type="button" onClick={() => removeForm(abIdx, fIdx)} className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                           <div className="lg:col-span-1">
-                             <ImageInput name={`ability-${abIdx}-form-${fIdx}-icon`} existingImageUrl={form.icon_path ? supabase.storage.from('games').getPublicUrl(form.icon_path).data.publicUrl : undefined} onFileChange={() => {}} />
+                             <ImageInput 
+                               name={`ability-${abIdx}-form-${fIdx}-icon`} 
+                               existingImageUrl={form.icon_path ? supabase.storage.from('games').getPublicUrl(form.icon_path).data.publicUrl : undefined} 
+                               onFileChange={() => {}} 
+                               onRemoveExisting={() => updateForm(abIdx, fIdx, { icon_path: null })}
+                             />
                           </div>
                           <div className="lg:col-span-3 space-y-4">
                             <LocalizedTextInput id={`form-name-${abIdx}-${fIdx}`} label="Form Name" value={form.name} onChange={(val) => updateForm(abIdx, fIdx, { name: val })} />
@@ -394,7 +400,7 @@ export default function EntityAbilityEditor({
                   </div>
                 </div>
               )}
-              <button onClick={() => addForm(abIdx)} className="w-full py-3 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border border-zinc-800/50">+ Add Alternate Form</button>
+              <button type="button" onClick={() => addForm(abIdx)} className="w-full py-3 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border border-zinc-800/50">+ Add Alternate Form</button>
             </div>
           );
         })}

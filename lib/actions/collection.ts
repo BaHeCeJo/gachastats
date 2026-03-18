@@ -67,6 +67,26 @@ export async function updateEntityDupesAction(instanceId: string, dupes: number)
   return { success: true };
 }
 
+export async function updateUserEntityStatsAction(instanceId: string, level: number, phase_index: number) {
+  if (!isValidUUID(instanceId)) return { error: "Invalid Instance ID format" };
+  
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "User not authenticated" };
+
+  const { error } = await supabase
+    .from("user_entities")
+    .update({ level, phase_index })
+    .eq("id", instanceId)
+    .eq("user_id", user.id);
+
+  if (error) return { error: error.message };
+  
+  updateTag(`collection-${user.id}`);
+  revalidatePath("/profile");
+  return { success: true };
+}
+
 export async function removeUserEntityAction(instanceId: string) {
   if (!isValidUUID(instanceId)) return { error: "Invalid Instance ID format" };
 

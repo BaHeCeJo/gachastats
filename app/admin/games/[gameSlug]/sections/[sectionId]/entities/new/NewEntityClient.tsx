@@ -13,32 +13,36 @@ type GameData = { id: string; name: LocalizedString; slug: string; default_lang:
 type SectionData = { id: string; key: LocalizedString; game_id: string; has_stats?: boolean; has_ascension?: boolean; max_level?: number; };
 type FieldOption = { id: string; game_field_id: string; value_key: LocalizedString; icon_path: string | null; color: string | null; };
 type FieldData = { id: string; key: LocalizedString; required: boolean; manual_fill: boolean; is_multi: boolean; has_icon: boolean; has_color: boolean; order_index: number; category: string | null; field_options: FieldOption[] | null; };
-import { SectionStat, SectionAscension } from '@/lib/supabase/queries';
+import { SectionStat, SectionAscension, AbilityTemplate, AbilityDefinition } from '@/lib/supabase/queries';
 import EntityStatsEditor from '../components/EntityStatsEditor';
+import EntityAbilityEditor, { AbilityState } from '../components/EntityAbilityEditor';
 
 type FormState = { error?: string; };
 
 interface FieldValueState { field_id: string; values: string[]; }
 
-export default function NewEntityClient({ game, section, fields, currentLang: browserLang, sectionStats = [], sectionAscensions = [] }: {
-  game: GameData; section: SectionData; fields: FieldData[]; currentLang: string; sectionStats: SectionStat[]; sectionAscensions: SectionAscension[];
+export default function NewEntityClient({ game, section, fields, currentLang: browserLang, sectionStats = [], sectionAscensions = [], abilityTemplates = [] }: {
+  game: GameData; section: SectionData; fields: FieldData[]; currentLang: string; sectionStats: SectionStat[]; sectionAscensions: SectionAscension[]; abilityTemplates: (AbilityTemplate & { section_ability_definitions: AbilityDefinition[] })[];
 }) {
   const supabase = createClient();
   const { displayLang, t } = useLocalizationParams();
   const activeLang = displayLang || browserLang;
 
   const [localizedName, setLocalizedName] = useState<LocalizedString>({ [game.default_lang]: "" });
-  const [iconFile, setIconFile] = useState<File | null>(null);
   const [entityFieldValues, setEntityFieldValues] = useState<FieldValueState[]>(() => fields.map(f => ({ field_id: f.id, values: [] })));
   const [stats, setStats] = useState<{ stat_id: string; level: number; value: number }[]>([]);
+  const [abilities, setAbilities] = useState<AbilityState[]>([]);
 
   const [state, formAction] = useActionState(async (_prevState: FormState, formData: FormData) => {
     formData.set("name", JSON.stringify(localizedName));
     formData.set("section_id", section.id);
-    if (iconFile) formData.set("icon_file", iconFile); else formData.delete("icon_file");
+    // icon_file and ability icons are picked up from the form inputs in formData
     formData.set("field_values", JSON.stringify(entityFieldValues));
     if (section.has_stats) {
       formData.set("entity_stats", JSON.stringify(stats));
+    }
+    if (abilityTemplates.length > 0) {
+      formData.set("abilities", JSON.stringify(abilities));
     }
     return await upsertEntityAction(game.slug, section.id, game.default_lang, formData);
   }, {} as FormState);
@@ -117,7 +121,7 @@ export default function NewEntityClient({ game, section, fields, currentLang: br
         {state?.error && <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-sm p-4 rounded-lg">{state.error}</div>}
         <form action={formAction} className="space-y-6">
           <LocalizedTextInput id="name" label={t('entityName')} value={localizedName} onChange={setLocalizedName} placeholder="e.g., Acheron" />
-          <div><label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{t('mainIcon')}</label><ImageInput name="icon_file" onFileChange={setIconFile} existingImageUrl={null} /></div>
+          <div><label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{t('mainIcon')}</label><ImageInput name="icon_file" onFileChange={() => {}} existingImageUrl={null} /></div>
           <div className="space-y-4">
             <h2 className="text-xl font-semibold text-white mt-8 italic flex items-center gap-2"><span className="w-4 h-1 bg-green-500"></span>{t('entityData')}</h2>
             {sortedCats.map(cat => (
@@ -138,6 +142,19 @@ export default function NewEntityClient({ game, section, fields, currentLang: br
                 gameDefaultLang={game.default_lang} 
                 onChange={setStats} 
               />
+            )}
+
+            {abilityTemplates.length > 0 && (
+              <div className="pt-10 border-t border-zinc-800">
+                <EntityAbilityEditor 
+                  abilityTemplates={abilityTemplates}
+                  existingAbilities={[]}
+                  sectionStats={sectionStats}
+                  gameDefaultLang={game.default_lang}
+                  activeLang={activeLang}
+                  onChange={setAbilities}
+                />
+              </div>
             )}
           </div>
           <div className="pt-6 border-t border-zinc-800"><button type="submit" className="w-full bg-blue-600 text-white font-bold px-4 py-4 rounded-2xl hover:bg-blue-500 transition-all shadow-lg hover:shadow-blue-500/20 active:scale-[0.98]">{t('createEntity')}</button></div>

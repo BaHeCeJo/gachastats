@@ -13,7 +13,7 @@ const isProd = process.env.NODE_ENV === 'production';
 const nextConfig: CustomNextConfig = {
   reactCompiler: true,
   // eslint-disable-next-line sonarjs/no-hardcoded-ip
-  allowedDevOrigins: ["192.168.1.31"],
+  allowedDevOrigins: ["192.168.1.31", "192.168.56.1"],
   experimental: {
     serverActions: {
       bodySizeLimit: '10mb',

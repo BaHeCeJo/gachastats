@@ -93,6 +93,7 @@ describe('CollectionGridManager', () => {
   })
 
   it('updates duplicates optimistically', async () => {
+    const user = userEvent.setup()
     const ownedEntities = [{ id: 'o1', entity_id: 'e1', dupes: 0 }]
     render(
       <CollectionGridManager 
@@ -106,7 +107,10 @@ describe('CollectionGridManager', () => {
       />
     )
 
-    const slider = screen.getByRole('slider')
+    const card = screen.getByText('Entity 1')
+    await user.click(card)
+
+    const slider = await screen.findByRole('slider')
     
     // Using fireEvent for simplicity with ranges in JSDOM
     const { fireEvent } = await import('@testing-library/react')
@@ -114,6 +118,34 @@ describe('CollectionGridManager', () => {
 
     expect(updateEntityDupesAction).toHaveBeenCalledWith('o1', 3)
     // The UI should show the new value (optimistic)
-    expect(screen.getByText('Constellation 3')).toBeDefined()
+    expect(await screen.findByText('Constellation 3')).toBeInTheDocument()
+  })
+
+  it('adds new instance when clicking add button in manage view for non-unique section', async () => {
+    const user = userEvent.setup()
+    const nonUniqueSection = { ...mockSection, is_unique: false }
+    const ownedEntities = [{ id: 'o1', entity_id: 'e1', dupes: 0, level: 1, phase_index: 0 }]
+    
+    render(
+      <CollectionGridManager 
+        entities={mockEntities as unknown as any} 
+        initialOwnedEntities={ownedEntities as unknown as any} 
+        section={nonUniqueSection as unknown as any} 
+        displaySettings={null} 
+        filterFields={[]} 
+        gameDefaultLang="en" 
+        currentLang="en" 
+      />
+    )
+
+    // Open manage view
+    const card = screen.getByText('Entity 1')
+    await user.click(card)
+
+    // Find and click add button
+    const addButton = await screen.findByText('addEntity') // t function returns key
+    await user.click(addButton)
+
+    expect(toggleCollectionEntityAction).toHaveBeenCalledWith('e1', false)
   })
 })
