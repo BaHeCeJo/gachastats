@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { LocalizedString } from "@/lib/localization";
+import { getTranslatedField } from "@/lib/localization-utils";
 import { slugify } from "@/lib/utils/slugify";
 import { uploadImage, extractPathFromUrl } from "@/lib/supabase/storage-utils";
 import { SupabaseClient } from "@supabase/supabase-js";
@@ -127,17 +128,33 @@ interface ScalingInput {
   scaling_stat_id: string | null;
 }
 
-async function processAbilityForms(supabase: SupabaseClient, abilityId: string, forms: FormInput[]) {
+async function processAbilityForms(supabase: SupabaseClient, abilityId: string, forms: FormInput[], formData?: FormData, abilityIndex?: number, gameSlug?: string, sectionId?: string, abilityName?: string) {
   // Simple delete/re-insert for forms for now
   await supabase.from('entity_ability_forms').delete().eq('ability_id', abilityId);
   if (forms.length > 0) {
-    const toInsert = forms.map((f, idx) => ({
-      ability_id: abilityId,
-      name: f.name,
-      description: f.description,
-      icon_path: f.icon_path,
-      order_index: idx
-    }));
+    const toInsert = [];
+    for (let idx = 0; idx < forms.length; idx++) {
+      // eslint-disable-next-line security/detect-object-injection
+      const f = forms[idx];
+      let icon_path = f.icon_path;
+
+      if (formData && abilityIndex !== undefined && gameSlug && sectionId) {
+        const formIconFile = formData.get(`ability-${abilityIndex}-form-${idx}-icon`) as File | null;
+        if (formIconFile && formIconFile.size > 0) {
+          const formSlug = slugify(getTranslatedField(f.name, 'en', 'en') || `form-${idx}`);
+          const abilitySlug = slugify(abilityName || 'ability');
+          icon_path = await uploadImage(formIconFile, "games", `${gameSlug}/sections/${sectionId}/abilities/${abilitySlug}/forms/${formSlug}`);
+        }
+      }
+
+      toInsert.push({
+        ability_id: abilityId,
+        name: f.name,
+        description: f.description,
+        icon_path,
+        order_index: idx
+      });
+    }
     await supabase.from('entity_ability_forms').insert(toInsert);
   }
 }
@@ -157,30 +174,63 @@ async function processAbilityScaling(supabase: SupabaseClient, abilityId: string
   }
 }
 
-async function processEntityAbilities(supabase: SupabaseClient, entityId: string, abilities: AbilityInput[]) {
-  for (const ab of abilities) {
-    const data = {
-      entity_id: entityId,
-      definition_id: ab.definition_id,
-      name: ab.name,
-      description: ab.description,
-      icon_path: ab.icon_path
-    };
-
-    const { data: res, error } = await supabase
-      .from('entity_abilities')
-      .upsert(data, { onConflict: 'entity_id, definition_id' })
-      .select('id')
-      .single();
-
-    if (!error && res) {
-      if (ab.entity_ability_forms) {
-        await processAbilityForms(supabase, res.id, ab.entity_ability_forms);
-      }
-      if (ab.entity_ability_scaling) {
-        await processAbilityScaling(supabase, res.id, ab.entity_ability_scaling);
-      }
+async function getAbilityIconPath(
+  index: number,
+  ab: AbilityInput,
+  formData?: FormData,
+  gameSlug?: string,
+  sectionId?: string
+): Promise<string | null> {
+  if (formData && gameSlug && sectionId) {
+    const iconFile = formData.get(`ability-${index}-icon`) as File | null;
+    if (iconFile && iconFile.size > 0) {
+      const abilitySlug = slugify(getTranslatedField(ab.name, 'en', 'en') || `ability-${index}`);
+      return await uploadImage(iconFile, "games", `${gameSlug}/sections/${sectionId}/abilities/${abilitySlug}`);
     }
+  }
+  return ab.icon_path;
+}
+
+async function processSingleAbility(
+  supabase: SupabaseClient,
+  entityId: string,
+  index: number,
+  ab: AbilityInput,
+  formData?: FormData,
+  gameSlug?: string,
+  sectionId?: string
+) {
+  const icon_path = await getAbilityIconPath(index, ab, formData, gameSlug, sectionId);
+
+  const data = {
+    entity_id: entityId,
+    definition_id: ab.definition_id,
+    name: ab.name,
+    description: ab.description,
+    icon_path
+  };
+
+  const { data: res, error } = await supabase
+    .from('entity_abilities')
+    .upsert(data, { onConflict: 'entity_id, definition_id' })
+    .select('id')
+    .single();
+
+  if (!error && res) {
+    const abilityNameEn = getTranslatedField(ab.name, 'en', 'en');
+    if (ab.entity_ability_forms) {
+      await processAbilityForms(supabase, res.id, ab.entity_ability_forms, formData, index, gameSlug, sectionId, abilityNameEn);
+    }
+    if (ab.entity_ability_scaling) {
+      await processAbilityScaling(supabase, res.id, ab.entity_ability_scaling);
+    }
+  }
+}
+
+async function processEntityAbilities(supabase: SupabaseClient, entityId: string, abilities: AbilityInput[], formData?: FormData, gameSlug?: string, sectionId?: string) {
+  for (let i = 0; i < abilities.length; i++) {
+    // eslint-disable-next-line security/detect-object-injection
+    await processSingleAbility(supabase, entityId, i, abilities[i], formData, gameSlug, sectionId);
   }
 }
 
@@ -230,7 +280,7 @@ export async function upsertEntityAction(gameSlug: string, sectionId: string, ga
   }
 
   if (formData.has("abilities")) {
-    await processEntityAbilities(supabase, res.id, JSON.parse(formData.get("abilities") as string || "[]"));
+    await processEntityAbilities(supabase, res.id, JSON.parse(formData.get("abilities") as string || "[]"), formData, gameSlug, sectionId);
   }
 
   updateTag(`entity-${res.id}`);

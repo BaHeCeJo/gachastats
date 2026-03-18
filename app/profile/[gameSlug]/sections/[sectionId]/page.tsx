@@ -5,6 +5,7 @@ import {
   getSectionFields, 
   getSectionDisplaySettings,
   getUserSectionCollection,
+  getSectionAscensions,
   Game,
   Section,
   SectionField,
@@ -69,15 +70,26 @@ export default async function SectionCollectionPage({ params: paramsPromise }: P
   if (!user) redirect("/auth/signin");
   if (!game) redirect("/profile");
 
-  const [secRes, fieldsRes, settingsRes, entitiesRes] = await Promise.all([
-    getSectionById(sectionId), getSectionFields(sectionId), getSectionDisplaySettings(sectionId), getUserSectionCollection(sectionId, user.id, game.default_lang)
+  const [secRes, fieldsRes, settingsRes, entitiesRes, ascRes] = await Promise.all([
+    getSectionById(sectionId), 
+    getSectionFields(sectionId), 
+    getSectionDisplaySettings(sectionId), 
+    getUserSectionCollection(sectionId, user.id, game.default_lang),
+    getSectionAscensions(sectionId)
   ]);
 
   const section = secRes.data as Section;
   if (!section) return notFound();
   if (section.game_id !== game.id || !section.is_collectible) redirect(`/profile/${gameSlug}`);
 
-  const ownedEntities = (entitiesRes.data || []).filter(e => e.user_entities?.length).map(e => ({ id: e.user_entities![0].id, entity_id: e.id, dupes: e.user_entities![0].dupes }));
+  const ownedEntities = (entitiesRes.data || []).filter(e => e.user_entities?.length).map(e => ({ 
+    id: e.user_entities![0].id, 
+    entity_id: e.id, 
+    dupes: e.user_entities![0].dupes,
+    level: e.user_entities![0].level,
+    phase_index: e.user_entities![0].phase_index
+  }));
+
   const fields = (fieldsRes.data as unknown as SectionField[] || []).map(f => {
     const gField = Array.isArray(f.game_fields) ? f.game_fields[0] : f.game_fields;
     return { 
@@ -103,7 +115,21 @@ export default async function SectionCollectionPage({ params: paramsPromise }: P
       const field = gameFieldsMap.get(val.game_field_id);
       if (field) processEntityValues(val, field, lang, game.default_lang, allValues, fieldValuesMap);
     });
-    return { id: entity.id, section_id: entity.section_id, name: entity.name, icon_path: entity.icon_path, publicIconUrl, fieldValuesMap, allValues };
+
+    const availableLevels = Array.from(
+      new Map((entity.entity_stats || []).map((s: { level: number; phase_index: number }) => [`${s.level}-${s.phase_index}`, s])).values()
+    ).sort((a, b) => a.level !== b.level ? a.level - b.level : a.phase_index - b.phase_index);
+
+    return { 
+      id: entity.id, 
+      section_id: entity.section_id, 
+      name: entity.name, 
+      icon_path: entity.icon_path, 
+      publicIconUrl, 
+      fieldValuesMap, 
+      allValues,
+      availableLevels
+    };
   });
 
   const filterIds = (settingsRes.data as SectionDisplaySettings)?.filter_field_ids || [];
@@ -117,7 +143,7 @@ export default async function SectionCollectionPage({ params: paramsPromise }: P
       <GameLocalizationProvider gameDefaultLang={game.default_lang} gameSupportedLanguages={game.supported_languages}>
         <GSBackground isHidden={!!game.cover_url} />
         <Header breadcrumbs={[{ href: "/profile", label: getTranslation('profile', lang) }, { href: `/profile/${gameSlug}`, label: getTranslatedField(game.name, lang, game.default_lang) }, { href: `/profile/${gameSlug}/sections/${sectionId}`, label: getTranslatedField(section.key, lang, game.default_lang) }]} />
-        <main className="flex-1 px-8 py-24 z-10 relative"><div className="max-w-7xl mx-auto space-y-12"><div className="flex flex-col md:flex-row items-center gap-8">{section.icon_path ? <div className="relative w-24 h-24 rounded-full bg-zinc-800 border-2 border-zinc-700 p-4 shadow-2xl flex items-center justify-center overflow-hidden" style={{ backgroundColor: section.color || 'transparent' }}><Image src={getPublicUrl('games', section.icon_path)!} fill sizes="96px" className="object-contain filter grayscale invert brightness-200" alt="" /></div> : <div className="w-24 h-24 rounded-full bg-zinc-800 border-2 border-zinc-700 flex items-center justify-center text-zinc-500 text-4xl font-black" style={{ backgroundColor: section.color || 'transparent' }}>?</div>}<div className="space-y-2 text-center md:text-left"><h1 className="text-5xl font-black italic uppercase tracking-tighter text-[#22c55e]">{getTranslatedField(section.key, lang, game.default_lang)}</h1><p className="text-zinc-400 font-bold uppercase tracking-[0.3em] text-[10px]">{getTranslation('tapToCollect', lang)}</p></div></div><CollectionGridManager entities={processedEntities} initialOwnedEntities={ownedEntities} section={section} displaySettings={settingsRes.data as SectionDisplaySettings} filterFields={filterFields} gameDefaultLang={game.default_lang} currentLang={lang} /></div></main>
+        <main className="flex-1 px-8 py-24 z-10 relative"><div className="max-w-7xl mx-auto space-y-12"><div className="flex flex-col md:flex-row items-center gap-8">{section.icon_path ? <div className="relative w-24 h-24 rounded-full bg-zinc-800 border-2 border-zinc-700 p-4 shadow-2xl flex items-center justify-center overflow-hidden" style={{ backgroundColor: section.color || 'transparent' }}><Image src={getPublicUrl('games', section.icon_path)!} fill sizes="96px" className="object-contain filter grayscale invert brightness-200" alt="" /></div> : <div className="w-24 h-24 rounded-full bg-zinc-800 border-2 border-zinc-700 flex items-center justify-center text-zinc-500 text-4xl font-black" style={{ backgroundColor: section.color || 'transparent' }}>?</div>}<div className="space-y-2 text-center md:text-left"><h1 className="text-5xl font-black italic uppercase tracking-tighter text-[#22c55e]">{getTranslatedField(section.key, lang, game.default_lang)}</h1><p className="text-zinc-400 font-bold uppercase tracking-[0.3em] text-[10px]">{getTranslation('tapToCollect', lang)}</p></div></div><CollectionGridManager entities={processedEntities} initialOwnedEntities={ownedEntities} section={section} ascensions={ascRes.data || []} displaySettings={settingsRes.data as SectionDisplaySettings} filterFields={filterFields} gameDefaultLang={game.default_lang} currentLang={lang} /></div></main>
       </GameLocalizationProvider>
     </div>
   );

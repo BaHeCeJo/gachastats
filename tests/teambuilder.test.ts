@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { renderHook, act } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { useTeamBuilder } from '../app/components/teambuilder/useTeamBuilder'
@@ -8,6 +8,7 @@ import { LocalizedString } from '@/lib/localization'
 
 // Mock localization
 vi.mock('@/lib/localization', () => ({
+  // eslint-disable-next-line security/detect-object-injection
   getTranslatedField: (name: LocalizedString, lang: string) => name[lang] || name['en'] || '',
 }))
 

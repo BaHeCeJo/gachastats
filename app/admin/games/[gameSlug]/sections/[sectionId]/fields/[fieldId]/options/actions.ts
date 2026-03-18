@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { LocalizedString } from "@/lib/localization";
 import { v4 as uuidv4 } from "uuid";
@@ -78,19 +78,37 @@ export async function upsertOptionAction(gameSlug: string, sectionId: string, fi
     return { error: e instanceof Error ? e.message : "An unknown error occurred" };
   }
 
+  // Invalidate all sections that use this game field
+  const { data: affectedSections } = await supabase.from("section_fields").select("section_id").eq("game_field_id", gameFieldId);
+  if (affectedSections) {
+    affectedSections.forEach(s => updateTag(`section-fields-${s.section_id}`));
+  }
+  
+  updateTag('field-options');
   revalidatePath(`/admin/games/${gameSlug}/sections/${sectionId}/fields/${fieldId}/options`);
   redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields/${fieldId}/options`);
 }
 
 export async function deleteOptionAction(optionId: string, gameSlug: string, sectionId: string, fieldId: string) {
   const supabase = await createClient();
-  const { data } = await supabase.from("field_options").select("icon_path").eq("id", optionId).single();
-  if (data?.icon_path) {
-    const path = extractPathFromUrl(data.icon_path, "games");
+  const { data: optData } = await supabase.from("field_options").select("icon_path, game_field_id").eq("id", optionId).single();
+  if (optData?.icon_path) {
+    const path = extractPathFromUrl(optData.icon_path, "games");
     if (path) await supabase.storage.from("games").remove([path]);
   }
+  const gameFieldId = optData?.game_field_id;
+
   const { error } = await supabase.from("field_options").delete().eq("id", optionId);
   if (error) throw new Error(error.message);
+  
+  if (gameFieldId) {
+    const { data: affectedSections } = await supabase.from("section_fields").select("section_id").eq("game_field_id", gameFieldId);
+    if (affectedSections) {
+      affectedSections.forEach(s => updateTag(`section-fields-${s.section_id}`));
+    }
+  }
+
+  updateTag('field-options');
   revalidatePath(`/admin/games/${gameSlug}/sections/${sectionId}/fields/${fieldId}/options`);
   redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields/${fieldId}/options`);
 }

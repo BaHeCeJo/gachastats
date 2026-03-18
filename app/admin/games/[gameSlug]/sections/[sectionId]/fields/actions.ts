@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { LocalizedString } from "@/lib/localization";
 import { SupabaseClient } from "@supabase/supabase-js";
@@ -72,6 +72,7 @@ export async function upsertFieldAction(gameSlug: string, sectionId: string, gam
     return { error: message };
   }
 
+  updateTag(`section-fields-${sectionId}`);
   revalidatePath(`/admin/games/${gameSlug}`, 'layout');
   redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields`);
 }
@@ -80,6 +81,8 @@ export async function deleteFieldAction(fieldId: string, gameSlug: string, secti
   const supabase = await createClient();
   const { error } = await supabase.from("section_fields").delete().eq("id", fieldId);
   if (error) throw new Error(error.message);
+  
+  updateTag(`section-fields-${sectionId}`);
   revalidatePath(`/admin/games/${gameSlug}`, 'layout');
   redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields`);
 }

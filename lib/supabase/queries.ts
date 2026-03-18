@@ -306,13 +306,33 @@ export const getSectionFields = cache(async (sectionId: string) => {
   return unstable_cache(
     async () => {
       const supabase = createPublicClient();
-      return supabase.from("section_fields").select(`
+      const { data: fieldsRaw, error: fieldsError } = await supabase.from("section_fields").select(`
         id, key, required, is_multi, category, order_index, game_field_id,
         game_fields (
-          manual_fill, has_icon, has_color,
-          field_options ( id, value_key, icon_path, color, order_index )
+          manual_fill, has_icon, has_color
         )
       `).eq("section_id", sectionId).order("order_index", { ascending: true });
+
+      if (fieldsError || !fieldsRaw) return { data: fieldsRaw, error: fieldsError };
+
+      const gameFieldIds = fieldsRaw.map(f => f.game_field_id).filter(Boolean);
+      const { data: allOptions } = gameFieldIds.length > 0
+        ? await supabase.from("field_options").select("id, game_field_id, value_key, icon_path, color, order_index").in("game_field_id", gameFieldIds).order("order_index", { ascending: true })
+        : { data: [] };
+
+      const fields = fieldsRaw.map(f => {
+        const gf = Array.isArray(f.game_fields) ? f.game_fields[0] : f.game_fields;
+        const options = (allOptions || []).filter((opt) => opt.game_field_id === f.game_field_id);
+        return {
+          ...f,
+          game_fields: {
+            ...gf,
+            field_options: options
+          }
+        };
+      });
+
+      return { data: fields, error: null };
     },
     [`section-fields-${sectionId}`],
     { revalidate: 3600, tags: [`section-fields-${sectionId}`] }
@@ -514,9 +534,15 @@ export const getUserSectionCollection = cache(async (sectionId: string, userId: 
       option_id, 
       field_options ( color, icon_path, value_key ) 
     ),
+    entity_stats (
+      level,
+      phase_index
+    ),
     user_entities!left (
       id,
-      dupes
+      dupes,
+      level,
+      phase_index
     )
   `)
   .eq("section_id", sectionId)

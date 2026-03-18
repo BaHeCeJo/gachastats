@@ -145,7 +145,6 @@ export default function EditEntityClient({
   }), [libraryData]);
 
   const [localizedName, setLocalizedName] = useState<LocalizedString>(entity.name);
-  const [iconFile, setIconFile] = useState<File | null>(null);
   const [existingIconPath, setExistingIconPath] = useState<string | null>(entity.icon_path);
 
   const initialFieldValues = useMemo(() => fields.map(field => ({
@@ -209,13 +208,11 @@ export default function EditEntityClient({
     }
   };
 
-  const [, formAction] = useActionState(async () => {
-    const formData = new FormData();
+  const [, formAction] = useActionState(async (prevState: FormState, formData: FormData) => {
     formData.set("id", entity.id);
     formData.set("name", JSON.stringify(localizedName));
     formData.set("section_id", section.id);
-    if (iconFile) formData.set("icon_file", iconFile);
-    formData.set("existing_icon_path", existingIconPath || "null");
+    // icon_file and ability icons are already in formData from the form inputs
     formData.set("field_values", JSON.stringify(entityFieldValues));
     if (section.has_stats) {
       formData.set("entity_stats", JSON.stringify(stats));
@@ -274,7 +271,7 @@ export default function EditEntityClient({
           <LocalizedTextInput id="name" label={t('entityName')} value={localizedName} onChange={setLocalizedName} placeholder="e.g., Acheron" />
           <div>
             <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{t('icon')}</label>
-            <ImageInput name="icon_file" onFileChange={setIconFile} existingImageUrl={entity.icon_path ? getPublicUrl('games', entity.icon_path) : null} onRemoveExisting={() => setExistingIconPath(null)} />
+            <ImageInput name="icon_file" onFileChange={() => {}} existingImageUrl={entity.icon_path ? getPublicUrl('games', entity.icon_path) : null} onRemoveExisting={() => setExistingIconPath(null)} />
             <input type="hidden" name="existing_icon_path" value={existingIconPath || ""} />
           </div>
           <div className="space-y-4">
