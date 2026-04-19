@@ -199,18 +199,16 @@ export default function EntityAbilityEditor({
     const template = abilityTemplates.find(t => t.id === templateId);
     if (!template) return;
 
-    const newAbilities = [...abilities];
-    template.section_ability_definitions.forEach(def => {
-      if (!newAbilities.find(a => a.definition_id === def.id)) {
-        newAbilities.push({
-          definition_id: def.id,
-          name: { [gameDefaultLang]: '' },
-          description: { [gameDefaultLang]: '' },
-          icon_path: null,
-          entity_ability_forms: [],
-          entity_ability_scaling: []
-        });
-      }
+    const newAbilities: AbilityState[] = template.section_ability_definitions.map(def => {
+      const existing = abilities.find(a => a.definition_id === def.id);
+      return existing || {
+        definition_id: def.id,
+        name: { [gameDefaultLang]: '' },
+        description: { [gameDefaultLang]: '' },
+        icon_path: null,
+        entity_ability_forms: [],
+        entity_ability_scaling: []
+      };
     });
     setAbilities(newAbilities);
     onChange(newAbilities);

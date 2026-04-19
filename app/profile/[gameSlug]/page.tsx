@@ -85,20 +85,29 @@ export default async function GameCollectionPage({ params: paramsPromise }: Page
 
         <main className="flex-1 px-8 py-24 z-10 relative">
           <div className="max-w-7xl mx-auto space-y-16">
-            <div className="flex flex-col md:flex-row items-center gap-10 text-center md:text-left">
-              {coverUrl && (
-                <div className="relative w-48 h-48 rounded-[2rem] overflow-hidden border-4 border-zinc-800 shadow-2xl bg-zinc-900">
-                  <Image src={coverUrl} alt="" fill sizes="192px" className="object-cover" priority />
+            <div className="flex flex-col md:flex-row items-center justify-between gap-10">
+              <div className="flex flex-col md:flex-row items-center gap-10 text-center md:text-left">
+                {coverUrl && (
+                  <div className="relative w-48 h-48 rounded-[2rem] overflow-hidden border-4 border-zinc-800 shadow-2xl bg-zinc-900">
+                    <Image src={coverUrl} alt="" fill sizes="192px" className="object-cover" priority />
+                  </div>
+                )}
+                <div className="space-y-4">
+                  <h1 className="text-6xl font-black italic uppercase tracking-tighter text-[#22c55e]">
+                    {getTranslatedField(game.name, currentLang, game.default_lang)}
+                  </h1>
+                  <p className="text-zinc-500 font-bold uppercase tracking-[0.3em] text-xs">
+                    {getTranslation('myCollection', currentLang)}
+                  </p>
                 </div>
-              )}
-              <div className="space-y-4">
-                <h1 className="text-6xl font-black italic uppercase tracking-tighter text-[#22c55e]">
-                  {getTranslatedField(game.name, currentLang, game.default_lang)}
-                </h1>
-                <p className="text-zinc-500 font-bold uppercase tracking-[0.3em] text-xs">
-                  {getTranslation('myCollection', currentLang)}
-                </p>
               </div>
+
+              <Link 
+                href={`/${gameSlug}/optimizer`}
+                className="px-8 py-4 bg-zinc-800/50 border-2 border-[#22c55e] rounded-2xl font-black uppercase italic tracking-widest hover:bg-[#22c55e] hover:text-black transition-all duration-300"
+              >
+                Open Simulator
+              </Link>
             </div>
 
             <section className="space-y-10">

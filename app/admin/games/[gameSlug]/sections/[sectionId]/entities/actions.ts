@@ -68,7 +68,7 @@ async function getOptionId(supabase: SupabaseClient, val: string, fieldDef: Fiel
 }
 
 /**
- * Processes a single field's values.
+ * Processes a single field's values into an array of records to be inserted.
  */
 async function processSingleField(supabase: SupabaseClient, entityId: string, fVal: FieldValueInput, fieldDef: FieldDefResult, gameDefaultLang: string) {
   const ids = [];
@@ -78,14 +78,25 @@ async function processSingleField(supabase: SupabaseClient, entityId: string, fV
   }
 
   if (ids.length > 0) {
-    return { 
-      entity_id: entityId, 
-      game_field_id: fieldDef.game_field_id, 
-      value_text: fieldDef.is_multi ? ids.join(",") : null, 
-      option_id: fieldDef.is_multi ? null : ids[0] 
-    };
+    if (fieldDef.is_multi) {
+      // Create one record per selected option
+      return ids.map(id => ({
+        entity_id: entityId,
+        game_field_id: fieldDef.game_field_id,
+        value_text: null,
+        option_id: id
+      }));
+    } else {
+      // Single record
+      return [{ 
+        entity_id: entityId, 
+        game_field_id: fieldDef.game_field_id, 
+        value_text: null, 
+        option_id: ids[0] 
+      }];
+    }
   }
-  return null;
+  return [];
 }
 
 /**
@@ -243,18 +254,22 @@ async function processFieldValues(
   const idsToFetch = fieldValues.map(fv => fv.field_id);
   const { data: fieldDefs } = await supabase.from("section_fields").select(`id, is_multi, game_field_id, game_fields (manual_fill)`).in("id", idsToFetch) as { data: FieldDefResult[] | null };
   const fieldDefMap = new Map(fieldDefs?.map(fd => [fd.id, fd]));
-  const valuesToInsert = [];
+  
+  // We want to delete ALL existing field values for this entity before re-inserting
+  await supabase.from('entity_field_values').delete().eq('entity_id', entityId);
 
+  const valuesToInsert = [];
   for (const fVal of fieldValues) {
     const fieldDef = fieldDefMap.get(fVal.field_id);
     if (!fieldDef || !fVal.values?.length) continue;
     
-    const record = await processSingleField(supabase, entityId, fVal, fieldDef, gameDefaultLang);
-    if (record) valuesToInsert.push(record);
+    const records = await processSingleField(supabase, entityId, fVal, fieldDef, gameDefaultLang);
+    if (records.length > 0) valuesToInsert.push(...records);
   }
 
-  await supabase.from('entity_field_values').delete().eq('entity_id', entityId);
-  if (valuesToInsert.length > 0) await supabase.from('entity_field_values').insert(valuesToInsert);
+  if (valuesToInsert.length > 0) {
+    await supabase.from('entity_field_values').insert(valuesToInsert);
+  }
 }
 
 export async function upsertEntityAction(gameSlug: string, sectionId: string, gameDefaultLang: string, formData: FormData) {
@@ -287,6 +302,7 @@ export async function upsertEntityAction(gameSlug: string, sectionId: string, ga
   updateTag(`entity-stats-${res.id}`);
   updateTag(`entity-abilities-${res.id}`);
   updateTag(`section-entities-${sectionId}`);
+  updateTag(`section-fields-${sectionId}`);
   revalidatePath(`/admin/games/${gameSlug}/sections/${sectionId}/entities`);
   redirect(`/admin/games/${gameSlug}/sections/${sectionId}/entities/${res.id}`);
 }

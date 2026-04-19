@@ -27,18 +27,25 @@ The system handles fallbacks to the game's `default_lang` and respects user-sele
 
 ## 2. Key Features (Implemented)
 
--   **Admin Panel:** Full CRUD for Games, Sections, Fields, Options, and Entities.
--   **Public-Facing Views:** Immersive, localized browse experience with dynamic backgrounds.
+-   **Admin Panel:** 
+    - Full CRUD for Games, Sections, Fields, Options, and Entities.
+    - **Advanced JSON Editor:** Bulk edit name, field values, stats, and abilities for any entity via a raw JSON interface with schema validation.
+-   **Public-Facing Views:** Immersive, localized browse experience with dynamic backgrounds and responsive grid layouts.
 -   **Interactive Collection Tracker:** 
     -   Secure `user_games` and `user_entities` tracking.
     -   One-tap "owned" toggling with optimistic UI updates.
-    -   Visual filtering within the collection management view.
+    -   Visual filtering and sorting within the collection management view.
 -   **Secure Profile Management:**
     -   Custom nickname and PP upload to Supabase Storage.
     -   **Security Trigger:** Database-level protection preventing users from promoting themselves to 'admin'.
 -   **Storage Security:** Advanced RLS policies ensuring users can only manage files in their own `users/[user_id]/` folder.
 -   **Responsive & Immersive UI:** High-impact visual design using `lucide-react` icons, blurred backdrops, and massive game icons.
--   **Recommended Teams:** A powerful builder for admins to showcase optimal character combinations.
+-   **Recommended Teams & Builder:** 
+    -   Powerful administrative tool to define optimal character combinations.
+    -   Visual "Team Builder" interface for grouping entities with specific roles and synergies.
+-   **Advanced Entity System:**
+    - **Stats System:** Support for base stats and level-based scaling across multiple ascension phases.
+    - **Ability Engine:** Support for complex ability definitions, including scaling attributes and multiple ability forms.
 
 ## 3. Technical Architecture & Optimizations
 

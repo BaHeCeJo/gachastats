@@ -19,6 +19,15 @@ const nextConfig: CustomNextConfig = {
       bodySizeLimit: '10mb',
     },
   },
+  turbopack: {},
+  webpack: (config) => {
+    config.experiments = {
+      ...config.experiments,
+      asyncWebAssembly: true,
+      layers: true,
+    };
+    return config;
+  },
   images: {
     remotePatterns: [
       {
