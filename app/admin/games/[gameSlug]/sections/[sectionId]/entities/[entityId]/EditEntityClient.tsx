@@ -44,33 +44,45 @@ interface FieldValueState {
   values: string[];
 }
 
+function removeFromValues(values: string[], valueToRemove: string): string[] {
+  return values.filter(v => v !== valueToRemove);
+}
+
 /**
  * Calculates initial values for a specific field based on entity data.
  */
 function getInitialValuesForField(field: FieldData, entityValues: EntityFieldValueData[], defaultLang: string): string[] {
   const existingValues = entityValues.filter(v => v.game_field_id === field.game_field_id);
-  const firstVal = existingValues[0];
-  if (!firstVal) return [];
+  if (existingValues.length === 0) return [];
 
+  // If manual fill, we might have multiple values joined by comma in value_text of the first record
+  // OR we might have multiple records (less likely for manual fill but possible)
   if (field.manual_fill) {
-    const valText = firstVal.value_text;
-    const translated = typeof valText === 'string' ? valText : getTranslatedField(valText || {}, defaultLang, defaultLang) || '';
-    if (field.is_multi) return translated.split(',').map(s => s.trim()).filter(Boolean);
-    
-    let res: string[] = [];
-    if (firstVal.option_id) res = [firstVal.option_id];
-    else if (translated) res = [translated];
-    return res;
+    return existingValues.flatMap(v => {
+      // Prefer option_id (how values are stored after save); fall back to value_text for legacy data
+      if (v.option_id) return [v.option_id];
+      const valText = v.value_text;
+      const translated = typeof valText === 'string' ? valText : getTranslatedField(valText || {}, defaultLang, defaultLang) || '';
+      if (field.is_multi) return translated.split(',').map(s => s.trim()).filter(Boolean);
+      return translated ? [translated] : [];
+    });
   }
 
-  if (field.is_multi) {
-    if (firstVal.value_text && typeof firstVal.value_text === 'string') {
-      return firstVal.value_text.split(',').map(s => s.trim()).filter(Boolean);
+  // If not manual fill, it's either a comma-separated list of IDs in value_text 
+  // (legacy/current processSingleField) OR multiple records with option_id (ideal DB structure)
+  const results: string[] = [];
+  
+  existingValues.forEach(v => {
+    if (v.option_id) {
+      results.push(v.option_id);
+    } else if (v.value_text && typeof v.value_text === 'string' && field.is_multi) {
+      // Handle the comma-separated case from processSingleField
+      const ids = v.value_text.split(',').map(s => s.trim()).filter(Boolean);
+      results.push(...ids);
     }
-    return existingValues.map(v => v.option_id).filter((id): id is string => !!id);
-  }
+  });
 
-  return firstVal.option_id ? [firstVal.option_id] : [];
+  return Array.from(new Set(results));
 }
 
 /**
@@ -79,7 +91,7 @@ function getInitialValuesForField(field: FieldData, entityValues: EntityFieldVal
 function EntityFieldItem({
   field, val, activeLang, gameDefaultLang, onValueChange
 }: {
-  field: FieldData; val: FieldValueState | undefined; activeLang: string; gameDefaultLang: string; onValueChange: (fid: string, v: string[] | string, m: 'single' | 'multi') => void;
+  field: FieldData; val: FieldValueState | undefined; activeLang: string; gameDefaultLang: string; onValueChange: (fid: string, v: string[] | string, m: 'single' | 'multi' | 'tags') => void;
 }) {
   if (!val) return null;
   const label = getTranslatedField(field.key, activeLang, gameDefaultLang);
@@ -87,7 +99,7 @@ function EntityFieldItem({
   
   let control;
   if (field.manual_fill) {
-    control = <CreatableTagInput name={`field-${field.id}`} initialValues={val.values} options={options} isMulti={field.is_multi} onChange={v => onValueChange(field.id, v, 'multi')} />;
+    control = <CreatableTagInput name={`field-${field.id}`} initialValues={val.values} options={options} isMulti={field.is_multi} onChange={v => onValueChange(field.id, v, 'tags')} />;
   } else if (field.is_multi) {
     control = (
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -223,10 +235,25 @@ export default function EditEntityClient({
     return await upsertEntityAction(game.slug, section.id, game.default_lang, formData);
   }, { error: null } as FormState);
 
-  const handleFieldValueChange = useCallback((fieldId: string, newValues: string[] | string, mode: 'single' | 'multi') => {
+  const handleFieldValueChange = useCallback((fieldId: string, newValues: string[] | string, mode: 'single' | 'multi' | 'tags') => {
     setEntityFieldValues(prev => prev.map(val => {
       if (val.field_id !== fieldId) return val;
-      if (mode === 'multi') return { ...val, values: newValues as string[] };
+      
+      if (mode === 'tags') {
+        return { ...val, values: newValues as string[] };
+      }
+      
+      if (mode === 'multi') {
+        // Toggle the single value in the array
+        const valueToToggle = newValues as string;
+        const isSelected = val.values.includes(valueToToggle);
+        const nextValues = isSelected
+          ? removeFromValues(val.values, valueToToggle)
+          : [...val.values, valueToToggle];
+        return { ...val, values: nextValues };
+      }
+
+      // Single mode
       const isSelected = val.values.includes(newValues as string);
       return { ...val, values: isSelected ? [] : [newValues as string] };
     }));
