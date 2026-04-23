@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useDeferredValue } from "react";
 import { getTranslatedField } from "@/lib/localization";
 import { LocalizedString } from "@/lib/supabase/queries";
 
@@ -15,6 +15,10 @@ export function useEntityFiltering<T extends Entity>(
 ) {
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
   const [searchTerm, setSearchTerm] = useState("");
+  
+  // Defer the search term and filters to prevent blocking the main thread during input
+  const deferredSearchTerm = useDeferredValue(searchTerm);
+  const deferredFilters = useDeferredValue(activeFilters);
 
   const toggleFilter = (fieldId: string, value: string) => {
     setActiveFilters((prev) => {
@@ -33,14 +37,14 @@ export function useEntityFiltering<T extends Entity>(
 
   const filteredEntities = useMemo(() => {
     const filtered = entities.filter((entity) => {
-      // Apply Search
-      if (searchTerm) {
+      // Apply Search using deferred value
+      if (deferredSearchTerm) {
         const name = getTranslatedField(entity.name, currentLang, gameDefaultLang).toLowerCase();
-        if (!name.includes(searchTerm.toLowerCase())) return false;
+        if (!name.includes(deferredSearchTerm.toLowerCase())) return false;
       }
 
-      // Apply Filters
-      for (const [fieldId, value] of Object.entries(activeFilters)) {
+      // Apply Filters using deferred value
+      for (const [fieldId, value] of Object.entries(deferredFilters)) {
         // eslint-disable-next-line security/detect-object-injection
         const entityValues = (entity.allValues as Record<string, string[]>)[fieldId] || [];
         if (!entityValues.includes(value)) return false;
@@ -65,7 +69,7 @@ export function useEntityFiltering<T extends Entity>(
       if (cmp === 0) return a.id.localeCompare(b.id);
       return cmp;
     });
-  }, [entities, activeFilters, searchTerm, currentLang, gameDefaultLang]);
+  }, [entities, deferredFilters, deferredSearchTerm, currentLang, gameDefaultLang]);
 
   return {
     activeFilters,
@@ -74,5 +78,6 @@ export function useEntityFiltering<T extends Entity>(
     setSearchTerm,
     toggleFilter,
     filteredEntities,
+    isStale: searchTerm !== deferredSearchTerm || activeFilters !== deferredFilters
   };
 }

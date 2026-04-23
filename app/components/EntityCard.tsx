@@ -1,5 +1,6 @@
 "use client";
 
+import React, { memo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { LocalizedString, getTranslatedField } from "@/lib/localization";
@@ -14,6 +15,7 @@ export interface CardDisplaySettings {
 export interface CardEntity {
   id: string;
   name: LocalizedString;
+  displayName?: string; // Pre-calculated translation for performance
   publicIconUrl: string;
   fieldValuesMap: Record<string, { color?: string; iconUrl?: string }>;
 }
@@ -29,6 +31,7 @@ interface EntityCardProps {
   onToggle?: (id: string) => void;
   href?: string;
   badgeContent?: React.ReactNode;
+  priority?: boolean;
 }
 
 /**
@@ -65,7 +68,7 @@ function getTitleClasses(isNavigation: boolean, isOwned: boolean): string {
   return `${base} text-zinc-500`;
 }
 
-export function EntityCard({
+export const EntityCard = memo(function EntityCard({
   entity,
   displaySettings,
   currentLang,
@@ -76,6 +79,7 @@ export function EntityCard({
   onToggle,
   href,
   badgeContent,
+  priority = false,
 }: EntityCardProps) {
   const isCollectionCard = !!onToggle;
   const isNavigationCard = !!href;
@@ -91,13 +95,21 @@ export function EntityCard({
     <>
       <div className="relative aspect-square overflow-hidden w-full transition-colors duration-500" style={{ backgroundColor: cardBgColor }}>
         {overlay?.iconUrl && (
-          <div className="absolute inset-0 flex items-center justify-center p-2">
+          <div className="absolute inset-0 flex items-center justify-center p-2" aria-hidden="true">
             <Image src={overlay.iconUrl} fill sizes="160px" className="object-contain opacity-10 pointer-events-none grayscale brightness-150" alt="" />
           </div>
         )}
 
         {entity.publicIconUrl ? (
-          <Image src={entity.publicIconUrl} fill sizes="160px" className="object-cover relative z-10 transition-transform duration-700 group-hover:scale-110" alt="" />
+          <Image 
+            src={entity.publicIconUrl} 
+            fill 
+            sizes="160px" 
+            className="object-cover relative z-10 transition-transform duration-700 group-hover:scale-110" 
+            alt={entity.displayName || getTranslatedField(entity.name, currentLang, gameDefaultLang)}
+            priority={priority}
+            loading={priority ? undefined : "lazy"}
+          />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-zinc-700 text-4xl font-black relative z-10">?</div>
         )}
@@ -109,7 +121,7 @@ export function EntityCard({
         )}
 
         {topLeft?.iconUrl && (
-          <div className="absolute top-2 left-2 w-8 h-8 bg-black/60 backdrop-blur-md rounded-lg flex items-center justify-center p-1 z-20 shadow-xl border border-white/5">
+          <div className="absolute top-2 left-2 w-8 h-8 bg-black/60 backdrop-blur-md rounded-lg flex items-center justify-center p-1 z-20 shadow-xl border border-white/5" aria-hidden="true">
             <div className="relative w-full h-full">
               <Image src={topLeft.iconUrl} fill sizes="32px" className="object-contain" alt="" />
             </div>
@@ -117,7 +129,7 @@ export function EntityCard({
         )}
 
         {topRight?.iconUrl && (
-          <div className="absolute top-2 right-2 w-8 h-8 bg-black/60 backdrop-blur-md rounded-lg flex items-center justify-center p-1 z-20 shadow-xl border border-white/5">
+          <div className="absolute top-2 right-2 w-8 h-8 bg-black/60 backdrop-blur-md rounded-lg flex items-center justify-center p-1 z-20 shadow-xl border border-white/5" aria-hidden="true">
             <div className="relative w-full h-full">
               <Image src={topRight.iconUrl} fill sizes="32px" className="object-contain" alt="" />
             </div>
@@ -133,21 +145,32 @@ export function EntityCard({
 
       <div className={getFooterClasses(isNavigationCard, isOwned)}>
         <h3 className={getTitleClasses(isNavigationCard, isOwned)}>
-          {getTranslatedField(entity.name, currentLang, gameDefaultLang)}
+          {entity.displayName || getTranslatedField(entity.name, currentLang, gameDefaultLang)}
         </h3>
       </div>
     </>
   );
 
   const containerClasses = getContainerClasses(isNavigationCard, isOwned);
+  const entityName = entity.displayName || getTranslatedField(entity.name, currentLang, gameDefaultLang);
+
+  // Performance optimization for large grids: skips rendering logic for off-screen cards
+  const style = { contentVisibility: 'auto', containIntrinsicSize: '160px 224px' } as React.CSSProperties;
 
   if (href) {
-    return <Link href={href} className={containerClasses}>{cardContent}</Link>;
+    return <Link href={href} aria-label={entityName} className={containerClasses} style={style}>{cardContent}</Link>;
   }
 
   return (
-    <button onClick={() => onToggle?.(entity.id)} disabled={isDisabled} className={containerClasses}>
+    <button
+      onClick={() => onToggle?.(entity.id)}
+      disabled={isDisabled}
+      aria-label={isOwned ? `Remove ${entityName} from collection` : `Add ${entityName} to collection`}
+      aria-pressed={isOwned}
+      className={containerClasses}
+      style={style}
+    >
       {cardContent}
     </button>
   );
-}
+});

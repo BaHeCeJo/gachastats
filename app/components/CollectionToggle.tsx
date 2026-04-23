@@ -4,6 +4,7 @@ import { useState, useTransition, useCallback } from "react";
 import { toggleCollectionEntityAction } from "@/lib/actions/collection";
 import { Check, Plus, Loader2 } from "lucide-react";
 import { useLocalizationParams } from "@/lib/localization";
+import { toast } from "sonner";
 
 interface CollectionToggleProps {
   entityId: string;
@@ -25,7 +26,7 @@ export default function CollectionToggle({
       if (result.success) {
         setIsOwned(!isOwned);
       } else {
-        alert(result.error || "Failed to update collection");
+        toast.error(result.error || "Failed to update collection");
       }
     });
   }, [entityId, isOwned]);

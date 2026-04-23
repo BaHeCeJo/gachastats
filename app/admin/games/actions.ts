@@ -7,15 +7,19 @@ import { LocalizedString } from "@/lib/localization";
 import { slugify } from "@/lib/utils/slugify";
 import { uploadImage, extractPathFromUrl } from "@/lib/supabase/storage-utils";
 import { SupabaseClient } from "@supabase/supabase-js";
+import { sanitizeDbError } from "@/lib/utils/errors";
 
-/**
- * Handles cover image logic for upserting a game.
- */
+async function isAdmin() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  return profile?.role === 'admin';
+}
+
 async function resolveCoverUrl(
   supabase: SupabaseClient,
   gameId: string | undefined,
-  rawName: LocalizedString,
-  defaultLang: string,
   rawCoverImage: File | string | null | undefined
 ): Promise<string | null> {
   let oldCoverPath: string | null = null;
@@ -29,7 +33,7 @@ async function resolveCoverUrl(
     if (oldCoverPath) await supabase.storage.from("games").remove([oldCoverPath]);
     return newUrl;
   }
-  
+
   if (typeof rawCoverImage === "string" && rawCoverImage.length > 0) return rawCoverImage;
 
   if (oldCoverPath) await supabase.storage.from("games").remove([oldCoverPath]);
@@ -37,6 +41,7 @@ async function resolveCoverUrl(
 }
 
 export async function upsertGameAction(formData: FormData) {
+  if (!(await isAdmin())) return { error: "Unauthorized" };
   const supabase = await createClient();
   const gameId = formData.get("id") as string | undefined;
   const rawName = JSON.parse(formData.get("name") as string) as LocalizedString;
@@ -44,7 +49,7 @@ export async function upsertGameAction(formData: FormData) {
 
   if (!rawName[defaultLang as keyof LocalizedString]) return { error: "Name for default language is required." };
 
-  const cover_url = await resolveCoverUrl(supabase, gameId, rawName, defaultLang, formData.get("cover_image"));
+  const cover_url = await resolveCoverUrl(supabase, gameId, formData.get("cover_image"));
 
   const gameData = {
     name: rawName,
@@ -56,24 +61,23 @@ export async function upsertGameAction(formData: FormData) {
 
   if (gameId) {
     const { error } = await supabase.from("games").update(gameData).eq("id", gameId);
-    if (error) return { error: error.message };
+    if (error) return { error: sanitizeDbError(error, "upsertGame/update") };
   } else {
-     
     const slug = slugify(rawName[defaultLang as keyof LocalizedString]);
     const { error } = await supabase.from("games").insert({ ...gameData, slug });
-    if (error) return { error: error.message };
+    if (error) return { error: sanitizeDbError(error, "upsertGame/insert") };
   }
 
-   
   const finalSlug = gameId ? formData.get("slug") as string : slugify(rawName[defaultLang as keyof LocalizedString]);
   if (finalSlug) updateTag(`game-${finalSlug}`);
-  
+
   revalidatePath("/admin/games");
   revalidatePath("/");
   redirect("/admin/games");
 }
 
 export async function deleteGameAction(gameId: string) {
+  if (!(await isAdmin())) throw new Error("Unauthorized");
   const supabase = await createClient();
   const [{ data: sections }, { data: game }] = await Promise.all([
     supabase.from("game_sections").select("id, icon_path").eq("game_id", gameId),
@@ -88,12 +92,12 @@ export async function deleteGameAction(gameId: string) {
     game?.cover_url,
     ...(sections?.map(s => s.icon_path) || []),
     ...(entityImages?.map(img => img.image_path) || [])
-  ].map(p => extractPathFromUrl(p, "games")).filter((p): p is string => !!p);
+  ].map(p => extractPathFromUrl(p ?? '', "games")).filter((p): p is string => !!p);
 
   if (paths.length) await supabase.storage.from("games").remove(paths);
 
   const { error } = await supabase.from("games").delete().eq("id", gameId);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error("Failed to delete game. Please try again.");
 
   sectionIds.forEach(id => updateTag(`section-${id}`));
   if (game?.slug) updateTag(`game-${game.slug}`);

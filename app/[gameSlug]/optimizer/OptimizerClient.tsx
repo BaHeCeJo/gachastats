@@ -5,6 +5,7 @@ import Image from "next/image";
 import { getTranslatedField } from "@/lib/localization-utils";
 import { createClient } from "@/lib/supabase/client";
 import { Trash2, Plus } from "lucide-react";
+import { toast } from "sonner";
 import { mapCharacterToApi, mapEnemyToApi, mapLightconeToApi, sendToSimulationBackend } from "@/lib/services/simulation.service";
 import { 
   OwnedEntity, 
@@ -285,7 +286,7 @@ export default function OptimizerClient({
         }
     } catch (error) {
         console.error("Simulation failed:", error);
-        alert("Failed to connect to simulation backend.");
+        toast.error("Failed to connect to simulation backend.");
     } finally {
         setIsOptimizing(false);
     }
@@ -371,7 +372,7 @@ export default function OptimizerClient({
         }
     } catch (error) {
         console.error("Optimization failed:", error);
-        alert("Failed to connect to simulation backend.");
+        toast.error("Failed to connect to simulation backend.");
     } finally {
         setIsOptimizing(false);
     }

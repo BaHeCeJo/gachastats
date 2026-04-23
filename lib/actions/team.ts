@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { updateTag } from "next/cache";
+import { sanitizeDbError } from "@/lib/utils/errors";
 
 async function isAdmin() {
   const supabase = await createClient();
@@ -36,9 +37,19 @@ export async function upsertTeamAction(
 
   let actualTeamId = teamId;
 
-  // 1. Get old members if updating to revalidate them too
   let oldEntityIds: string[] = [];
   if (teamId) {
+    // Verify the team belongs to the given section (prevents IDOR)
+    const { data: existingTeam } = await supabase
+      .from("section_teams")
+      .select("section_id")
+      .eq("id", teamId)
+      .single();
+
+    if (!existingTeam || existingTeam.section_id !== sectionId) {
+      return { error: "Team not found in this section" };
+    }
+
     const { data: oldMembers } = await supabase
       .from("section_team_members")
       .select("entity_id")
@@ -50,14 +61,14 @@ export async function upsertTeamAction(
       .from("section_teams")
       .update(teamData)
       .eq("id", teamId);
-    if (error) return { error: error.message };
+    if (error) return { error: sanitizeDbError(error, "upsertTeam/update") };
   } else {
     const { data, error } = await supabase
       .from("section_teams")
       .insert(teamData)
       .select("id")
       .single();
-    if (error) return { error: error.message };
+    if (error) return { error: sanitizeDbError(error, "upsertTeam/insert") };
     actualTeamId = data.id;
   }
 
@@ -65,8 +76,8 @@ export async function upsertTeamAction(
     .from("section_team_members")
     .delete()
     .eq("team_id", actualTeamId);
-    
-  if (deleteError) return { error: deleteError.message };
+
+  if (deleteError) return { error: sanitizeDbError(deleteError, "upsertTeam/deleteMembers") };
 
   const memberData: TeamMemberInsert[] = [];
   const newEntityIds: string[] = [];
@@ -89,21 +100,30 @@ export async function upsertTeamAction(
     const { error: membersError } = await supabase
       .from("section_team_members")
       .insert(memberData);
-    if (membersError) return { error: membersError.message };
+    if (membersError) return { error: sanitizeDbError(membersError, "upsertTeam/insertMembers") };
   }
 
-  // 2. Surgical Invalidation: Revalidate all affected entities
   const allAffectedEntityIds = Array.from(new Set([...oldEntityIds, ...newEntityIds]));
   allAffectedEntityIds.forEach(id => updateTag(`entity-teams-${id}`));
 
   return { success: true, teamId: actualTeamId };
 }
 
-export async function deleteTeamAction(teamId: string) {
+export async function deleteTeamAction(teamId: string, sectionId: string) {
   if (!(await isAdmin())) return { error: "Unauthorized" };
   const supabase = await createClient();
 
-  // Get members before deleting to revalidate
+  // Verify the team belongs to the given section (prevents IDOR)
+  const { data: existingTeam } = await supabase
+    .from("section_teams")
+    .select("section_id")
+    .eq("id", teamId)
+    .single();
+
+  if (!existingTeam || existingTeam.section_id !== sectionId) {
+    return { error: "Team not found in this section" };
+  }
+
   const { data: oldMembers } = await supabase
     .from("section_team_members")
     .select("entity_id")
@@ -112,9 +132,8 @@ export async function deleteTeamAction(teamId: string) {
   const oldEntityIds = (oldMembers || []).map(m => m.entity_id).filter(Boolean) as string[];
 
   const { error } = await supabase.from("section_teams").delete().eq("id", teamId);
-  if (error) return { error: error.message };
+  if (error) return { error: sanitizeDbError(error, "deleteTeam") };
 
-  // Surgical Invalidation
   oldEntityIds.forEach(id => updateTag(`entity-teams-${id}`));
 
   return { success: true };

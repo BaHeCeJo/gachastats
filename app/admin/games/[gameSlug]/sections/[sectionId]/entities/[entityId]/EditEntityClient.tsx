@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useActionState, useEffect, useMemo, use, useCallback } from 'react';
+import { toast } from 'sonner';
 import { LocalizedString, getTranslatedField, GameLocalizationProvider, useLocalizationParams } from "@/lib/localization";
 import LocalizedTextInput from '@/app/components/fields/LocalizedTextInput';
 import CreatableTagInput from '@/app/components/fields/CreatableTagInput';
@@ -216,7 +217,7 @@ export default function EditEntityClient({
       setEditorKey(prev => prev + 1);
     } catch (e) {
       console.error("JSON Parse Error:", e);
-      alert("Invalid JSON format. Please check your syntax.");
+      toast.error("Invalid JSON format. Please check your syntax.");
     }
   };
 

@@ -99,14 +99,12 @@ export default async function EntitiesPage({ params: paramsPromise }: PageProps)
   const gameToSectionFieldMap = new Map(sectionFields?.map(sf => [sf.game_field_id, sf.id]));
 
   const processedBulkData = (entitiesRaw || []).map(e => {
-    console.log(`DEBUG: Processing bulk data for entity [${getTranslatedField(e.name, 'en', 'en')}]:`);
     return {
       id: e.id,
       name: e.name,
       icon_path: e.icon_path,
       field_values: (e.entity_field_values || []).map((fv) => {
         const field_id = gameToSectionFieldMap.get(fv.game_field_id);
-        console.log(`  - Game Field ID: ${fv.game_field_id} -> Section Field ID: ${field_id} | Option ID: ${fv.option_id} | Value Text: ${fv.value_text}`);
         let values: string[] = [];
         if (fv.option_id) {
           values = [fv.option_id];
@@ -114,12 +112,7 @@ export default async function EntitiesPage({ params: paramsPromise }: PageProps)
           values = fv.value_text.split(',');
         }
         return { field_id, values };
-      }).filter((fv) => {
-        if (!fv.field_id) {
-            console.log(`  ! WARNING: Field ID not found for game_field_id. This value will be OMITTED from export.`);
-        }
-        return fv.field_id;
-      }),
+      }).filter((fv) => fv.field_id),
       entity_stats: e.entity_stats
     };
   });

@@ -1,7 +1,8 @@
 "use client";
 
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { useLocalizationParams } from "@/lib/localization";
+import { useLocalizationParams, getTranslatedField } from "@/lib/localization";
 import MissingTranslationIndicator from "./MissingTranslationIndicator";
 import { useEntityFiltering } from "@/lib/hooks/useEntityFiltering";
 import { FilterBar } from "./FilterBar";
@@ -65,24 +66,71 @@ export default function EntityGridManager({
 
   const {
     activeFilters,
-    toggleFilter,
+    toggleFilter: baseToggleFilter,
     filteredEntities,
-    setActiveFilters,
+    setActiveFilters: baseSetActiveFilters,
+    searchTerm,
+    setSearchTerm: baseSetSearchTerm,
+    isStale,
   } = useEntityFiltering(entities, activeLang, gameDefaultLang);
+
+  // Progressive rendering: starts with a very small batch to minimize initial TBT
+  const [visibleLimit, setVisibleLimit] = useState(20);
+  
+  useEffect(() => {
+    if (visibleLimit < filteredEntities.length) {
+      const timeout = setTimeout(() => {
+        // Increment limit in chunks
+        setVisibleLimit(prev => Math.min(prev + 50, filteredEntities.length));
+      }, 100);
+      return () => clearTimeout(timeout);
+    }
+  }, [visibleLimit, filteredEntities.length]);
+
+  // Pre-process entities for the cards to minimize JS execution time in the loop
+  const processedCards = useMemo(() => {
+    return filteredEntities.slice(0, visibleLimit).map((entity) => ({
+      ...entity,
+      displayName: getTranslatedField(entity.name, activeLang, gameDefaultLang),
+      href: isAdmin
+        ? `/admin/games/${gameSlug}/sections/${sectionId}/entities/${entity.id}`
+        : `/${gameSlug}/sections/${sectionId}/entities/${entity.id}`,
+    }));
+  }, [filteredEntities, visibleLimit, activeLang, gameDefaultLang, isAdmin, gameSlug, sectionId]);
+
+  const handleToggleFilter = (fieldId: string, value: string) => {
+    setVisibleLimit(20);
+    baseToggleFilter(fieldId, value);
+  };
+
+  const handleSearchChange = (term: string) => {
+    setVisibleLimit(20);
+    baseSetSearchTerm(term);
+  };
+
+  const handleClearFilters = () => {
+    setVisibleLimit(20);
+    baseSetActiveFilters({});
+    baseSetSearchTerm('');
+  };
 
   const maxCols = displaySettings?.max_columns ?? 6;
 
+  // Use deferred stale check for smoother UI
+  const isReallyStale = isStale || (visibleLimit < filteredEntities.length && visibleLimit === 20);
+
   return (
-    <div className="space-y-8">
+    <div className={`space-y-8 transition-opacity duration-300 ${isReallyStale ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
       <FilterBar
         filterFields={filterFields}
         activeFilters={activeFilters}
-        onToggleFilter={toggleFilter}
+        onToggleFilter={handleToggleFilter}
         currentLang={activeLang}
         gameDefaultLang={gameDefaultLang}
+        searchTerm={searchTerm}
+        onSearchChange={handleSearchChange}
       />
 
-      {/* Entity Grid */}
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <h2 className="text-xl font-semibold capitalize">
@@ -106,29 +154,25 @@ export default function EntityGridManager({
               maxWidth: `${maxCols * 160 + (maxCols - 1) * 24}px`,
             }}
           >
-            {filteredEntities.map((entity) => {
-              const entityLink = isAdmin
-                ? `/admin/games/${gameSlug}/sections/${sectionId}/entities/${entity.id}`
-                : `/${gameSlug}/sections/${sectionId}/entities/${entity.id}`;
-
-              return (
-                <EntityCard
-                  key={entity.id}
-                  entity={entity}
-                  displaySettings={displaySettings}
-                  currentLang={activeLang}
-                  gameDefaultLang={gameDefaultLang}
-                  href={entityLink}
-                  badgeContent={isAdmin && <MissingTranslationIndicator value={entity.name} />}
-                />
-              );
-            })}
+            {processedCards.map((entity, idx) => (
+              <EntityCard
+                key={entity.id}
+                entity={entity}
+                displaySettings={displaySettings}
+                currentLang={activeLang}
+                gameDefaultLang={gameDefaultLang}
+                href={entity.href}
+                badgeContent={isAdmin && <MissingTranslationIndicator value={entity.name} />}
+                priority={idx < 12}
+              />
+            ))}
           </div>
         ) : (
           <div className="py-20 text-center border-2 border-dashed border-gray-800 rounded-2xl">
             <p className="text-gray-500">{t('noEntities')}</p>
             <button
-              onClick={() => setActiveFilters({})}
+              onClick={handleClearFilters}
+              aria-label="Clear all filters and search"
               className="mt-4 text-[#22c55e] hover:underline text-sm"
             >
               {t('clearFilters')}

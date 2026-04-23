@@ -8,6 +8,15 @@ import { getTranslatedField } from "@/lib/localization-utils";
 import { slugify } from "@/lib/utils/slugify";
 import { uploadImage, extractPathFromUrl } from "@/lib/supabase/storage-utils";
 import { SupabaseClient } from "@supabase/supabase-js";
+import { sanitizeDbError } from "@/lib/utils/errors";
+
+async function isAdmin() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  return profile?.role === 'admin';
+}
 
 interface FieldValueInput { field_id: string; values: string[]; }
 interface FieldDefResult { id: string; is_multi: boolean; game_field_id: string; game_fields: { manual_fill: boolean; } | null; }
@@ -273,6 +282,7 @@ async function processFieldValues(
 }
 
 export async function upsertEntityAction(gameSlug: string, sectionId: string, gameDefaultLang: string, formData: FormData) {
+  if (!(await isAdmin())) return { error: "Unauthorized" };
   const supabase = await createClient();
   const entityId = formData.get("id") as string | undefined;
   const rawName = JSON.parse(formData.get("name") as string) as LocalizedString;
@@ -280,13 +290,28 @@ export async function upsertEntityAction(gameSlug: string, sectionId: string, ga
   // eslint-disable-next-line security/detect-object-injection
   if (!rawName[gameDefaultLang]) return { error: "Name for default language is required." };
 
+  // Duplicate detection: only check on create, not update
+  if (!entityId) {
+    // eslint-disable-next-line security/detect-object-injection
+    const nameInDefaultLang = (rawName as Record<string, string>)[gameDefaultLang] ?? '';
+    const { data: existing } = await supabase
+      .from("section_entities")
+      .select("id")
+      .eq("section_id", sectionId)
+      .eq(`name->>${gameDefaultLang}`, nameInDefaultLang)
+      .limit(1);
+    if (existing && existing.length > 0) {
+      return { error: `An entity named "${nameInDefaultLang}" already exists in this section.` };
+    }
+  }
+
   const icon_path = await getIconPath(supabase, entityId, rawName, gameDefaultLang, gameSlug, sectionId, formData.get("icon_file") as File | null, formData.get("existing_icon_path") as string | null);
 
   const entityData = { section_id: sectionId, name: rawName, icon_path };
   const query = entityId ? supabase.from("section_entities").update(entityData).eq("id", entityId) : supabase.from("section_entities").insert(entityData);
 
   const { data: res, error } = await query.select('id').single();
-  if (error) return { error: `Failed to upsert entity: ${error.message}` };
+  if (error) return { error: sanitizeDbError(error, "upsertEntity") };
   
   await processFieldValues(supabase, res.id, JSON.parse(formData.get("field_values") as string || "[]"), gameDefaultLang);
   
@@ -308,6 +333,7 @@ export async function upsertEntityAction(gameSlug: string, sectionId: string, ga
 }
 
 export async function deleteEntityAction(entityId: string, gameSlug: string, sectionId: string) {
+  if (!(await isAdmin())) throw new Error("Unauthorized");
   const supabase = await createClient();
   const { data: images } = await supabase.from("entity_images").select("image_path").eq("entity_id", entityId);
 
@@ -334,6 +360,7 @@ interface BulkEntityInput {
 }
 
 export async function bulkUpsertEntitiesAction(sectionId: string, gameDefaultLang: string, entitiesData: BulkEntityInput[]) {
+  if (!(await isAdmin())) return { error: "Unauthorized" };
   const supabase = await createClient();
   
   for (const data of entitiesData) {

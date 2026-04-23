@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { deleteGameAction, upsertGameAction } from '@/lib/actions/admin/game';
+import { toast } from "sonner";
 import ConfirmButton from '@/app/components/ConfirmButton';
 import LocalizedTextInput from '@/app/components/fields/LocalizedTextInput';
 import ImageInput from '@/app/components/ImageInput';
@@ -68,6 +69,7 @@ export default function EditGameClient({ game, currentLang: browserLang }: Admin
       if (result?.error) {
         return { ...prevState, error: result.error };
       }
+      toast.success('Game saved');
       return { ...prevState, error: undefined };
     },
     {
@@ -84,11 +86,11 @@ export default function EditGameClient({ game, currentLang: browserLang }: Admin
     setSupportedLangs((prev) => {
       if (prev.includes(langCode)) {
         if (langCode === defaultLang && prev.length > 1) {
-          alert("Cannot remove the default language.");
+          toast.warning("Cannot remove the default language.");
           return prev;
         }
         if (prev.length === 1) {
-          alert("A game must support at least one language.");
+          toast.warning("A game must support at least one language.");
           return prev;
         }
         return prev.filter((lang) => lang !== langCode);
@@ -101,7 +103,7 @@ export default function EditGameClient({ game, currentLang: browserLang }: Admin
   const handleDefaultLangChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newDefault = e.target.value;
     if (!supportedLangs.includes(newDefault)) {
-      alert("Selected default language must be one of the supported languages.");
+      toast.warning("Selected default language must be one of the supported languages.");
       return;
     }
     setDefaultLang(newDefault);

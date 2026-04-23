@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useActionState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { deleteSectionAction, upsertSectionAction } from '@/app/admin/games/[gameSlug]/sections/actions';
 import ConfirmButton from '@/app/components/ConfirmButton';
@@ -23,6 +25,7 @@ type Field = { id: string; section_id: string; key: LocalizedString; required: b
 type FormState = { error: string | null; success?: boolean; };
 
 function SectionAbilityTemplateManager({ sectionId, existingTemplates, gameDefaultLang, activeLang }: { sectionId: string; existingTemplates: (AbilityTemplate & { section_ability_definitions: AbilityDefinition[] })[]; gameDefaultLang: string, activeLang: string }) {
+  const router = useRouter();
   const [editingTemplate, setEditingTemplate] = useState<string | null>(null);
   const [templateName, setTemplateName] = useState<LocalizedString>({ [gameDefaultLang]: '' });
   const [isDefault, setIsDefault] = useState(false);
@@ -38,7 +41,7 @@ function SectionAbilityTemplateManager({ sectionId, existingTemplates, gameDefau
     formData.set('name', JSON.stringify(templateName));
     formData.set('is_default', isDefault.toString());
     const res = await upsertAbilityTemplateAction(sectionId, formData);
-    if (res.success) window.location.reload();
+    if (res.success) { toast.success('Template saved'); setEditingTemplate(null); router.refresh(); }
   };
 
   const handleUpsertDefinition = async (templateId: string, id?: string) => {
@@ -47,19 +50,24 @@ function SectionAbilityTemplateManager({ sectionId, existingTemplates, gameDefau
     formData.set('name', JSON.stringify(definitionName));
     formData.set('max_level', definitionMaxLevel.toString());
     const res = await upsertAbilityDefinitionAction(sectionId, templateId, formData);
-    if (res.success) window.location.reload();
+    if (res.success) { toast.success('Slot saved'); setEditingDefinition(null); router.refresh(); }
   };
 
+  const [confirmDeleteTemplateId, setConfirmDeleteTemplateId] = useState<string | null>(null);
+  const [confirmDeleteDefinitionId, setConfirmDeleteDefinitionId] = useState<string | null>(null);
+
   const handleDeleteTemplate = async (templateId: string) => {
-    if (!confirm('Delete template?')) return;
+    if (confirmDeleteTemplateId !== templateId) { setConfirmDeleteTemplateId(templateId); return; }
+    setConfirmDeleteTemplateId(null);
     const res = await deleteAbilityTemplateAction(sectionId, templateId);
-    if (res.success) window.location.reload();
+    if (res.success) { toast.success('Template deleted'); router.refresh(); }
   };
 
   const handleDeleteDefinition = async (definitionId: string) => {
-    if (!confirm('Delete slot?')) return;
+    if (confirmDeleteDefinitionId !== definitionId) { setConfirmDeleteDefinitionId(definitionId); return; }
+    setConfirmDeleteDefinitionId(null);
     const res = await deleteAbilityDefinitionAction(sectionId, definitionId);
-    if (res.success) window.location.reload();
+    if (res.success) { toast.success('Slot deleted'); router.refresh(); }
   };
 
   const startEditingTemplate = (template: AbilityTemplate) => {
@@ -114,7 +122,14 @@ function SectionAbilityTemplateManager({ sectionId, existingTemplates, gameDefau
                   </h3>
                   <button onClick={() => startEditingTemplate(template)} className="text-[10px] text-zinc-500 hover:text-white font-bold uppercase tracking-widest">Edit Name</button>
                 </div>
-                <button onClick={() => handleDeleteTemplate(template.id)} className="text-red-500 hover:bg-red-500/10 p-2 rounded-lg text-[10px] font-black uppercase tracking-widest">Delete Template</button>
+                {confirmDeleteTemplateId === template.id ? (
+                  <span className="inline-flex gap-2 items-center">
+                    <button onClick={() => handleDeleteTemplate(template.id)} className="text-xs font-bold px-2 py-1 bg-red-600 text-white rounded-lg hover:bg-red-500">Yes, Delete</button>
+                    <button onClick={() => setConfirmDeleteTemplateId(null)} className="text-xs px-2 py-1 bg-zinc-700 text-zinc-300 rounded-lg hover:bg-zinc-600">Cancel</button>
+                  </span>
+                ) : (
+                  <button onClick={() => handleDeleteTemplate(template.id)} className="text-red-500 hover:bg-red-500/10 p-2 rounded-lg text-[10px] font-black uppercase tracking-widest">Delete Template</button>
+                )}
               </div>
             )}
 
@@ -142,9 +157,16 @@ function SectionAbilityTemplateManager({ sectionId, existingTemplates, gameDefau
                       <button onClick={() => startEditingDefinition(template.id, def)} className="text-zinc-400 hover:text-white p-1">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                       </button>
-                      <button onClick={() => handleDeleteDefinition(def.id)} className="text-red-500 hover:text-red-400 p-1">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                      </button>
+                      {confirmDeleteDefinitionId === def.id ? (
+                        <span className="inline-flex gap-1">
+                          <button onClick={() => handleDeleteDefinition(def.id)} className="text-[10px] font-bold px-1.5 py-0.5 bg-red-600 text-white rounded hover:bg-red-500">Yes</button>
+                          <button onClick={() => setConfirmDeleteDefinitionId(null)} className="text-[10px] px-1.5 py-0.5 bg-zinc-700 text-zinc-300 rounded hover:bg-zinc-600">No</button>
+                        </span>
+                      ) : (
+                        <button onClick={() => handleDeleteDefinition(def.id)} className="text-red-500 hover:text-red-400 p-1">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                      )}
                     </div>
                   </div>
                 )
@@ -194,15 +216,17 @@ function SectionAbilityTemplateManager({ sectionId, existingTemplates, gameDefau
 }
 
 function SectionStatsManager({ sectionId, existingStats, gameDefaultLang }: { sectionId: string; existingStats: SectionStat[]; gameDefaultLang: string }) {
+  const router = useRouter();
   const stats = existingStats;
   const [isAdding, setIsAdding] = useState(false);
+  const [confirmStatDeleteId, setConfirmStatDeleteId] = useState<string | null>(null);
   const [newName, setNewName] = useState<LocalizedString>({ [gameDefaultLang]: '' });
   const [newKey, setNewKey] = useState('');
   const [newOrder, setNewOrder] = useState(0);
   const [isScalable, setIsScalable] = useState(true);
 
   const handleAdd = async () => {
-    if (!newKey) { alert('Internal key is required'); return; }
+    if (!newKey) { toast.error('Internal key is required'); return; }
     const formData = new FormData();
     formData.set('key', newKey);
     formData.set('name', JSON.stringify(newName));
@@ -215,15 +239,16 @@ function SectionStatsManager({ sectionId, existingStats, gameDefaultLang }: { se
       setNewKey('');
       setNewOrder(stats.length + 1);
       setIsScalable(true);
-      window.location.reload(); 
+      toast.success('Stat added');
+      router.refresh();
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this stat?')) {
-      const res = await deleteSectionStatAction(sectionId, id);
-      if (res.success) window.location.reload();
-    }
+    if (confirmStatDeleteId !== id) { setConfirmStatDeleteId(id); return; }
+    setConfirmStatDeleteId(null);
+    const res = await deleteSectionStatAction(sectionId, id);
+    if (res.success) { toast.success('Stat deleted'); router.refresh(); }
   };
 
   return (
@@ -240,9 +265,16 @@ function SectionStatsManager({ sectionId, existingStats, gameDefaultLang }: { se
               </div>
               <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-mono">Key: {stat.key} | Order: {stat.order_index}</p>
             </div>
-            <button onClick={() => handleDelete(stat.id)} className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-red-500/10 rounded-lg z-10">
-              Delete
-            </button>
+            {confirmStatDeleteId === stat.id ? (
+              <span className="flex gap-2 z-10">
+                <button onClick={() => handleDelete(stat.id)} className="text-xs font-bold px-2 py-1 bg-red-600 text-white rounded-lg hover:bg-red-500">Yes</button>
+                <button onClick={() => setConfirmStatDeleteId(null)} className="text-xs px-2 py-1 bg-zinc-700 text-zinc-300 rounded-lg hover:bg-zinc-600">No</button>
+              </span>
+            ) : (
+              <button onClick={() => handleDelete(stat.id)} className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-red-500/10 rounded-lg z-10">
+                Delete
+              </button>
+            )}
             {!stat.is_scalable && <div className="absolute top-0 right-0 w-16 h-16 bg-zinc-800/20 rotate-45 translate-x-8 -translate-y-8" />}
           </div>
         ))}
@@ -288,8 +320,10 @@ function SectionStatsManager({ sectionId, existingStats, gameDefaultLang }: { se
 }
 
 function SectionAscensionManager({ sectionId, existingAscensions }: { sectionId: string; existingAscensions: SectionAscension[]; maxLevel: number }) {
+  const router = useRouter();
   const ascensions = existingAscensions;
   const [isAdding, setIsAdding] = useState(false);
+  const [confirmAscDeleteId, setConfirmAscDeleteId] = useState<string | null>(null);
   const [newPhase, setNewPhase] = useState(ascensions.length);
   const [newMin, setNewMin] = useState(1);
   const [newMax, setNewMax] = useState(20);
@@ -302,15 +336,16 @@ function SectionAscensionManager({ sectionId, existingAscensions }: { sectionId:
     const res = await upsertSectionAscensionAction(sectionId, formData);
     if (res.success) {
       setIsAdding(false);
-      window.location.reload();
+      toast.success('Phase added');
+      router.refresh();
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm('Delete this phase?')) {
-      const res = await deleteSectionAscensionAction(sectionId, id);
-      if (res.success) window.location.reload();
-    }
+    if (confirmAscDeleteId !== id) { setConfirmAscDeleteId(id); return; }
+    setConfirmAscDeleteId(null);
+    const res = await deleteSectionAscensionAction(sectionId, id);
+    if (res.success) { toast.success('Phase deleted'); router.refresh(); }
   };
 
   return (
@@ -332,7 +367,14 @@ function SectionAscensionManager({ sectionId, existingAscensions }: { sectionId:
                 <td className="p-4 text-zinc-400">{asc.min_level}</td>
                 <td className="p-4 text-zinc-400">{asc.max_level}</td>
                 <td className="p-4 text-right">
-                  <button onClick={() => handleDelete(asc.id)} className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:underline">Delete</button>
+                  {confirmAscDeleteId === asc.id ? (
+                    <span className="inline-flex gap-2">
+                      <button onClick={() => handleDelete(asc.id)} className="text-xs font-bold px-2 py-1 bg-red-600 text-white rounded-lg hover:bg-red-500">Yes</button>
+                      <button onClick={() => setConfirmAscDeleteId(null)} className="text-xs px-2 py-1 bg-zinc-700 text-zinc-300 rounded-lg hover:bg-zinc-600">No</button>
+                    </span>
+                  ) : (
+                    <button onClick={() => handleDelete(asc.id)} className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:underline">Delete</button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -424,6 +466,7 @@ export default function EditSectionClient({
       if (iconFile) formData.set("icon_file", iconFile);
       formData.set("existing_icon_path", existingIconPath || "null");
       const res = await upsertSectionAction(game.id, game.slug, game.default_lang, formData);
+      if (!res?.error) toast.success('Section saved');
       return { error: res?.error || null };
     },
     { error: null }
@@ -444,6 +487,7 @@ export default function EditSectionClient({
       skinDisplayTypes.forEach(type => formData.append("skin_display_types", type));
 
       const res = await updateDisplaySettingsAction(formData);
+      if (!res?.error) toast.success('Display settings saved');
       return { error: res?.error || null };
     },
     { error: null }

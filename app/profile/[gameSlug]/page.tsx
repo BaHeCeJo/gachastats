@@ -16,14 +16,11 @@ export default async function GameCollectionPage({ params: paramsPromise }: Page
   const params = await paramsPromise;
   const { gameSlug } = params;
   
-  console.log(`[DEBUG] Entering GameCollectionPage for slug: ${gameSlug}`);
-  
   const supabase = await createClient();
 
   // Fetch current user
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    console.log("[DEBUG] GameCollectionPage: No user found, redirecting to signin");
     redirect("/auth/signin");
   }
 
@@ -35,11 +32,8 @@ export default async function GameCollectionPage({ params: paramsPromise }: Page
     .single();
 
   if (gameError || !game) {
-    console.log(`[DEBUG] GameCollectionPage: Game not found or error: ${gameError?.message}. Redirecting to /profile`);
     redirect("/profile");
   }
-
-  console.log(`[DEBUG] GameCollectionPage: Found game ${game.id}`);
 
   // Fetch ONLY collectible sections for this game
   const { data: sections } = await supabase

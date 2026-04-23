@@ -85,9 +85,9 @@ export default function GameGrid({ games, supabaseUrl, onHoverChange }: Props) {
                     </div>
 
                     <div className="mt-4 text-center">
-                      <h3 className="font-bold text-xl text-black dark:text-zinc-50 group-hover:text-[#22c55e] transition-colors uppercase tracking-wide">
+                      <h2 className="font-bold text-xl text-black dark:text-zinc-50 group-hover:text-[#22c55e] transition-colors uppercase tracking-wide">
                         {getTranslatedField(game.name, currentLang, game.default_lang)}
-                      </h3>
+                      </h2>
                       <div className="h-1 w-0 group-hover:w-12 bg-[#22c55e] mx-auto mt-1 transition-all duration-500 rounded-full" />
                     </div>
                   </Link>

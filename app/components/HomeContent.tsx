@@ -4,16 +4,16 @@ import { useState } from "react";
 import GSIntro from "./GSIntro";
 import GSBackground from "./GSBackground";
 import GameGrid from "./GameGrid";
-import { LocalizedString } from "@/lib/localization"; // Import LocalizedString
+import { LocalizedString } from "@/lib/localization";
 
 type Game = {
   id: string;
-  name: LocalizedString; // Name is now localized
+  name: LocalizedString;
   slug: string;
-  description: LocalizedString; // Description is now localized
+  description: LocalizedString;
   cover_url: string | null;
-  default_lang: string; // Add default_lang
-  supported_languages: string[]; // Add supported_languages
+  default_lang: string;
+  supported_languages: string[];
 };
 
 type Props = {
@@ -24,11 +24,13 @@ type Props = {
 export default function HomeContent({ games, supabaseUrl }: Props) {
   const [isHovering, setIsHovering] = useState(false);
 
+  // GSIntro is fixed/full-screen and covers the grid visually while it plays.
+  // Rendering the grid at full opacity from the start lets the browser measure LCP
+  // immediately instead of waiting for the intro to finish.
   return (
     <>
       <GSIntro />
       <GSBackground isHidden={isHovering} />
-
       <GameGrid
         games={games}
         supabaseUrl={supabaseUrl}

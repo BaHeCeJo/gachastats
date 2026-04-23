@@ -4,6 +4,7 @@ import { useState, useActionState } from "react";
 import { updateProfileAction } from "@/lib/actions/collection";
 import { useLocalizationParams } from "@/lib/localization";
 import { Loader2, Save } from "lucide-react";
+import { toast } from "sonner";
 import ImageInput from "@/app/components/ImageInput";
 
 interface FormResult {
@@ -38,7 +39,7 @@ export default function ProfileForm({
         setMessage(t('profileUpdated'));
         setTimeout(() => setMessage(""), 3000);
       } else if (result.error) {
-        alert(result.error);
+        toast.error(result.error);
       }
 
       return result;

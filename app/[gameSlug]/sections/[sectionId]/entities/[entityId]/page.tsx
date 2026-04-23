@@ -1,10 +1,10 @@
 import { createPublicClient } from "@/lib/supabase/server";
-import { 
-  getGameBySlug, 
-  getSectionById, 
-  getEntityById, 
-  getSectionFields, 
-  getSectionDisplaySettings, 
+import {
+  getGameBySlug,
+  getSectionById,
+  getEntityById,
+  getSectionFields,
+  getSectionDisplaySettings,
   getEntityFieldValues,
   getEntityAbilities,
   getSectionStats,
@@ -49,13 +49,37 @@ export async function generateStaticParams() {
 type PageProps = { params: Promise<{ gameSlug: string; sectionId: string; entityId: string }>; };
 
 export async function generateMetadata({ params: paramsPromise }: PageProps) {
-  const { gameSlug, entityId } = await paramsPromise;
-  const [gameRes, entityRes] = await Promise.all([getGameBySlug(gameSlug), getEntityById(entityId)]);
+  const { gameSlug, sectionId, entityId } = await paramsPromise;
+  const [gameRes, entityRes, sectionRes] = await Promise.all([getGameBySlug(gameSlug), getEntityById(entityId), getSectionById(sectionId)]);
   const game = gameRes.data as Game;
   const entity = entityRes.data as SectionEntity;
+  const section = sectionRes.data as Section;
   if (!game || !entity) return { title: 'Entity Not Found' };
   const lang = game.default_lang || 'en';
-  return { title: `${getTranslatedField(entity.name, lang, lang)} - ${getTranslatedField(game.name, lang, lang)} | GachaStats` };
+  const entityName = getTranslatedField(entity.name, lang, lang);
+  const gameName = getTranslatedField(game.name, lang, lang);
+  const sectionName = section ? getTranslatedField(section.key, lang, lang) : '';
+  const description = `${entityName} — ${sectionName} in ${gameName}. View stats, abilities, and more on GachaStats.`;
+
+  const defaultSkin = entity.entity_skins?.find((s: { is_default: boolean }) => s.is_default) || entity.entity_skins?.[0];
+  const iconPath = defaultSkin?.entity_images?.find((i: { type: string }) => i.type === 'icon')?.image_path;
+  const iconUrl = iconPath ? getPublicUrl('games', iconPath) : undefined;
+
+  return {
+    title: `${entityName} — ${gameName}`,
+    description,
+    openGraph: {
+      title: `${entityName} — ${gameName}`,
+      description,
+      ...(iconUrl ? { images: [{ url: iconUrl, width: 256, height: 256, alt: entityName }] } : {}),
+    },
+    twitter: {
+      card: "summary",
+      title: `${entityName} — ${gameName}`,
+      description,
+      ...(iconUrl ? { images: [iconUrl] } : {}),
+    },
+  };
 }
 
 /**

@@ -51,7 +51,15 @@ export async function generateMetadata({ params: paramsPromise }: PageProps) {
   const section = sectionRes.data as Section;
   if (!game || !section) return { title: 'Section Not Found' };
   const lang = game.default_lang || 'en';
-  return { title: `${getTranslatedField(section.key, lang, lang)} | ${getTranslatedField(game.name, lang, lang)} - GachaStats` };
+  const sectionName = getTranslatedField(section.key, lang, lang);
+  const gameName = getTranslatedField(game.name, lang, lang);
+  const description = `Browse all ${sectionName} in ${gameName} on GachaStats.`;
+  return {
+    title: `${sectionName} — ${gameName}`,
+    description,
+    openGraph: { title: `${sectionName} — ${gameName}`, description },
+    twitter: { card: "summary", title: `${sectionName} — ${gameName}`, description },
+  };
 }
 
 /**

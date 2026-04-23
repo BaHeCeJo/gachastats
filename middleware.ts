@@ -3,25 +3,21 @@ import type { NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
 /**
- * PRODUCTION-READY MIDDLEWARE
- * 1. Renamed to standard middleware.ts for Next.js execution.
- * 2. Uses an exclusive matcher to avoid running on assets/images.
- * 3. Handles auth redirects for /admin, /profile, and /auth.
- * 4. Adds basic protection headers.
+ * Middleware handles route protection and role-based authorization.
+ * Optimization: Uses Supabase app_metadata when available to avoid DB hits.
  */
-export async function proxy(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname
-  
-  // 1. FAST PATH: Skip for static assets and public files
-  // (Matcher already handles most of this, but we keep it here for safety)
-  const isProtected = pathname.startsWith('/admin') || pathname.startsWith('/profile')
+
+  const isAdminRoute = pathname.startsWith('/admin')
+  const isProtected = isAdminRoute || pathname.startsWith('/profile')
   const isAuthPage = pathname.startsWith('/auth')
 
+  // Fast path for public assets and routes
   if (!isProtected && !isAuthPage) {
     return NextResponse.next()
   }
 
-  // 2. AUTH LOGIC
   const res = NextResponse.next()
 
   const supabase = createServerClient(
@@ -41,13 +37,36 @@ export async function proxy(req: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Security Redirects
+  // 1. Authentication Check
   if (!user && isProtected) {
     return NextResponse.redirect(new URL('/auth/signin', req.url))
   }
 
+  // 2. Auth Page Redirection (logged in users shouldn't see signin)
   if (user && isAuthPage) {
     return NextResponse.redirect(new URL('/', req.url))
+  }
+
+  // 3. Authorization Check (Admin only)
+  if (user && isAdminRoute) {
+    // Check JWT app_metadata first (zero-latency check)
+    // To enable this, you must sync your 'profiles.role' to 'auth.users.app_metadata' via a Supabase trigger
+    const role = user.app_metadata?.role
+
+    if (role === 'admin') {
+      return res
+    }
+
+    // Fallback: Check DB if metadata isn't synced yet
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (profile?.role !== 'admin') {
+      return NextResponse.redirect(new URL('/', req.url))
+    }
   }
 
   return res
@@ -55,13 +74,6 @@ export async function proxy(req: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder files (svg, png, jpg, etc.)
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

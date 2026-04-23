@@ -94,20 +94,27 @@ function processAdminEntity(entity: SectionEntity, gameFieldsMap: Map<string, Se
 export default async function EditSectionPage({ params: paramsPromise }: PageProps) {
   const { gameSlug, sectionId } = await paramsPromise;
   const supabase = await createServerClient();
-  const { data: game } = await getGameBySlug(gameSlug);
-  if (!game) redirect("/admin/games");
 
-  const [sRes, tRes, fRes, dsRes, eRes, statsRes, ascRes, templatesRes, hRes, cStore] = await Promise.all([
-    getSectionById(sectionId), 
-    supabase.from("section_teams").select(`*, section_team_members(*)`).eq("section_id", sectionId).order('created_at', { ascending: false }),
-    getSectionFields(sectionId), 
-    getSectionDisplaySettings(sectionId), 
-    getSectionEntities(sectionId, game.default_lang), 
+  // Run game fetch in parallel with everything else — no sequential waterfall
+  const [gameRes, sRes, fRes, dsRes, statsRes, ascRes, templatesRes, hRes, cStore] = await Promise.all([
+    getGameBySlug(gameSlug),
+    getSectionById(sectionId),
+    getSectionFields(sectionId),
+    getSectionDisplaySettings(sectionId),
     getSectionStats(sectionId),
     getSectionAscensions(sectionId),
     getSectionAbilityTemplates(sectionId),
-    headers(), 
-    cookies()
+    headers(),
+    cookies(),
+  ]);
+
+  const game = gameRes.data as Game | null;
+  if (!game) redirect("/admin/games");
+
+  // These two need game.default_lang, so they start after game resolves — but that's already done above
+  const [tRes, eRes] = await Promise.all([
+    supabase.from("section_teams").select(`*, section_team_members(*)`).eq("section_id", sectionId).order('created_at', { ascending: false }),
+    getSectionEntities(sectionId, game.default_lang),
   ]);
 
   const section = sRes.data as Section;

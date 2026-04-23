@@ -5,10 +5,16 @@ import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { LocalizedString } from "@/lib/localization";
 import { SupabaseClient } from "@supabase/supabase-js";
+import { sanitizeDbError } from "@/lib/utils/errors";
 
-/**
- * Handles creation or update of the core game field.
- */
+async function isAdmin() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  return profile?.role === 'admin';
+}
+
 async function resolveGameField(
   supabase: SupabaseClient,
   gameId: string,
@@ -20,7 +26,7 @@ async function resolveGameField(
 ): Promise<string> {
   if (gameFieldId) {
     const { error } = await supabase.from("game_fields").update({ internal_name: internalName, manual_fill, has_icon, has_color }).eq("id", gameFieldId);
-    if (error) throw new Error(`Failed to update game field: ${error.message}`);
+    if (error) throw new Error("Failed to update game field.");
     return gameFieldId;
   }
 
@@ -28,11 +34,12 @@ async function resolveGameField(
   if (existing) return existing.id;
 
   const { data: created, error: createError } = await supabase.from("game_fields").insert({ game_id: gameId, internal_name: internalName, manual_fill, has_icon, has_color }).select("id").single();
-  if (createError) throw new Error(`Failed to create game field: ${createError.message}`);
+  if (createError) throw new Error("Failed to create game field.");
   return created.id;
 }
 
 export async function upsertFieldAction(gameSlug: string, sectionId: string, gameDefaultLang: string, formData: FormData) {
+  if (!(await isAdmin())) return { error: "Unauthorized" };
   const supabase = await createClient();
   const { data: game } = await supabase.from("games").select("id").eq("slug", gameSlug).single();
   if (!game) return { error: "Game not found." };
@@ -66,7 +73,7 @@ export async function upsertFieldAction(gameSlug: string, sectionId: string, gam
 
     const query = fieldId ? supabase.from("section_fields").update(sectionFieldData).eq("id", fieldId) : supabase.from("section_fields").insert(sectionFieldData);
     const { error } = await query;
-    if (error) return { error: `Failed to save section field: ${error.message}` };
+    if (error) return { error: sanitizeDbError(error, "upsertField") };
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "An unknown error occurred";
     return { error: message };
@@ -78,10 +85,11 @@ export async function upsertFieldAction(gameSlug: string, sectionId: string, gam
 }
 
 export async function deleteFieldAction(fieldId: string, gameSlug: string, sectionId: string) {
+  if (!(await isAdmin())) throw new Error("Unauthorized");
   const supabase = await createClient();
   const { error } = await supabase.from("section_fields").delete().eq("id", fieldId);
-  if (error) throw new Error(error.message);
-  
+  if (error) throw new Error("Failed to delete field. Please try again.");
+
   updateTag(`section-fields-${sectionId}`);
   revalidatePath(`/admin/games/${gameSlug}`, 'layout');
   redirect(`/admin/games/${gameSlug}/sections/${sectionId}/fields`);

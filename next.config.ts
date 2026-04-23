@@ -10,6 +10,10 @@ interface CustomNextConfig extends NextConfig {
 
 const isProd = process.env.NODE_ENV === 'production';
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+const supabaseHostname = supabaseUrl ? new URL(supabaseUrl).hostname : '';
+const supabaseOrigin = supabaseHostname ? `https://${supabaseHostname}` : '';
+
 const nextConfig: CustomNextConfig = {
   reactCompiler: true,
   // eslint-disable-next-line sonarjs/no-hardcoded-ip
@@ -29,14 +33,14 @@ const nextConfig: CustomNextConfig = {
     return config;
   },
   images: {
-    remotePatterns: [
+    remotePatterns: supabaseHostname ? [
       {
         protocol: 'https',
-        hostname: 'gkyszugmxkkdlqlmxggd.supabase.co', // Replace with your actual Supabase hostname
+        hostname: supabaseHostname,
         port: '',
         pathname: '/storage/v1/object/public/**',
       },
-    ],
+    ] : [],
   },
   async headers() {
     const scriptSrc = isProd 
@@ -69,7 +73,7 @@ const nextConfig: CustomNextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value: `default-src 'self'; img-src 'self' https://gkyszugmxkkdlqlmxggd.supabase.co data: blob:; ${scriptSrc} style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' https://gkyszugmxkkdlqlmxggd.supabase.co; frame-ancestors 'self';`
+            value: `default-src 'self'; img-src 'self' ${supabaseOrigin} data: blob:; ${scriptSrc} style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' ${supabaseOrigin}; frame-ancestors 'self';`
           }
         ]
       }

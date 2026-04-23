@@ -2,18 +2,43 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import { signOut } from "@/app/auth/signout/action"
 import { useLocalizationParams } from "@/lib/localization"
 import { languages } from "@/lib/constants/languages"
 import { createClient } from "@/lib/supabase/client"
 import { User } from "@supabase/supabase-js"
+import { Moon, Sun, Menu, X } from "lucide-react"
+
+function DarkModeToggle() {
+  const [isDark, setIsDark] = useState(() =>
+    typeof window !== 'undefined' && document.documentElement.classList.contains('dark')
+  );
+
+  const toggle = () => {
+    const next = !isDark;
+    setIsDark(next);
+    document.documentElement.classList.toggle('dark', next);
+    localStorage.setItem('theme', next ? 'dark' : 'light');
+  };
+
+  return (
+    <button
+      onClick={toggle}
+      aria-label="Toggle dark mode"
+      className="p-2 rounded-lg text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+    >
+      {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+    </button>
+  );
+}
 
 export default function HeaderClient() {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const supabase = createClient();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     async function checkUser() {
@@ -87,8 +112,8 @@ export default function HeaderClient() {
     );
   }
 
-  return (
-    <nav className="flex gap-6 items-center">
+  const navContent = (
+    <>
       {/* Public Language Switcher - Shows on public pages when a game is active */}
       {!isAdminRoute && gameSupportedLanguages && gameSupportedLanguages.length > 0 && (
         <div className="flex items-center gap-2 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 transition-colors">
@@ -208,6 +233,33 @@ export default function HeaderClient() {
           </form>
         </div>
       )}
-    </nav>
+    </>
+  );
+
+  return (
+    <div className="flex items-center gap-2">
+      <DarkModeToggle />
+
+      {/* Desktop nav */}
+      <nav className="hidden md:flex gap-6 items-center">
+        {navContent}
+      </nav>
+
+      {/* Mobile hamburger */}
+      <button
+        className="md:hidden p-2 rounded-lg text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+        onClick={() => setMobileOpen(o => !o)}
+        aria-label="Toggle menu"
+      >
+        {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+      </button>
+
+      {/* Mobile dropdown */}
+      {mobileOpen && (
+        <div className="md:hidden absolute top-full right-0 mt-2 w-56 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-4 flex flex-col gap-3 z-50">
+          {navContent}
+        </div>
+      )}
+    </div>
   );
 }

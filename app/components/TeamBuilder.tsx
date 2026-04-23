@@ -3,9 +3,11 @@
 import { useMemo, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Plus, ChevronRight, Users } from "lucide-react";
 import { getTranslatedField, useLocalizationParams } from "@/lib/localization";
 import { upsertTeamAction, deleteTeamAction } from "@/lib/actions/team";
+import { toast } from "sonner";
 import { getPublicUrl } from "@/lib/supabase/client";
 import { TeamData, TeamEntity, TeamFieldOption, Team, Member, Slot } from "./teambuilder/types";
 import { TeamCard } from "./teambuilder/TeamCard";
@@ -48,29 +50,32 @@ export default function TeamBuilder({
   sectionId: string; gameSlug: string; sectionEntities: TeamEntity[]; fieldOptions: TeamFieldOption[]; maxTeamSize: number; existingTeams: TeamData[]; gameDefaultLang: string; isAdmin?: boolean; currentEntityId?: string | null;
 }) {
   const { currentLang } = useLocalizationParams();
+  const router = useRouter();
 
   const processedTeams: Team[] = useMemo(() => existingTeams.map(t => ({
     id: t.id, name: t.name, slots: mapMembersToSlots(t, sectionEntities, fieldOptions, currentLang, gameDefaultLang)
   })), [existingTeams, sectionEntities, fieldOptions, currentLang, gameDefaultLang]);
 
   const {
-    isAddingTeam, setIsAddingTeam, newTeamName, setNewTeamName, currentSlots, draggingIndex, setDraggingIndex, dragItemRef, dragOverItemRef, isSelectingMember, setIsSelectingMember, selectionType, setSelectionType, entitySearchTerm, setEntitySearchTerm, handleStartAddTeam, openSelection, addMemberToSlot, removeMemberFromSlot, handleSort, filteredEntities,
+    isAddingTeam, setIsAddingTeam, editingTeamId, setEditingTeamId, newTeamName, setNewTeamName, currentSlots, setCurrentSlots, draggingIndex, setDraggingIndex, dragItemRef, dragOverItemRef, isSelectingMember, setIsSelectingMember, selectionType, setSelectionType, entitySearchTerm, setEntitySearchTerm, handleStartAddTeam, openSelection, addMemberToSlot, removeMemberFromSlot, handleSort, filteredEntities,
   } = useTeamBuilder({ sectionEntities, currentLang, gameDefaultLang, currentEntityId });
 
   const handleSaveTeam = async () => {
-    const res = await upsertTeamAction(sectionId, null, newTeamName, currentSlots);
-    if (res.success) window.location.reload(); else alert(res.error);
+    const res = await upsertTeamAction(sectionId, editingTeamId, newTeamName, currentSlots);
+    if (res.success) { toast.success('Team saved'); router.refresh(); setIsAddingTeam(false); setEditingTeamId(null); }
+    else toast.error(res.error);
   };
 
   const handleDeleteTeam = async (id: string) => {
-    if (confirm("Are you sure you want to delete this team?")) {
-      const res = await deleteTeamAction(id);
-      if (res.success) window.location.reload();
-    }
+    const res = await deleteTeamAction(id, sectionId);
+    if (res.success) { toast.success('Team deleted'); router.refresh(); }
+    else toast.error(res.error);
   };
 
   const handleEditTeam = (team: Team) => {
+    setEditingTeamId(team.id);
     setNewTeamName(getTranslatedField(team.name, currentLang, gameDefaultLang));
+    setCurrentSlots(team.slots);
     setIsAddingTeam(true);
   };
 
@@ -104,7 +109,7 @@ export default function TeamBuilder({
                   <div className="absolute top-0 left-0 w-1 h-full bg-green-500/50" />
                   {isAdmin && <button onClick={() => handleDeleteTeam(team.id)} className="absolute top-8 right-8 text-zinc-600 hover:text-red-500 transition opacity-0 group-hover:opacity-100"><Trash2Icon size={24} /></button>}
                   <h3 className="text-2xl font-black uppercase italic text-white mb-10 tracking-widest border-b border-zinc-800/50 pb-4 inline-block">{getTranslatedField(team.name, currentLang, gameDefaultLang) || "Unnamed Team"}</h3>
-                  <div className="flex flex-nowrap items-start gap-10 overflow-x-auto pb-4 pt-32 scrollbar-hide">
+                  <div className="flex flex-nowrap items-start gap-10 overflow-x-auto pb-4 pt-32 scrollbar-thin scrollbar-track-zinc-900 scrollbar-thumb-zinc-700" role="list" aria-label="Team slots">
                     {team.slots.map((slot, sIdx) => {
                       const sId = slot.members.findIndex(m => m.id === currentEntityId);
                       const translateVal = sId > 0 ? `-${sId * 6}rem` : '0';

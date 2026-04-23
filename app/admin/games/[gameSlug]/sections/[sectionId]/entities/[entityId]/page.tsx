@@ -53,13 +53,23 @@ export default async function EntityPage({ params: paramsPromise }: PageProps) {
   const params = await paramsPromise;
   const { gameSlug, sectionId, entityId } = params;
 
-  // 1. CORE DATA: Consolidate entity queries into ONE single DB request
-  const [gameRes, sectionRes, entityRes, fieldsRes, headersList] = await Promise.all([
+  // All queries run in a single parallel batch — entityId/sectionId come from params,
+  // so no query depends on the result of another.
+  const [
+    gameRes, sectionRes, entityRes, fieldsRes, headersList,
+    teamsRes, sectionStatsRes, sectionAscensionsRes, entityStatsRes, abilityTemplatesRes, entityAbilitiesRes
+  ] = await Promise.all([
     getGameBySlug(gameSlug),
     getSectionById(sectionId),
-    getFullEntityById(entityId), // Now contains skins + values + options
+    getFullEntityById(entityId),
     getSectionFields(sectionId),
-    headers()
+    headers(),
+    getEntityTeams(entityId),
+    getSectionStats(sectionId),
+    getSectionAscensions(sectionId),
+    getEntityStats(entityId),
+    getSectionAbilityTemplates(sectionId),
+    getEntityAbilities(entityId),
   ]);
 
   const game = gameRes.data as Game | null;
@@ -70,16 +80,6 @@ export default async function EntityPage({ params: paramsPromise }: PageProps) {
   if (!game) redirect("/admin/games");
   if (!entity) redirect(`/admin/games/${gameSlug}/sections/${sectionId}/entities`);
   if (!section) redirect(`/admin/games/${gameSlug}/sections`);
-
-  // 2. SECONDARY DATA: Fetch teams, stats, ascensions, and abilities
-  const [teamsRes, sectionStatsRes, sectionAscensionsRes, entityStatsRes, abilityTemplatesRes, entityAbilitiesRes] = await Promise.all([
-    getEntityTeams(entityId),
-    getSectionStats(sectionId),
-    getSectionAscensions(sectionId),
-    getEntityStats(entityId),
-    getSectionAbilityTemplates(sectionId),
-    getEntityAbilities(entityId)
-  ]);
 
   // 3. DEFERRED DATA: Prepare the library promise BUT DO NOT AWAIT IT
   // This allows the server to start sending the HTML for the form immediately

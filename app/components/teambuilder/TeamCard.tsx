@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import { Trash2, GripVertical } from "lucide-react";
 import { getPublicUrl } from "@/lib/supabase/client";
@@ -23,6 +24,8 @@ export function TeamCard({
   onEdit,
   onDelete,
 }: TeamCardProps) {
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
   return (
     <div className="group relative bg-zinc-950/40 border border-zinc-800/50 rounded-[2.5rem] p-10 hover:border-green-500/30 transition-all duration-500 hover:shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
       <div className="flex justify-between items-start mb-8">
@@ -30,13 +33,20 @@ export function TeamCard({
           {getTranslatedField(team.name, currentLang, gameDefaultLang)}
         </h4>
         {isAdmin && (
-          <div className="flex gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex gap-4 opacity-0 group-hover:opacity-100 transition-opacity items-center">
             <button onClick={() => onEdit(team)} className="bg-zinc-800 p-3 rounded-2xl hover:bg-green-500 hover:text-black transition-all">
               <GripVertical size={18} />
             </button>
-            <button onClick={() => onDelete(team.id)} className="bg-zinc-800 p-3 rounded-2xl hover:bg-red-500 hover:text-white transition-all">
-              <Trash2 size={18} />
-            </button>
+            {confirmingDelete ? (
+              <span className="inline-flex items-center gap-2">
+                <button onClick={() => onDelete(team.id)} className="px-3 py-1.5 bg-red-600 text-white text-xs font-bold rounded-xl hover:bg-red-500 transition">Yes</button>
+                <button onClick={() => setConfirmingDelete(false)} className="px-3 py-1.5 bg-zinc-700 text-zinc-300 text-xs rounded-xl hover:bg-zinc-600 transition">No</button>
+              </span>
+            ) : (
+              <button onClick={() => setConfirmingDelete(true)} aria-label="Delete team" className="bg-zinc-800 p-3 rounded-2xl hover:bg-red-500 hover:text-white transition-all">
+                <Trash2 size={18} />
+              </button>
+            )}
           </div>
         )}
       </div>

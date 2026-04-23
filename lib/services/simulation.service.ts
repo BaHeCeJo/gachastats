@@ -218,18 +218,10 @@ export function mapCharacterToApi(char: OwnedEntityData, lang: string, defaultLa
   });
 
   const attributeValue = charData.entity_field_values?.find((v) => v.game_field_id === ATTRIBUTE_FIELD_ID);
-  if (charData.entity_field_values) {
-    console.log(`DEBUG: [${getTranslatedField(charData.name, lang, defaultLang)}] All Entity Field Values:`, charData.entity_field_values.map((v) => ({
-      game_field_id: v.game_field_id,
-      option_id: v.option_id,
-    })));
-  }
-  console.log(`DEBUG: [${getTranslatedField(charData.name, lang, defaultLang)}] Looking for Attribute Field: ${ATTRIBUTE_FIELD_ID}. Found:`, attributeValue);
   const attributeOpt = options.find((o) => o.id === attributeValue?.option_id);
   const attribute = attributeOpt ? getTranslatedField(attributeOpt.value_key, lang, defaultLang) : null;
 
   const pathValue = charData.entity_field_values?.find((v) => v.game_field_id === PATH_FIELD_ID);
-  console.log(`DEBUG: [${getTranslatedField(charData.name, lang, defaultLang)}] Looking for Path Field: ${PATH_FIELD_ID}. Found:`, pathValue);
   const pathOpt = options.find((o) => o.id === pathValue?.option_id);
   const path = pathOpt ? getTranslatedField(pathOpt.value_key, lang, defaultLang) : null;
 
@@ -382,9 +374,6 @@ export function mapEnemyToApi(enemy: EnemyData, level: number, instanceId: strin
 export async function sendToSimulationBackend(request: SimulationRequest): Promise<Record<string, unknown>> {
   const API_URL = process.env.NEXT_PUBLIC_SIMULATOR_API_URL || "http://localhost:8080/execute";
   
-  console.log("Sending Command to Backend:", request.command);
-  console.log("Payload:", JSON.stringify(request.payload, null, 2));
-
   try {
     const response = await fetch(API_URL, {
       method: "POST",

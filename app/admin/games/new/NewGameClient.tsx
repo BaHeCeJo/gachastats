@@ -6,6 +6,7 @@ import LocalizedTextInput from "@/app/components/fields/LocalizedTextInput";
 import ImageInput from "@/app/components/ImageInput";
 import { LocalizedString, useLocalizationParams } from "@/lib/localization";
 import { languages } from "@/lib/constants/languages";
+import { toast } from "sonner";
 
 type FormState = { error?: string; };
 
@@ -33,8 +34,8 @@ export default function NewGameClient() {
   const handleLanguageToggle = (langCode: string) => {
     setSupportedLangs((prev) => {
       if (prev.includes(langCode)) {
-        if (langCode === defaultLang && prev.length > 1) { alert("Cannot remove the default language."); return prev; }
-        if (prev.length === 1) { alert("A game must support at least one language."); return prev; }
+        if (langCode === defaultLang && prev.length > 1) { toast.warning("Cannot remove the default language."); return prev; }
+        if (prev.length === 1) { toast.warning("A game must support at least one language."); return prev; }
         return prev.filter((lang) => lang !== langCode);
       } else return [...prev, langCode].sort();
     });

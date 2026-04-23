@@ -8,8 +8,8 @@ export default async function Header({ breadcrumbs }: { breadcrumbs?: { href: st
 
   return (
     <header className="sticky top-0 left-0 right-0 z-50 w-full px-8 py-4 flex items-center justify-between bg-zinc-50/80 dark:bg-black/80 backdrop-blur-xl border-b border-zinc-200 dark:border-zinc-800 transition-all">
-      <div className="flex items-center gap-8">
-        <Link href="/" className="group flex items-center gap-3">
+      <div className="flex items-center gap-4 md:gap-8 min-w-0">
+        <Link href="/" className="group flex items-center gap-3 shrink-0">
           <GSLogo className="w-10 h-10 transition-transform group-hover:scale-110" sPathData={sPathData} />
           <div className="flex flex-col -space-y-1">
             <span className="text-xl font-black italic tracking-tighter text-black dark:text-white uppercase transition-colors group-hover:text-[#22c55e]">
@@ -20,8 +20,10 @@ export default async function Header({ breadcrumbs }: { breadcrumbs?: { href: st
             </span>
           </div>
         </Link>
-        <div className="hidden md:block h-8 w-px bg-zinc-200 dark:bg-zinc-800" />
-        <Breadcrumbs items={breadcrumbs} />
+        <div className="hidden md:block h-8 w-px bg-zinc-200 dark:bg-zinc-800 shrink-0" />
+        <div className="hidden md:block min-w-0 overflow-hidden">
+          <Breadcrumbs items={breadcrumbs} />
+        </div>
       </div>
       <div className="relative z-[60]">
         <HeaderClient />

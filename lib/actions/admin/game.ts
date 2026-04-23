@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { LocalizedString } from "@/lib/supabase/queries";
 import { slugify } from "@/lib/utils/slugify";
 import { smartUpdateImage, deleteAssets } from "@/lib/services/storage.service";
+import { sanitizeDbError } from "@/lib/utils/errors";
 
 async function isAdmin() {
   const supabase = await createClient();
@@ -49,12 +50,12 @@ export async function upsertGameAction(formData: FormData) {
 
   if (gameId) {
     const { error } = await supabase.from("games").update(gameData).eq("id", gameId);
-    if (error) return { error: `Failed to update game: ${error.message}` };
+    if (error) return { error: sanitizeDbError(error, "upsertGame/update") };
   } else {
     // eslint-disable-next-line security/detect-object-injection
     const slug = slugify(rawName[defaultLang]);
     const { error } = await supabase.from("games").insert({ ...gameData, slug });
-    if (error) return { error: `Failed to create game: ${error.message}` };
+    if (error) return { error: sanitizeDbError(error, "upsertGame/insert") };
   }
 
   // eslint-disable-next-line security/detect-object-injection

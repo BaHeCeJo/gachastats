@@ -18,6 +18,7 @@ export function useTeamBuilder({
   currentEntityId,
 }: UseTeamBuilderProps) {
   const [isAddingTeam, setIsAddingTeam] = useState(false);
+  const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [newTeamName, setNewTeamName] = useState("");
   const [currentSlots, setCurrentSlots] = useState<Slot[]>([]);
   const [activeSlotIndex, setActiveSlotIndex] = useState<number | null>(null);
@@ -30,6 +31,7 @@ export function useTeamBuilder({
   const dragOverItemRef = useRef<number | null>(null);
 
   const handleStartAddTeam = () => {
+    setEditingTeamId(null);
     setIsAddingTeam(true);
     let initialSlots: Slot[] = [];
     
@@ -115,6 +117,8 @@ export function useTeamBuilder({
   return {
     isAddingTeam,
     setIsAddingTeam,
+    editingTeamId,
+    setEditingTeamId,
     newTeamName,
     setNewTeamName,
     currentSlots,

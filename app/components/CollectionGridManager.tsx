@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { LocalizedString, getTranslatedField, useLocalizationParams } from "@/lib/localization";
 import { toggleCollectionEntityAction, updateEntityDupesAction, removeUserEntityAction, updateUserEntityStatsAction } from "@/lib/actions/collection";
 import { X } from "lucide-react";
+import { toast } from "sonner";
 import { useEntityFiltering } from "@/lib/hooks/useEntityFiltering";
 import { FilterBar } from "./FilterBar";
 import { EntityCard } from "./EntityCard";
@@ -12,7 +13,7 @@ import { SectionAscension } from "@/lib/supabase/queries";
 
 type Option = { id: string; value_key: LocalizedString; iconUrl?: string; color?: string; };
 type FilterField = { id: string; key: LocalizedString; options: Option[]; };
-type Entity = { id: string; name: LocalizedString; publicIconUrl: string; fieldValuesMap: Record<string, { color?: string; iconUrl?: string }>; allValues: Record<string, string[]>; availableLevels?: { level: number; phase_index: number; }[]; };
+type Entity = { id: string; name: LocalizedString; displayName?: string; publicIconUrl: string; fieldValuesMap: Record<string, { color?: string; iconUrl?: string }>; allValues: Record<string, string[]>; availableLevels?: { level: number; phase_index: number; }[]; };
 type OwnedEntity = { id: string; entity_id: string; dupes: number; level: number; phase_index: number; };
 type Section = { id: string; is_unique: boolean; max_dupes: number; min_dupes: number; dupe_name: LocalizedString; is_collectible: boolean; has_stats: boolean; has_ascension: boolean; max_level: number; };
 type DisplaySettings = { max_columns?: number; bg_color_field_id?: string | null; top_left_icon_field_id?: string | null; top_right_icon_field_id?: string | null; overlay_icon_field_id?: string | null; };
@@ -117,6 +118,7 @@ interface ItemProps {
   onUpdateDupes: (id: string, n: number) => void; 
   onUpdateStats: (id: string, lvl: number, p: number) => void;
   onRemoveInstance: (id: string) => void;
+  priority?: boolean;
 }
 
 /**
@@ -156,7 +158,7 @@ function InstanceManager({ instances, section, ascensions, entityLevels, dupeLab
  * Renders a single entity item in the collection grid.
  */
 function CollectionEntityItem({
-  entity, ownedMap, pendingId, activeManageId, displaySettings, activeLang, gameDefaultLang, isPending, section, ascensions, dupeLabel, t, onToggle, onUpdateDupes, onUpdateStats, onRemoveInstance
+  entity, ownedMap, pendingId, activeManageId, displaySettings, activeLang, gameDefaultLang, isPending, section, ascensions, dupeLabel, t, onToggle, onUpdateDupes, onUpdateStats, onRemoveInstance, priority = false
 }: ItemProps) {
   const instances = useMemo(() => (ownedMap[entity.id as keyof typeof ownedMap] as OwnedEntity[]) || [], [ownedMap, entity.id]);
   const isOwned = instances.length > 0;
@@ -178,7 +180,18 @@ function CollectionEntityItem({
 
   return (
     <div className="relative group">
-      <EntityCard entity={entity} displaySettings={displaySettings} currentLang={activeLang} gameDefaultLang={gameDefaultLang} isOwned={isOwned} isToggling={isToggling} isDisabled={isPending && !isToggling} onToggle={onToggle} badgeContent={badgeContent} />
+      <EntityCard 
+        entity={entity} 
+        displaySettings={displaySettings} 
+        currentLang={activeLang} 
+        gameDefaultLang={gameDefaultLang} 
+        isOwned={isOwned} 
+        isToggling={isToggling} 
+        isDisabled={isPending && !isToggling} 
+        onToggle={onToggle} 
+        badgeContent={badgeContent}
+        priority={priority}
+      />
       
       {isManaging && section.is_unique && instances[0] && (
         <div className="absolute inset-x-0 bottom-0 bg-black/95 backdrop-blur-3xl p-4 translate-y-full transition-transform duration-300 z-50 border-t border-white/5 rounded-b-3xl min-w-[200px]">
@@ -231,7 +244,37 @@ export default function CollectionGridManager({
     setOwnedEntities(initialOwnedEntities);
   }, [initialOwnedEntities]);
 
-  const { activeFilters, toggleFilter, filteredEntities } = useEntityFiltering(entities, activeLang, gameDefaultLang);
+  const { activeFilters, toggleFilter: baseToggleFilter, filteredEntities, searchTerm, setSearchTerm: baseSetSearchTerm, isStale } = useEntityFiltering(entities, activeLang, gameDefaultLang);
+
+  // Progressive rendering: starts with a very small batch to minimize initial TBT
+  const [visibleLimit, setVisibleLimit] = useState(20);
+  
+  useEffect(() => {
+    if (visibleLimit < filteredEntities.length) {
+      const timeout = setTimeout(() => {
+        setVisibleLimit(prev => Math.min(prev + 50, filteredEntities.length));
+      }, 100);
+      return () => clearTimeout(timeout);
+    }
+  }, [visibleLimit, filteredEntities.length]);
+
+  const handleToggleFilter = (fieldId: string, value: string) => {
+    setVisibleLimit(20);
+    baseToggleFilter(fieldId, value);
+  };
+
+  const handleSearchChange = (term: string) => {
+    setVisibleLimit(20);
+    baseSetSearchTerm(term);
+  };
+
+  // Pre-process for cards
+  const processedCards = useMemo(() => {
+    return filteredEntities.slice(0, visibleLimit).map(e => ({
+      ...e,
+      displayName: getTranslatedField(e.name, activeLang, gameDefaultLang)
+    }));
+  }, [filteredEntities, visibleLimit, activeLang, gameDefaultLang]);
 
   const ownedMap = useMemo(() => {
     const map: Record<string, OwnedEntity[]> = {};
@@ -245,9 +288,9 @@ export default function CollectionGridManager({
   const onToggleComplete = useCallback(async (entityId: string, tempId: string) => {
     const res = await toggleCollectionEntityAction(entityId, false);
     if (res.success) {
-      router.refresh(); 
+      router.refresh();
     } else {
-      alert(res.error);
+      toast.error(res.error);
       setOwnedEntities(prev => prev.filter(oe => oe.id !== tempId));
     }
     setPendingId(null);
@@ -282,7 +325,7 @@ export default function CollectionGridManager({
 
   const onUpdateDupesComplete = useCallback(async (instanceId: string, newDupes: number) => {
     const res = await updateEntityDupesAction(instanceId, newDupes);
-    if (!res.success) alert(res.error);
+    if (!res.success) toast.error(res.error);
   }, []);
 
   const updateDupes = useCallback((instanceId: string, newDupes: number) => {
@@ -295,7 +338,7 @@ export default function CollectionGridManager({
 
   const onUpdateStatsComplete = useCallback(async (instanceId: string, level: number, phase_index: number) => {
     const res = await updateUserEntityStatsAction(instanceId, level, phase_index);
-    if (!res.success) alert(res.error);
+    if (!res.success) toast.error(res.error);
   }, []);
 
   const updateStats = useCallback((instanceId: string, level: number, phase_index: number) => {
@@ -308,7 +351,7 @@ export default function CollectionGridManager({
   const onRemoveComplete = useCallback(async (instanceId: string) => {
     const res = await removeUserEntityAction(instanceId);
     if (!res.success) {
-      alert(res.error);
+      toast.error(res.error);
       router.refresh();
     } else {
       // Clear manage ID if last instance removed
@@ -326,12 +369,14 @@ export default function CollectionGridManager({
   const dupeLabel = getTranslatedField(section.dupe_name, activeLang, gameDefaultLang);
   const maxCols = displaySettings?.max_columns ?? 6;
 
+  const isReallyStale = isStale || (visibleLimit < filteredEntities.length && visibleLimit === 20);
+
   return (
-    <div className="space-y-12">
-      <FilterBar filterFields={filterFields} activeFilters={activeFilters} onToggleFilter={toggleFilter} currentLang={activeLang} gameDefaultLang={gameDefaultLang} />
+    <div className={`space-y-12 transition-opacity duration-300 ${isReallyStale ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+      <FilterBar filterFields={filterFields} activeFilters={activeFilters} onToggleFilter={handleToggleFilter} currentLang={activeLang} gameDefaultLang={gameDefaultLang} searchTerm={searchTerm} onSearchChange={handleSearchChange} />
       <div className="grid gap-x-6 gap-y-10 justify-center lg:justify-start" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(160px, 1fr))`, maxWidth: `${maxCols * 160 + (maxCols - 1) * 24}px` }}>
-        {filteredEntities.map(e => (
-          <CollectionEntityItem key={e.id} entity={e} ownedMap={ownedMap} pendingId={pendingId} activeManageId={activeManageId} displaySettings={displaySettings} activeLang={activeLang} gameDefaultLang={gameDefaultLang} isPending={isPending} section={section} ascensions={ascensions} dupeLabel={dupeLabel} t={t} onToggle={handleToggle} onUpdateDupes={updateDupes} onUpdateStats={updateStats} onRemoveInstance={removeInstance} />
+        {processedCards.map((e, idx) => (
+          <CollectionEntityItem key={e.id} entity={e} ownedMap={ownedMap} pendingId={pendingId} activeManageId={activeManageId} displaySettings={displaySettings} activeLang={activeLang} gameDefaultLang={gameDefaultLang} isPending={isPending} section={section} ascensions={ascensions} dupeLabel={dupeLabel} t={t} onToggle={handleToggle} onUpdateDupes={updateDupes} onUpdateStats={updateStats} onRemoveInstance={removeInstance} priority={idx < 12} />
         ))}
       </div>
     </div>

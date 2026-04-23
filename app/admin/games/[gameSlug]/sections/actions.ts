@@ -7,10 +7,16 @@ import { LocalizedString } from "@/lib/localization";
 import { slugify } from "@/lib/utils/slugify";
 import { uploadImage, extractPathFromUrl } from "@/lib/supabase/storage-utils";
 import { SupabaseClient } from "@supabase/supabase-js";
+import { sanitizeDbError } from "@/lib/utils/errors";
 
-/**
- * Handles icon path resolution for a section.
- */
+async function isAdmin() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  return profile?.role === 'admin';
+}
+
 async function resolveSectionIcon(
   supabase: SupabaseClient,
   sectionId: string | undefined,
@@ -27,19 +33,19 @@ async function resolveSectionIcon(
   }
 
   if (iconFile instanceof File && iconFile.size > 0) {
-     
     const sectionSlug = slugify(rawKey[defaultLang as keyof LocalizedString] || "");
     const newPath = await uploadImage(iconFile, "games", `${gameSlug}/sections/${sectionSlug}`);
     if (oldIconPath && oldIconPath !== newPath) await supabase.storage.from("games").remove([oldIconPath]);
     return newPath;
   }
-  
+
   if (existingIconPath && existingIconPath !== "null") return existingIconPath;
   if (oldIconPath) await supabase.storage.from("games").remove([oldIconPath]);
   return null;
 }
 
 export async function upsertSectionAction(gameId: string, gameSlug: string, gameDefaultLang: string, formData: FormData) {
+  if (!(await isAdmin())) return { error: "Unauthorized" };
   const supabase = await createClient();
   const sectionId = formData.get("id") as string | undefined;
   const rawKey = JSON.parse(formData.get("key") as string) as LocalizedString;
@@ -69,14 +75,15 @@ export async function upsertSectionAction(gameId: string, gameSlug: string, game
 
   const query = sectionId ? supabase.from("game_sections").update(sectionData).eq("id", sectionId) : supabase.from("game_sections").insert(sectionData);
   const { error } = await query;
-  if (error) return { error: `Failed to save section: ${error.message}` };
+  if (error) return { error: sanitizeDbError(error, "upsertSection") };
 
   updateTag(`section-${sectionId}`);
   revalidatePath(`/admin/games/${gameSlug}/sections`);
   redirect(`/admin/games/${gameSlug}/sections`);
-  }
+}
 
-  export async function upsertSectionStatAction(sectionId: string, formData: FormData) {
+export async function upsertSectionStatAction(sectionId: string, formData: FormData) {
+  if (!(await isAdmin())) return { error: "Unauthorized" };
   const supabase = await createClient();
   const id = formData.get("id") as string | undefined;
   const key = formData.get("key") as string;
@@ -85,25 +92,26 @@ export async function upsertSectionAction(gameId: string, gameSlug: string, game
   const is_scalable = formData.get("is_scalable") === "true";
 
   const statData = { section_id: sectionId, key, name, order_index, is_scalable };
-
   const query = id ? supabase.from("section_stats").update(statData).eq("id", id) : supabase.from("section_stats").insert(statData);
   const { error } = await query;
-  if (error) return { error: `Failed to save stat: ${error.message}` };
+  if (error) return { error: sanitizeDbError(error, "upsertSectionStat") };
 
   updateTag(`section-stats-${sectionId}`);
   return { success: true };
-  }
+}
 
-  export async function deleteSectionStatAction(sectionId: string, statId: string) {
+export async function deleteSectionStatAction(sectionId: string, statId: string) {
+  if (!(await isAdmin())) return { error: "Unauthorized" };
   const supabase = await createClient();
   const { error } = await supabase.from("section_stats").delete().eq("id", statId);
-  if (error) return { error: `Failed to delete stat: ${error.message}` };
+  if (error) return { error: sanitizeDbError(error, "deleteSectionStat") };
 
   updateTag(`section-stats-${sectionId}`);
   return { success: true };
-  }
+}
 
-  export async function upsertSectionAscensionAction(sectionId: string, formData: FormData) {
+export async function upsertSectionAscensionAction(sectionId: string, formData: FormData) {
+  if (!(await isAdmin())) return { error: "Unauthorized" };
   const supabase = await createClient();
   const id = formData.get("id") as string | undefined;
   const phase_index = Number(formData.get("phase_index"));
@@ -111,25 +119,26 @@ export async function upsertSectionAction(gameId: string, gameSlug: string, game
   const max_level = Number(formData.get("max_level"));
 
   const ascensionData = { section_id: sectionId, phase_index, min_level, max_level };
-
   const query = id ? supabase.from("section_ascensions").update(ascensionData).eq("id", id) : supabase.from("section_ascensions").insert(ascensionData);
   const { error } = await query;
-  if (error) return { error: `Failed to save ascension phase: ${error.message}` };
+  if (error) return { error: sanitizeDbError(error, "upsertAscension") };
 
   updateTag(`section-ascensions-${sectionId}`);
   return { success: true };
-  }
+}
 
-  export async function deleteSectionAscensionAction(sectionId: string, ascensionId: string) {
+export async function deleteSectionAscensionAction(sectionId: string, ascensionId: string) {
+  if (!(await isAdmin())) return { error: "Unauthorized" };
   const supabase = await createClient();
   const { error } = await supabase.from("section_ascensions").delete().eq("id", ascensionId);
-  if (error) return { error: `Failed to delete ascension phase: ${error.message}` };
+  if (error) return { error: sanitizeDbError(error, "deleteAscension") };
 
   updateTag(`section-ascensions-${sectionId}`);
   return { success: true };
-  }
+}
 
-  export async function upsertAbilityTemplateAction(sectionId: string, formData: FormData) {
+export async function upsertAbilityTemplateAction(sectionId: string, formData: FormData) {
+  if (!(await isAdmin())) return { error: "Unauthorized" };
   const supabase = await createClient();
   const id = formData.get("id") as string | undefined;
   const name = JSON.parse(formData.get("name") as string) as LocalizedString;
@@ -138,24 +147,25 @@ export async function upsertSectionAction(gameId: string, gameSlug: string, game
 
   const data = { section_id: sectionId, name, is_default, order_index };
   const query = id ? supabase.from("section_ability_templates").update(data).eq("id", id) : supabase.from("section_ability_templates").insert(data);
-  
   const { error } = await query;
-  if (error) return { error: error.message };
+  if (error) return { error: sanitizeDbError(error, "upsertAbilityTemplate") };
 
   updateTag(`section-ability-templates-${sectionId}`);
   return { success: true };
 }
 
 export async function deleteAbilityTemplateAction(sectionId: string, templateId: string) {
+  if (!(await isAdmin())) return { error: "Unauthorized" };
   const supabase = await createClient();
   const { error } = await supabase.from("section_ability_templates").delete().eq("id", templateId);
-  if (error) return { error: error.message };
+  if (error) return { error: sanitizeDbError(error, "deleteAbilityTemplate") };
 
   updateTag(`section-ability-templates-${sectionId}`);
   return { success: true };
 }
 
 export async function upsertAbilityDefinitionAction(sectionId: string, templateId: string, formData: FormData) {
+  if (!(await isAdmin())) return { error: "Unauthorized" };
   const supabase = await createClient();
   const id = formData.get("id") as string | undefined;
   const name = JSON.parse(formData.get("name") as string) as LocalizedString;
@@ -164,25 +174,25 @@ export async function upsertAbilityDefinitionAction(sectionId: string, templateI
 
   const data = { template_id: templateId, name, order_index, max_level };
   const query = id ? supabase.from("section_ability_definitions").update(data).eq("id", id) : supabase.from("section_ability_definitions").insert(data);
-  
   const { error } = await query;
-  if (error) return { error: error.message };
+  if (error) return { error: sanitizeDbError(error, "upsertAbilityDefinition") };
 
   updateTag(`section-ability-templates-${sectionId}`);
   return { success: true };
 }
 
 export async function deleteAbilityDefinitionAction(sectionId: string, definitionId: string) {
+  if (!(await isAdmin())) return { error: "Unauthorized" };
   const supabase = await createClient();
   const { error } = await supabase.from("section_ability_definitions").delete().eq("id", definitionId);
-  if (error) return { error: error.message };
+  if (error) return { error: sanitizeDbError(error, "deleteAbilityDefinition") };
 
   updateTag(`section-ability-templates-${sectionId}`);
   return { success: true };
 }
 
 export async function deleteSectionAction(sectionId: string, gameSlug: string) {
-
+  if (!(await isAdmin())) throw new Error("Unauthorized");
   const supabase = await createClient();
   const [{ data: section }, { data: entities }] = await Promise.all([
     supabase.from("game_sections").select("icon_path").eq("id", sectionId).single(),
@@ -190,12 +200,12 @@ export async function deleteSectionAction(sectionId: string, gameSlug: string) {
   ]);
 
   const { data: images } = await supabase.from("entity_images").select("image_path").in("entity_id", entities?.map(e => e.id) || []);
-  const paths = [section?.icon_path, ...(images?.map(img => img.image_path) || [])].map(p => extractPathFromUrl(p, "games")).filter((p): p is string => !!p);
+  const paths = [section?.icon_path, ...(images?.map(img => img.image_path) || [])].map(p => extractPathFromUrl(p ?? '', "games")).filter((p): p is string => !!p);
 
   if (paths.length) await supabase.storage.from("games").remove(paths);
 
   const { error } = await supabase.from("game_sections").delete().eq("id", sectionId);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error("Failed to delete section. Please try again.");
 
   updateTag(`section-${sectionId}`);
   revalidatePath(`/admin/games/${gameSlug}/sections`);

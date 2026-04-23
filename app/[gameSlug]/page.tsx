@@ -45,13 +45,21 @@ export async function generateMetadata({ params: paramsPromise }: PageProps) {
   const currentLang = game.default_lang || 'en';
   const title = getTranslatedField(game.name, currentLang, game.default_lang || 'en');
   const description = getTranslatedField(game.description, currentLang, game.default_lang || 'en');
+  const coverImageUrl = game.cover_url ? getPublicUrl('games', game.cover_url) : undefined;
 
   return {
-    title: `${title} - GachaStats`,
-    description: description,
+    title,
+    description,
     openGraph: {
-      title: `${title} - GachaStats`,
-      description: description,
+      title,
+      description,
+      ...(coverImageUrl ? { images: [{ url: coverImageUrl, width: 800, height: 600, alt: title }] } : {}),
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      ...(coverImageUrl ? { images: [coverImageUrl] } : {}),
     },
   };
 }

@@ -1,6 +1,8 @@
 "use client";
 
+import React, { memo } from "react";
 import Image from "next/image";
+import { Search } from "lucide-react";
 import { LocalizedString, getTranslatedField } from "@/lib/localization";
 
 type Option = {
@@ -22,26 +24,44 @@ interface FilterBarProps {
   onToggleFilter: (fieldId: string, value: string) => void;
   currentLang: string;
   gameDefaultLang: string;
+  searchTerm?: string;
+  onSearchChange?: (value: string) => void;
 }
 
-export function FilterBar({
+export const FilterBar = memo(function FilterBar({
   filterFields,
   activeFilters,
   onToggleFilter,
   currentLang,
   gameDefaultLang,
+  searchTerm,
+  onSearchChange,
 }: FilterBarProps) {
-  if (filterFields.length === 0) return null;
+  const hasFilters = filterFields.length > 0;
+  const hasSearch = onSearchChange !== undefined;
+
+  if (!hasFilters && !hasSearch) return null;
 
   return (
-    <div className="space-y-6 bg-zinc-800/40 p-8 rounded-[2rem] border border-zinc-700/50">
+    <div className="space-y-6 bg-zinc-800/40 p-6 md:p-8 rounded-[2rem] border border-zinc-700/50">
+      {hasSearch && (
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Search..."
+            aria-label="Search entities"
+            className="w-full bg-zinc-900/60 border border-zinc-700 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-[#22c55e]/50 focus:ring-1 focus:ring-[#22c55e]/30 transition-all"
+          />
+        </div>
+      )}
       {filterFields.map((field) => (
         <div key={field.id} className="space-y-4">
-          <div className="flex justify-between items-center">
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">
-              {getTranslatedField(field.key, currentLang, gameDefaultLang)}
-            </span>
-          </div>
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">
+            {getTranslatedField(field.key, currentLang, gameDefaultLang)}
+          </span>
           <div className="flex flex-wrap gap-3">
             {field.options.map((opt) => {
               const isActive = activeFilters[field.id] === opt.id;
@@ -50,22 +70,24 @@ export function FilterBar({
                 <button
                   key={opt.id}
                   onClick={() => onToggleFilter(field.id, opt.id)}
+                  aria-pressed={isActive}
+                  title={displayValue}
                   className={`
                     relative flex items-center justify-center transition-all duration-300
                     ${opt.iconUrl ? "w-14 h-14 rounded-xl p-1.5" : "px-5 py-2.5 rounded-full text-xs font-bold uppercase tracking-widest"}
-                    ${isActive 
-                      ? "bg-[#22c55e] text-black shadow-[0_0_25px_rgba(34,197,94,0.4)] scale-105" 
+                    ${isActive
+                      ? "bg-[#22c55e] text-black shadow-[0_0_25px_rgba(34,197,94,0.4)] scale-105"
                       : "bg-zinc-700/30 hover:bg-zinc-600/50 text-zinc-300 border border-zinc-700 hover:border-zinc-500"}
                   `}
                 >
                   {opt.iconUrl ? (
                     <div className="relative w-full h-full">
-                      <Image 
-                        src={opt.iconUrl} 
-                        alt={displayValue} 
+                      <Image
+                        src={opt.iconUrl}
+                        alt={displayValue}
                         fill
                         sizes="56px"
-                        className={`object-contain ${isActive ? "brightness-0" : ""}`} 
+                        className={`object-contain ${isActive ? "brightness-0" : ""}`}
                       />
                     </div>
                   ) : (
@@ -79,4 +101,4 @@ export function FilterBar({
       ))}
     </div>
   );
-}
+});

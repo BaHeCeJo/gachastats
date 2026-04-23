@@ -35,7 +35,7 @@ export default async function Home() {
       </GameLocalizationProvider>
 
       <footer className="w-full text-center py-10 bg-white/30 dark:bg-black/30 backdrop-blur-sm border-t border-zinc-200 dark:border-zinc-800 z-10">
-        <p className="text-zinc-500 dark:text-zinc-500 text-sm font-medium tracking-widest uppercase">
+        <p className="text-zinc-600 dark:text-zinc-400 text-sm font-medium tracking-widest uppercase">
           &copy; {new Date().getFullYear()} {getTranslation('footerText', currentLang)}
         </p>
       </footer>
